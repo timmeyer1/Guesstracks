@@ -17,6 +17,11 @@ export const spotifyApi = {
     //partie utilisateur
     getUserProfile: () =>
         apiClient.get(`${SPOTIFY_BASE_URL}/me`),
+
     getUserLikedTracks: () =>
-        apiClient.get(`${SPOTIFY_BASE_URL}/me/tracks`),
+        apiClient.get(`${SPOTIFY_BASE_URL}/me/tracks`,{
+            params:{
+                limit:50,
+            }
+        }),
 };

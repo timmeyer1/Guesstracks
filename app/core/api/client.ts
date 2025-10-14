@@ -1,13 +1,16 @@
 import axios from 'axios';
-import { API_TIMEOUT } from '../constants';
+import {API_TIMEOUT, SPOTIFY_BASE_URL} from '../constants';
 import {useAuthStore} from "../../stores/auth.store";
 
+const AccessToken = useAuthStore.getState().token
+
 export const apiClient = axios.create({
-    baseURL: 'https://api.spotify.com/v1', // à adapter selon le module
+    baseURL: SPOTIFY_BASE_URL, // à adapter selon le module
     timeout: API_TIMEOUT || 10000,
     headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        Authorization: `Bearer ${AccessToken}`
     },
 });
 
@@ -15,6 +18,7 @@ apiClient.interceptors.request.use(
     async (config) => {
         try {
             const token = useAuthStore.getState().token;
+            console.log('---------------------------------------',token)
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }

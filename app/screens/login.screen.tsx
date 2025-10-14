@@ -7,7 +7,7 @@ import {spotifyService} from "../modules/spotify";
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
 
-    const {setLikedTracks} = TrackStore.getState()
+    const {setLikedTracks,setTotalTracks} = TrackStore.getState()
 
     const handleLogin = async () => {
         try{
@@ -17,6 +17,9 @@ export const LoginScreen = () => {
             // récupère les sons likés à la connexion
             const tracks = await spotifyService.getMyLikedTracks();
             setLikedTracks(tracks);
+            const totalTracks = await spotifyService.getTotalTracks();
+            setTotalTracks(totalTracks);
+            console.log(totalTracks);
             console.log(tracks);
         }catch (error) {
             throw error;

@@ -17,7 +17,7 @@ export const loginWithSpotify = async () => {
     const request = await AuthSession.loadAsync(
         {
             clientId: CLIENT_ID,
-            scopes: ['user-read-email', 'user-read-private'],
+            scopes: ['user-read-email', 'user-read-private', 'user-library-read','user-library-modify'],
             usePKCE: true,
             redirectUri: REDIRECT_URI,
         },
