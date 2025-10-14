@@ -24,20 +24,14 @@ export const spotifyService = {
 
     async getMyLikedTracks() {
         const { data } = await spotifyApi.getUserLikedTracks();
-
-        return data.items.map((item:any) => {
-            const track = item.track;
-            return {
-                id: track.id,
-                name: track.name,
-                artist: track.artists[0]?.name ?? 'Unknown',
-                album: track.album.name,
-                image: track.album.images[0]?.url,
-                explicit: track.explicit,
-                popularity: track.popularity,
-                uri: track.uri,
-            };
-        });
+        return data.items.map((item:any) => ({
+            id: item.track.id,
+            name: item.track.name,
+            artist: item.track.artists[0]?.name ?? 'Unknown',
+            album: item.track.album.name,
+            image: item.track.album.images[0]?.url,
+            provider: 'spotify',
+        }));
     },
 
 };
