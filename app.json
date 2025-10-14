@@ -2,6 +2,7 @@
   "expo": {
     "name": "guesstracks",
     "slug": "guesstracks",
+    "scheme": "guesstracks",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
