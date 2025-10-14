@@ -1,13 +1,26 @@
 import { View, Text, Pressable } from 'react-native';
-import { loginWithSpotify } from '../modules/spotify/spotify.service';
+import { loginWithSpotify } from '../modules/auth/spotify';
 import { useAuthStore } from '../stores/auth.store';
+import {TrackStore} from "../stores/tracks.store";
+import {spotifyService} from "../modules/spotify";
 
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
 
+    const {setLikedTracks} = TrackStore.getState()
+
     const handleLogin = async () => {
-        const data = await loginWithSpotify();
-        if (data?.access_token) setToken(data.access_token);
+        try{
+            const data = await loginWithSpotify();
+            if (data?.access_token) setToken(data.access_token);
+
+            const tracks = await spotifyService.getMyLikedTracksSimplified();
+            setLikedTracks(tracks);
+            console.log(tracks);
+        }catch (error) {
+            throw error;
+        }
+
     };
 
     return (
