@@ -13,6 +13,7 @@
     "expo": "~54.0.13",
     "expo-auth-session": "^7.0.8",
     "expo-crypto": "^15.0.7",
+    "expo-linear-gradient": "^15.0.7",
     "expo-status-bar": "~3.0.8",
     "expo-web-browser": "^15.0.8",
     "i18next": "^25.6.0",

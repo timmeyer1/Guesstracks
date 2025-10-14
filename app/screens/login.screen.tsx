@@ -1,8 +1,8 @@
 import { View, Text, Pressable } from 'react-native';
 import { loginWithSpotify } from '../modules/auth/spotify';
 import { useAuthStore } from '../stores/auth.store';
-import {TrackStore} from "../stores/tracks.store";
-import {spotifyService} from "../modules/spotify";
+import { TrackStore } from "../stores/tracks.store";
+import { spotifyService } from "../modules/spotify";
 
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
@@ -10,7 +10,7 @@ export const LoginScreen = () => {
     const {setLikedTracks,setTotalTracks} = TrackStore.getState()
 
     const handleLogin = async () => {
-        try{
+        try {
             const data = await loginWithSpotify();
             if (data?.access_token) setToken(data.access_token);
 
@@ -21,7 +21,7 @@ export const LoginScreen = () => {
             setTotalTracks(totalTracks);
             console.log(totalTracks);
             console.log(tracks);
-        }catch (error) {
+        } catch (error) {
             throw error;
         }
 
@@ -37,4 +37,4 @@ export const LoginScreen = () => {
             </Pressable>
         </View>
     );
-};
+}
