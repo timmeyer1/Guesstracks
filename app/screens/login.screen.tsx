@@ -14,7 +14,7 @@ export const LoginScreen = () => {
             const data = await loginWithSpotify();
             if (data?.access_token) setToken(data.access_token);
 
-            const tracks = await spotifyService.getMyLikedTracksSimplified();
+            const tracks = await spotifyService.getMyLikedTracks();
             setLikedTracks(tracks);
             console.log(tracks);
         }catch (error) {

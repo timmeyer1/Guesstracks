@@ -22,7 +22,7 @@ export const spotifyService = {
         }
     },
 
-    async getMyLikedTracksSimplified() {
+    async getMyLikedTracks() {
         const { data } = await spotifyApi.getUserLikedTracks();
 
         return data.items.map((item:any) => {
