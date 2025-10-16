@@ -5,8 +5,8 @@ type AuthStore = {
     isAuthenticated: boolean;
     setToken: (token: string | null) => void;
     logout: () => void;
-    user: { display_name: string; id: string; email: string,img:string[],account_type:string } | null;
-    setUser: (user: { display_name: string; id: string; email: string, img:string[],account_type:string }) => void;
+    user: { display_name: string; id: string; email: string,img:string,account_type:string } | null;
+    setUser: (user: { display_name: string; id: string; email: string, img:string,account_type:string }) => void;
 };
 
 export const useAuthStore = create<AuthStore>((set) => ({

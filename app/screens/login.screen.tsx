@@ -1,10 +1,11 @@
 import React from "react";
-import { View } from "react-native";
+import {Text, View, Image} from "react-native";
 import {getSpotifyUserProfile, loginWithSpotify} from "../modules/auth/spotify";
 import { useAuthStore } from "../stores/auth.store";
 import { TrackStore } from "../stores/tracks.store";
 import { spotifyService } from "../modules/spotify";
 import {CustomButton} from "../components/Button";
+
 
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
@@ -47,27 +48,44 @@ export const LoginScreen = () => {
     };
 
     return (
-        <View className="flex-1 bg-spotify-lightdark items-center justify-center w-full px-6">
-            <CustomButton
-                name="Spotify"
-                icon="spotify"
-                onPress={handleLogin}
-                className="bg-spotify-primary"
-            />
-            <CustomButton
-                name="Apple Music"
-                icon="apple"
-                onPress={() => console.log("Apple Music")}
-                className="bg-apple-primary"
-                available={false}
-            />
-            <CustomButton
-                name="Deezer"
-                icon="deezer"
-                onPress={() => console.log("Deezer")}
-                className="bg-deezer-primary"
-                available={false}
-            />
+        <View className="flex-1 bg-spotify-lightdark items-center justify-between w-full px-6 py-[20%]">
+
+
+            <View className={'flex flex-col justify-evenly items-center'}>
+                <View className={'flex flex-col items-center gap-4 py-[10%]'}>
+                    <Image source={require('../images/logo.png')} style={{ width: 150, height: 150 }} />
+                    <Text className={'text-3xl text-white'}>GuessTracks</Text>
+
+                    <Text className="text-white/20 text-center text-sm">
+                        Connecte toi avec ton service de musique préféré pour jouer avec tes amis !
+                    </Text>
+                </View>
+
+                <CustomButton
+                    name="Spotify"
+                    icon="spotify"
+                    onPress={handleLogin}
+                    className="bg-spotify-primary"
+                />
+                <CustomButton
+                    name="Apple Music"
+                    icon="apple"
+                    onPress={() => console.log("Apple Music")}
+                    className="bg-apple-primary"
+                    available={true}
+                />
+                <CustomButton
+                    name="Deezer"
+                    icon="deezer"
+                    onPress={() => console.log("Deezer")}
+                    className="bg-deezer-primary"
+                    available={true}
+                />
+            </View>
+
+            <Text className="text-white/20 text-center text-sm">
+                En te connectant, tu acceptes de partager tes titres likés pour jouer avec tes amis !
+            </Text>
         </View>
     );
 };

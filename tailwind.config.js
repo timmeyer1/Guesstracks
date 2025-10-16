@@ -7,6 +7,9 @@ module.exports = {
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
+      text:{
+        '5xl':'48px'
+      },
       colors:{
         spotify:{
           primary:'#1db954',
