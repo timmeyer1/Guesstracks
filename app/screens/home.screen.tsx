@@ -42,8 +42,11 @@ export const HomeScreen = () => {
                 {user?.img && (
                     <Image
                         style={{ width: 120, height: 120, borderRadius: 60 }}
-                        source={require('../images/fallback.png')}
-                    />
+                        source={
+                            user?.img
+                                ? { uri: user.img } 
+                                : require('../images/fallback.png') 
+                        } />
                 )}
 
                 <Text className="text-2xl text-white mt-6 mb-2">
