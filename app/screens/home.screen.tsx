@@ -19,7 +19,6 @@ export const HomeScreen = () => {
                 console.error('Erreur lors du chargement des tracks :', error);
             }
         };
-
         loadTracks();
     }, []);
 
@@ -35,9 +34,10 @@ export const HomeScreen = () => {
         );
     };
 
+    const user = useAuthStore((s) => s.user);
     return (
         <View className="flex-1 bg-spotify-lightdark items-center justify-center px-6">
-            <Text className="text-xl mb-4 text-white">Connecté</Text>
+            <Text className="text-xl mb-4 text-white">Bienvenue {user?.display_name} !</Text>
 
             <CustomButton
                 name="Déconnexion"

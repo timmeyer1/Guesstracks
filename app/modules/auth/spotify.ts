@@ -53,3 +53,16 @@ export const loginWithSpotify = async () => {
     return data;
 };
 
+export const getSpotifyUserProfile = async (accessToken: string) => {
+    const user = await fetch('https://api.spotify.com/v1/me', {
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+        },
+    });
+
+    if (!user.ok) {
+        throw new Error('Impossible de récupérer le profil Spotify');
+    }
+
+    return await user.json();
+};
