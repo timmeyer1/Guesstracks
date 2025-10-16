@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import {Animated, Pressable, Text, View} from "react-native";
+import { Animated, Pressable, Text, View } from "react-native";
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 
 type ButtonProps = {
@@ -10,13 +10,19 @@ type ButtonProps = {
     available?: boolean;
 };
 
-export const CustomButton = ({ name, onPress, className, icon, available = true }: ButtonProps) => {
+export const CustomButton = ({
+    name,
+    onPress,
+    className,
+    icon,
+    available = true
+}: ButtonProps) => {
     const scale = useRef(new Animated.Value(1)).current;
 
     const handlePressIn = () => {
         if (!available) return;
         Animated.spring(scale, {
-            toValue: 0.95,
+            toValue: 0.96,
             useNativeDriver: true,
             speed: 50,
         }).start();
@@ -31,25 +37,40 @@ export const CustomButton = ({ name, onPress, className, icon, available = true 
         }).start();
     };
 
-    const buttonClass = available
-        ? className
-        : "bg-gray-600";
-
     return (
-        <Animated.View style={{ transform: [{ scale }] }}>
+        <Animated.View style={{ transform: [{ scale }] }} className="w-full">
             <Pressable
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
                 onPress={available ? onPress : undefined}
                 disabled={!available}
-                className={`flex flex-col items-center`}
+                className={`
+                    rounded-full 
+                    py-4 px-6
+                    flex-row 
+                    items-center 
+                    justify-center 
+                    gap-3
+                    ${available ? className : 'bg-gray-700 opacity-50'}
+                `}
             >
-                <View className={`gap-2 rounded-full py-3 flex flex-row justify-center w-full mt-4 min-w-full ${buttonClass} ${className}`}>
-                    {icon && <FontAwesome6 name={icon} size={34} color="white" />}
-                    <Text className="text-white text-lg font-semibold">{name}</Text>
-                </View>
-                {!available && <Text className={'text-sm text-white'}>comming soon</Text>}
+                {icon && (
+                    <FontAwesome6
+                        name={icon}
+                        size={24}
+                        color="white"
+                    />
+                )}
+                <Text className="text-white text-lg font-semibold">
+                    {name}
+                </Text>
             </Pressable>
+
+            {!available && (
+                <Text className="text-xs text-gray-500 text-center mt-1">
+                    coming soon
+                </Text>
+            )}
         </Animated.View>
     );
 };

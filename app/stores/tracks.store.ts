@@ -1,4 +1,3 @@
-// app/stores/likedTrack.store.ts
 import { create } from 'zustand';
 import {TrackType} from "../core/types";
 
