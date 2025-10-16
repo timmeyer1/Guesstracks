@@ -18,11 +18,14 @@ export const LoginScreen = () => {
             setToken(data.access_token);
 
             const userProfile = await getSpotifyUserProfile(data.access_token);
+
+            const imageUrl = userProfile.images?.[0]?.url || null;
+
             useAuthStore.getState().setUser({
                 display_name: userProfile.display_name,
                 id: userProfile.id,
                 email: userProfile.email,
-                img: userProfile.images,
+                img: imageUrl,
                 account_type: userProfile.product,
             });
 
@@ -31,6 +34,8 @@ export const LoginScreen = () => {
 
             const totalTracks = await spotifyService.getTotalTracks();
             setTotalTracks(totalTracks);
+
+            console.log('✅ Connexion réussie');
         } catch (error) {
             console.error(error);
         }
@@ -38,6 +43,7 @@ export const LoginScreen = () => {
 
     return (
         <View className="flex-1 bg-[#1a1a1a] items-center justify-between px-8 py-12">
+
             <View className="flex-1 justify-center items-center w-full">
                 <View className="mb-8">
                     <Image
@@ -51,7 +57,7 @@ export const LoginScreen = () => {
                 </Text>
 
                 <Text className="text-lg text-gray-400 mb-12">
-                    Qui a liké la musique ?!
+                    Devine les musiques likées !
                 </Text>
 
                 <Text className="text-base text-gray-500 text-center px-6 mb-12">
@@ -84,7 +90,6 @@ export const LoginScreen = () => {
                 </View>
             </View>
 
-            {/* Texte légal en bas */}
             <Text className="text-sm text-gray-600 text-center px-8">
                 En te connectant, tu acceptes de partager tes titres likés pour jouer avec tes amis
             </Text>
