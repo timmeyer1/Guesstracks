@@ -11,6 +11,17 @@ export const colors = {
     },
     error: '#ff4444',
     success: '#00c853',
+    buttons:{
+        spotify:{
+            green:'#1db954',
+            black:'#121212',
+            lightBlack:'#212121',
+            lightGrey:'#b3b3b3',
+            gray:'#535353',
+        },
+        deezer:'',
+        appleMusic:'',
+    }
 };
 
 export const gradients = {
