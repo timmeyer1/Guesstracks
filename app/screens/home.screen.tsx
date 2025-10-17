@@ -6,7 +6,6 @@ import { spotifyService } from '../modules/spotify';
 import { CustomButton } from "../components/Button";
 import {createLobby} from "../modules/lobby/lobby.service";
 import { useNavigation } from '@react-navigation/native'
-import {useLobbyStore} from "../stores/lobby.store";
 
 export const HomeScreen = () => {
     const totalTracks = TrackStore((s) => s.totalTracks);
@@ -41,12 +40,11 @@ export const HomeScreen = () => {
 
     const handleCreateLobby = () => {
         createLobby();
-        navigation.navigate('Lobby');
+        navigation.navigate("Lobby")
     };
 
     return (
         <View className="flex-1 bg-[#1a1a1a] items-center justify-between px-8 py-12">
-
             <View className="flex-1 justify-center items-center w-full">
                 {user?.img && (
                     <Image

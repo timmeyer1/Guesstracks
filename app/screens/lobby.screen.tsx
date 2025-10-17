@@ -1,15 +1,12 @@
 import React from 'react'
-import {View, Text, Image, FlatList, Button, Alert} from 'react-native'
+import {View, Text, Image, FlatList, Alert} from 'react-native'
 import {useLobbyStore} from "../stores/lobby.store";
-import {useAuthStore} from "../stores/auth.store";
 import {useNavigation} from "@react-navigation/native";
 import {lobbyScreenStyle} from "./styles/lobby.style";
 import {CustomButton} from "../components/Button";
-import {createLobby} from "../modules/lobby/lobby.service";
 
 const LobbyScreen = () => {
     const { lobby, users, resetLobby } = useLobbyStore()
-    const { user } = useAuthStore()
     const navigation = useNavigation();
 
     const handleLeaveLobby = () => {
@@ -26,17 +23,13 @@ const LobbyScreen = () => {
                         style: "default",
                     },
                     {
-                      text: "Revenir au menu principal",
+                      text: "Quitter le lobby",
                       onPress: () => {
                           resetLobby()
                           navigation.navigate('Home')
 
                       },
                       style: "destructive"
-                    },
-                    {
-                        text: "Annuler",
-                        style: "cancel",
                     },
                 ]
             );
