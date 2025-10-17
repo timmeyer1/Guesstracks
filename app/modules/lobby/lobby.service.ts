@@ -1,7 +1,7 @@
 
 import { nanoid } from 'nanoid/non-secure'
 import {useAuthStore} from "../../stores/auth.store";
-import {useLobbyStore} from "../../stores/lobby.store"; // léger, parfait pour React Native
+import {useLobbyStore} from "../../stores/lobby.store";
 
 export const createLobby = () => {
     const { user, token } = useAuthStore.getState()
@@ -14,7 +14,7 @@ export const createLobby = () => {
 
     const newLobby = {
         token: nanoid(10),
-        name: `${user.display_name}'s Lobby`,
+        name: ` Lobby de ${user.display_name} `,
         nb_player: 1,
         max_player: 4,
     }
@@ -23,7 +23,7 @@ export const createLobby = () => {
     addUser({
         token,
         name: user.display_name,
-        img: user.img,
+        img: user.img || "",
         account_type: user.account_type,
     })
 

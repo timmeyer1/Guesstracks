@@ -52,7 +52,7 @@ export const LoginScreen = () => {
                     />
                 </View>
 
-                <Text className="text-5xl font-bold text-white mb-4">
+                <Text className="text-3xl font-bold text-white mb-4">
                     GuessTracks
                 </Text>
 

@@ -4,11 +4,15 @@ import { useAuthStore } from '../stores/auth.store';
 import { TrackStore } from '../stores/tracks.store';
 import { spotifyService } from '../modules/spotify';
 import { CustomButton } from "../components/Button";
+import {createLobby} from "../modules/lobby/lobby.service";
+import { useNavigation } from '@react-navigation/native'
+import {useLobbyStore} from "../stores/lobby.store";
 
 export const HomeScreen = () => {
     const totalTracks = TrackStore((s) => s.totalTracks);
     const logoutFn = useAuthStore((s) => s.logout);
     const user = useAuthStore((s) => s.user);
+    const navigation = useNavigation()
 
     useEffect(() => {
         const loadTracks = async () => {
@@ -33,6 +37,11 @@ export const HomeScreen = () => {
             ],
             { cancelable: true }
         );
+    };
+
+    const handleCreateLobby = () => {
+        createLobby();
+        navigation.navigate('Lobby');
     };
 
     return (
@@ -64,7 +73,7 @@ export const HomeScreen = () => {
                 <View className="w-full gap-4">
                     <CustomButton
                         name="Créer une partie"
-                        onPress={() => console.log('Créer')}
+                        onPress={handleCreateLobby}
                         icon="plus"
                         className="bg-primary-start"
                     />
