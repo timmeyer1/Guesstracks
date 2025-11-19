@@ -5,6 +5,7 @@ import { useAuthStore } from "../stores/auth.store";
 import { TrackStore } from "../stores/tracks.store";
 import { spotifyService } from "../modules/spotify";
 import { CustomButton } from "../components/Button";
+import { ScreenLayout } from "../components/ScreenLayout";
 
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
@@ -18,7 +19,6 @@ export const LoginScreen = () => {
             setToken(data.access_token);
 
             const userProfile = await getSpotifyUserProfile(data.access_token);
-
             const imageUrl = userProfile.images?.[0]?.url || null;
 
             useAuthStore.getState().setUser({
@@ -42,8 +42,7 @@ export const LoginScreen = () => {
     };
 
     return (
-        <View className="flex-1 bg-[#1a1a1a] items-center justify-between px-8 py-12">
-
+        <ScreenLayout>
             <View className="flex-1 justify-center items-center w-full">
                 <View className="mb-8">
                     <Image
@@ -93,6 +92,6 @@ export const LoginScreen = () => {
             <Text className="text-sm text-gray-600 text-center px-8">
                 En te connectant, tu acceptes de partager tes titres likés pour jouer avec tes amis
             </Text>
-        </View>
+        </ScreenLayout>
     );
 };

@@ -4,14 +4,15 @@ import { useAuthStore } from '../stores/auth.store';
 import { TrackStore } from '../stores/tracks.store';
 import { spotifyService } from '../modules/spotify';
 import { CustomButton } from "../components/Button";
-import {createLobby} from "../modules/lobby/lobby.service";
-import { useNavigation } from '@react-navigation/native'
+import { createLobby } from "../modules/lobby/lobby.service";
+import { useNavigation } from '@react-navigation/native';
+import { ScreenLayout } from '../components/ScreenLayout';
 
 export const HomeScreen = () => {
     const totalTracks = TrackStore((s) => s.totalTracks);
     const logoutFn = useAuthStore((s) => s.logout);
     const user = useAuthStore((s) => s.user);
-    const navigation = useNavigation()
+    const navigation = useNavigation();
 
     useEffect(() => {
         const loadTracks = async () => {
@@ -40,20 +41,21 @@ export const HomeScreen = () => {
 
     const handleCreateLobby = () => {
         createLobby();
-        navigation.navigate("Lobby")
+        navigation.navigate("Lobby");
     };
 
     return (
-        <View className="flex-1 bg-[#1a1a1a] items-center justify-between px-8 py-12">
+        <ScreenLayout>
             <View className="flex-1 justify-center items-center w-full">
                 {user?.img && (
                     <Image
                         style={{ width: 120, height: 120, borderRadius: 60 }}
                         source={
                             user?.img
-                                ? { uri: user.img } 
-                                : require('../images/fallback.png') 
-                        } />
+                                ? { uri: user.img }
+                                : require('../images/fallback.png')
+                        }
+                    />
                 )}
 
                 <Text className="text-2xl text-white mt-6 mb-2">
@@ -61,7 +63,7 @@ export const HomeScreen = () => {
                 </Text>
 
                 <Text className="text-lg text-spotify-primary mb-4">
-                    {user?.account_type}
+                    {user?.account_type && user?.account_type.charAt(0)?.toUpperCase() + user?.account_type.slice(1)}
                 </Text>
 
                 <Text className="text-base text-gray-400 mb-8">
@@ -93,6 +95,6 @@ export const HomeScreen = () => {
                     className="bg-red-500"
                 />
             </View>
-        </View>
+        </ScreenLayout>
     );
 };
