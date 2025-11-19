@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, Alert, Image } from 'react-native';
 import { useAuthStore } from '../stores/auth.store';
 import { TrackStore } from '../stores/tracks.store';
@@ -7,12 +7,15 @@ import { CustomButton } from "../components/Button";
 import { createLobby } from "../modules/lobby/lobby.service";
 import { useNavigation } from '@react-navigation/native';
 import { ScreenLayout } from '../components/ScreenLayout';
+import { JoinLobbyModal } from '../components/lobby/JoinLobbyModal';
 
 export const HomeScreen = () => {
     const totalTracks = TrackStore((s) => s.totalTracks);
     const logoutFn = useAuthStore((s) => s.logout);
     const user = useAuthStore((s) => s.user);
     const navigation = useNavigation();
+
+    const [isJoinModalVisible, setIsJoinModalVisible] = useState(false);
 
     useEffect(() => {
         const loadTracks = async () => {
@@ -42,6 +45,12 @@ export const HomeScreen = () => {
     const handleCreateLobby = () => {
         createLobby();
         navigation.navigate("Lobby");
+    };
+
+    const handleJoinLobby = (code: string) => {
+        console.log('Code entré:', code);
+        // TODO: Logique pour rejoindre le lobby avec le code
+        // navigation.navigate("Lobby");
     };
 
     return (
@@ -80,7 +89,7 @@ export const HomeScreen = () => {
 
                     <CustomButton
                         name="Rejoindre une partie"
-                        onPress={() => console.log('rejoindre')}
+                        onPress={() => setIsJoinModalVisible(true)}
                         icon="users"
                         className="bg-zinc-700"
                     />
@@ -95,6 +104,12 @@ export const HomeScreen = () => {
                     className="bg-red-500"
                 />
             </View>
+
+            <JoinLobbyModal
+                visible={isJoinModalVisible}
+                onClose={() => setIsJoinModalVisible(false)}
+                onConfirm={handleJoinLobby}
+            />
         </ScreenLayout>
     );
 };
