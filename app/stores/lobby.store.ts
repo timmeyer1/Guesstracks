@@ -9,6 +9,7 @@ type LobbyStoreType = {
     addUser: (user: LobbyUserType) => void
     removeUser: (userToken: string) => void
     setLobby: (lobby: LobbyType) => void
+    updateLobbySettings: (settings: Partial<Pick<LobbyType, 'rounds' | 'phaseSpeed'>>) => void
     resetLobby: () => void
 }
 
@@ -28,5 +29,8 @@ export const useLobbyStore = create<LobbyStoreType>((set) => ({
             } : null
         };
     }), setLobby: (lobby) => set({ lobby }),
+    updateLobbySettings: (settings) => set((state) => ({
+        lobby: state.lobby ? { ...state.lobby, ...settings } : null
+    })),
     resetLobby: () => set({ lobby: null, users: [] }),
 }))

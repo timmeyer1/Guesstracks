@@ -8,7 +8,7 @@ import { createLobby } from "../modules/lobby/lobby.service";
 import { useNavigation } from '@react-navigation/native';
 import { ScreenLayout } from '../components/ScreenLayout';
 import { JoinLobbyModal } from '../components/lobby/JoinLobbyModal';
-import { CreateLobbyModal } from '../components/lobby/CreateLobbyModal';
+import { LobbySettings, LobbySettingsModal } from '../components/lobby/LobbySettingsModal';
 
 export const HomeScreen = () => {
     const totalTracks = TrackStore((s) => s.totalTracks);
@@ -107,8 +107,9 @@ export const HomeScreen = () => {
                 />
             </View>
 
-            <CreateLobbyModal
+            <LobbySettingsModal
                 visible={isCreateModalVisible}
+                mode="create"
                 onClose={() => setIsCreateModalVisible(false)}
                 onConfirm={handleCreateLobby}
             />

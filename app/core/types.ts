@@ -13,7 +13,7 @@ export type LobbyType = {
     nb_player: number;
     max_player: number;
     rounds: number;
-    phaseSpeed: 'lente' | 'normale' | 'rapide';
+    phaseSpeed: 'lent' | 'normal' | 'rapide';
 }
 
 

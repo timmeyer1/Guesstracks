@@ -1,14 +1,22 @@
-import React from 'react';
-import { View, Text, Image, FlatList, Alert } from 'react-native';
-import { useLobbyStore } from "../stores/lobby.store";
-import { useNavigation } from "@react-navigation/native";
-import { CustomButton } from "../components/Button";
-import { ScreenLayout } from "../components/ScreenLayout";
-import { leaveLobby } from '../modules/lobby/lobby.service';
+import React, { useState } from 'react'
+import { View, Text, Image, FlatList, Alert } from 'react-native'
+import { useLobbyStore } from "../stores/lobby.store"
+import { useAuthStore } from "../stores/auth.store"
+import { useNavigation } from "@react-navigation/native"
+import { CustomButton } from "../components/Button"
+import { ScreenLayout } from "../components/ScreenLayout"
+import { leaveLobby } from '../modules/lobby/lobby.service'
+import { LobbySettingsModal } from '../components/lobby/LobbySettingsModal'
 
 const LobbyScreen = () => {
-    const { lobby, users } = useLobbyStore();
-    const navigation = useNavigation();
+    const { lobby, users, updateLobbySettings } = useLobbyStore()
+    const { token } = useAuthStore()
+    const navigation = useNavigation()
+
+    const [isEditModalVisible, setIsEditModalVisible] = useState(false)
+
+    // user = hôte ?
+    const isHost = users[0]?.token === token
 
     const handleLeaveLobby = () => {
         if (lobby) {
@@ -18,27 +26,28 @@ const LobbyScreen = () => {
                 [
                     {
                         text: "Rester dans le lobby",
-                        onPress: () => {
-                            navigation.navigate('Lobby');
-                        },
                         style: "default",
                     },
                     {
                         text: "Quitter le lobby",
                         onPress: () => {
-                            leaveLobby();
+                            leaveLobby()
                             navigation.reset({
                                 index: 0,
-                                routes: [{ name: 'Home' }], 
-                            });
+                                routes: [{ name: 'Home' }],
+                            })
                         },
                         style: "destructive"
                     }
                 ]
-            );
-            return;
+            )
         }
-    };
+    }
+
+    const handleUpdateSettings = (settings: { rounds: number; phaseSpeed: 'lent' | 'normal' | 'rapide' }) => {
+        updateLobbySettings(settings)
+        Alert.alert("Paramètres mis à jour !", `${settings.rounds} manches en mode ${settings.phaseSpeed}`)
+    }
 
     if (!lobby) {
         return (
@@ -50,7 +59,7 @@ const LobbyScreen = () => {
                     Crée un lobby depuis l'accueil pour commencer.
                 </Text>
             </ScreenLayout>
-        );
+        )
     }
 
     return (
@@ -58,23 +67,36 @@ const LobbyScreen = () => {
             <Text className="text-2xl text-white font-bold text-center mb-2">
                 {lobby.name}
             </Text>
-            <Text className="text-base text-gray-400 text-center mb-6">
+            <Text className="text-base text-gray-400 text-center mb-2">
                 {lobby.nb_player}/{lobby.max_player} joueurs
             </Text>
+
+            <View className="bg-zinc-800 rounded-lg p-3 mb-4">
+                <Text className="text-gray-400 text-sm text-center">
+                    🎮 {lobby.rounds} manches • ⚡ Vitesse {lobby.phaseSpeed}
+                </Text>
+            </View>
 
             <FlatList
                 data={users}
                 keyExtractor={(item) => item.token}
-                renderItem={({ item }) => (
+                renderItem={({ item, index }) => (
                     <View className="flex-row items-center bg-zinc-800 rounded-lg p-4 mb-3">
                         <Image
                             source={{ uri: item.img || 'https://i.pravatar.cc/100' }}
                             className="w-12 h-12 rounded-full mr-4"
                         />
-                        <View>
-                            <Text className="text-white text-base font-semibold">
-                                {item.name}
-                            </Text>
+                        <View className="flex-1">
+                            <View className="flex-row items-center">
+                                <Text className="text-white text-base font-semibold">
+                                    {item.name}
+                                </Text>
+                                {index === 0 && (
+                                    <Text className="ml-2 text-xs bg-primary-start px-2 py-1 rounded-full text-white">
+                                        Hôte
+                                    </Text>
+                                )}
+                            </View>
                             <Text className="text-gray-400 text-sm">
                                 {item.account_type}
                             </Text>
@@ -88,16 +110,35 @@ const LobbyScreen = () => {
                 }
             />
 
-            <View className="mt-6">
+            <View className="mt-6 gap-3">
+                {isHost && (
+                    <CustomButton
+                        name="Modifier les paramètres"
+                        onPress={() => setIsEditModalVisible(true)}
+                        icon="gear"
+                        className="bg-zinc-700"
+                    />
+                )}
+
                 <CustomButton
-                    name={'Quitter le lobby'}
+                    name="Quitter le lobby"
                     onPress={handleLeaveLobby}
                     icon="arrow-right-from-bracket"
                     className="bg-red-500"
                 />
             </View>
-        </ScreenLayout>
-    );
-};
 
-export default LobbyScreen;
+            {lobby && (
+                <LobbySettingsModal
+                    visible={isEditModalVisible}
+                    mode="edit"
+                    onClose={() => setIsEditModalVisible(false)}
+                    onConfirm={handleUpdateSettings}
+                    initialSettings={lobby}
+                />
+            )}
+        </ScreenLayout>
+    )
+}
+
+export default LobbyScreen
