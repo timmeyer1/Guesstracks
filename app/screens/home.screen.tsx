@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Alert, Image } from 'react-native';
+import { View, Text, Alert, Image, Settings } from 'react-native';
 import { useAuthStore } from '../stores/auth.store';
 import { TrackStore } from '../stores/tracks.store';
 import { spotifyService } from '../modules/spotify';
@@ -8,6 +8,7 @@ import { createLobby } from "../modules/lobby/lobby.service";
 import { useNavigation } from '@react-navigation/native';
 import { ScreenLayout } from '../components/ScreenLayout';
 import { JoinLobbyModal } from '../components/lobby/JoinLobbyModal';
+import { CreateLobbyModal } from '../components/lobby/CreateLobbyModal';
 
 export const HomeScreen = () => {
     const totalTracks = TrackStore((s) => s.totalTracks);
@@ -16,6 +17,7 @@ export const HomeScreen = () => {
     const navigation = useNavigation();
 
     const [isJoinModalVisible, setIsJoinModalVisible] = useState(false);
+    const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
 
     useEffect(() => {
         const loadTracks = async () => {
@@ -42,8 +44,8 @@ export const HomeScreen = () => {
         );
     };
 
-    const handleCreateLobby = () => {
-        createLobby();
+    const handleCreateLobby = (settings: LobbySettings) => {
+        createLobby(settings);
         navigation.navigate("Lobby");
     };
 
@@ -82,7 +84,7 @@ export const HomeScreen = () => {
                 <View className="w-full gap-4">
                     <CustomButton
                         name="Créer une partie"
-                        onPress={handleCreateLobby}
+                        onPress={() => setIsCreateModalVisible(true)}
                         icon="plus"
                         className="bg-primary-start"
                     />
@@ -104,6 +106,12 @@ export const HomeScreen = () => {
                     className="bg-red-500"
                 />
             </View>
+
+            <CreateLobbyModal
+                visible={isCreateModalVisible}
+                onClose={() => setIsCreateModalVisible(false)}
+                onConfirm={handleCreateLobby}
+            />
 
             <JoinLobbyModal
                 visible={isJoinModalVisible}

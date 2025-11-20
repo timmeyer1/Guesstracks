@@ -8,10 +8,12 @@ export type TrackType = {
 };
 
 export type LobbyType = {
-    token: string
-    name: string
-    nb_player: number
-    max_player: number
+    token: string;
+    name: string;
+    nb_player: number;
+    max_player: number;
+    rounds: number;
+    phaseSpeed: 'lente' | 'normale' | 'rapide';
 }
 
 

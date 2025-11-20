@@ -2,8 +2,9 @@ import { nanoid } from 'nanoid/non-secure'
 import {useAuthStore} from "../../stores/auth.store";
 import {useLobbyStore} from "../../stores/lobby.store";
 import {Alert} from "react-native";
+import { LobbySettings } from '../../components/lobby/CreateLobbyModal';
 
-export const createLobby = () => {
+export const createLobby = (settings: LobbySettings) => {
     const { user, token } = useAuthStore.getState()
     const { setLobby, addUser } = useLobbyStore.getState()
 
@@ -16,7 +17,9 @@ export const createLobby = () => {
         token: nanoid(10),
         name: ` Lobby de ${user.display_name} `,
         nb_player: 1,
-        max_player: 10,
+        max_player: 15,
+        rounds: settings.rounds,
+        phaseSpeed: settings.phaseSpeed,
     }
 
     setLobby(newLobby)
