@@ -29,3 +29,25 @@ export const createLobby = () => {
 
     console.log('Lobby créé:', newLobby)
 }
+
+export const leaveLobby = () => {
+    const { user, token } = useAuthStore.getState()
+    const { users, resetLobby, removeUser } = useLobbyStore.getState()
+
+    if (!user || !token) {
+        console.warn('Impossible de quitter : utilisateur non connecté.')
+        return false
+    }
+
+    // si le dernier joueur quitte, on supprime le lobby
+    if (users.length <= 1) {
+        resetLobby()
+        console.log('🗑️ Lobby supprimé (dernier joueur)')
+        return true
+    }
+
+    // sinon, on retire l'utilisateur
+    removeUser(token)
+    console.log('👋 Utilisateur retiré du lobby')
+    return false  // false = le lobby existe encore
+}

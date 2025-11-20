@@ -4,9 +4,10 @@ import { useLobbyStore } from "../stores/lobby.store";
 import { useNavigation } from "@react-navigation/native";
 import { CustomButton } from "../components/Button";
 import { ScreenLayout } from "../components/ScreenLayout";
+import { leaveLobby } from '../modules/lobby/lobby.service';
 
 const LobbyScreen = () => {
-    const { lobby, users, resetLobby } = useLobbyStore();
+    const { lobby, users } = useLobbyStore();
     const navigation = useNavigation();
 
     const handleLeaveLobby = () => {
@@ -25,11 +26,14 @@ const LobbyScreen = () => {
                     {
                         text: "Quitter le lobby",
                         onPress: () => {
-                            resetLobby();
-                            navigation.navigate('Home');
+                            leaveLobby();
+                            navigation.reset({
+                                index: 0,
+                                routes: [{ name: 'Home' }], 
+                            });
                         },
                         style: "destructive"
-                    },
+                    }
                 ]
             );
             return;

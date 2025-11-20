@@ -23,7 +23,13 @@ export const AuthNavigator = () => {
                 ) : (
                     <>
                         <Stack.Screen name="Home" component={HomeScreen} />
-                        <Stack.Screen name="Lobby" component={LobbyScreen} />
+                        <Stack.Screen
+                            name="Lobby"
+                            component={LobbyScreen}
+                            options={{
+                                gestureEnabled: false  // Désactive le swipe
+                            }}
+                        />
                     </>
                 )}
             </Stack.Navigator>

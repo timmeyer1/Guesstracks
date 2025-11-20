@@ -50,7 +50,7 @@ export const HomeScreen = () => {
     const handleJoinLobby = (code: string) => {
         console.log('Code entré:', code);
         // TODO: Logique pour rejoindre le lobby avec le code
-        // navigation.navigate("Lobby");
+        // navigation.navigate("");
     };
 
     return (
