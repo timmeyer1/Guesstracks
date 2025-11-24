@@ -7,14 +7,19 @@ export type TrackType = {
     provider: 'spotify' | 'deezer' | 'applemusic';
 };
 
+
+export type GameMode = 'guesstracks' | 'blindtest'
+export type PhaseSpeed = 'slow' | 'normal' | 'fast'
+
 export type LobbyType = {
     token: string;
     name: string;
     nb_player: number;
     max_player: number;
+    gameMode: GameMode;
     rounds: number;
-    phaseSpeed: 'lent' | 'normal' | 'rapide';
-}
+    phaseSpeed: PhaseSpeed;
+};
 
 
 export type LobbyUserType = {

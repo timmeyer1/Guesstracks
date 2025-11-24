@@ -7,6 +7,7 @@ import { CustomButton } from "../components/Button"
 import { ScreenLayout } from "../components/ScreenLayout"
 import { leaveLobby } from '../modules/lobby/lobby.service'
 import { LobbySettingsModal } from '../components/lobby/LobbySettingsModal'
+import { GAME_MODES, PHASE_SPEEDS, LOBBY_LIMITS, getLobbyInfoText } from '../core/constants/lobby.constants'
 
 const LobbyScreen = () => {
     const { lobby, users, updateLobbySettings } = useLobbyStore()
@@ -15,8 +16,11 @@ const LobbyScreen = () => {
 
     const [isEditModalVisible, setIsEditModalVisible] = useState(false)
 
-    // user = hôte ?
+    // le premier user est l'hôte
     const isHost = users[0]?.token === token
+
+    // vérifie le nmbre de joueur avant lancement
+    const canStartGame = users.length >= LOBBY_LIMITS.MIN_PLAYERS_TO_START
 
     const handleLeaveLobby = () => {
         if (lobby) {
@@ -24,12 +28,9 @@ const LobbyScreen = () => {
                 "Attention !",
                 `Es-tu sûr de vouloir quitter ce lobby ?`,
                 [
+                    { text: "Rester", style: "cancel" },
                     {
-                        text: "Rester dans le lobby",
-                        style: "default",
-                    },
-                    {
-                        text: "Quitter le lobby",
+                        text: "Quitter",
                         onPress: () => {
                             leaveLobby()
                             navigation.reset({
@@ -44,9 +45,21 @@ const LobbyScreen = () => {
         }
     }
 
-    const handleUpdateSettings = (settings: { rounds: number; phaseSpeed: 'lent' | 'normal' | 'rapide' }) => {
+    const handleUpdateSettings = (settings: { gameMode: 'guesstracks' | 'blindtest'; rounds: number; phaseSpeed: 'slow' | 'normal' | 'fast' }) => {
         updateLobbySettings(settings)
-        Alert.alert("Paramètres mis à jour !", `${settings.rounds} manches en mode ${settings.phaseSpeed}`)
+        Alert.alert(
+            "Paramètres mis à jour !",
+            getLobbyInfoText(settings.gameMode, settings.rounds, settings.phaseSpeed)
+        )
+    }
+
+    const handleStartGame = () => {
+        if (!canStartGame) {
+            Alert.alert("Impossible de lancer", "Il faut au moins 2 joueurs pour commencer")
+            return
+        }
+        // TODO: logique pour démarrer la partie
+        Alert.alert("C'est parti !", "La partie va commencer...")
     }
 
     if (!lobby) {
@@ -67,14 +80,23 @@ const LobbyScreen = () => {
             <Text className="text-2xl text-white font-bold text-center mb-2">
                 {lobby.name}
             </Text>
-            <Text className="text-base text-gray-400 text-center mb-2">
+
+            <Text className="text-base text-gray-400 text-center mb-4">
                 {lobby.nb_player}/{lobby.max_player} joueurs
             </Text>
 
-            <View className="bg-zinc-800 rounded-lg p-3 mb-4">
-                <Text className="text-gray-400 text-sm text-center">
-                    🎮 {lobby.rounds} manches • ⚡ Vitesse {lobby.phaseSpeed}
+            <View className="bg-zinc-800 rounded-lg p-4 mb-4">
+                <Text className="text-white font-semibold mb-2 text-center">
+                    {GAME_MODES[lobby.gameMode].icon} {GAME_MODES[lobby.gameMode].label}
                 </Text>
+                <View className="flex-row justify-center gap-4">
+                    <Text className="text-gray-400 text-sm">
+                        🎮 {lobby.rounds} manches
+                    </Text>
+                    <Text className="text-gray-400 text-sm">
+                        ⚡ {PHASE_SPEEDS[lobby.phaseSpeed].label} ({PHASE_SPEEDS[lobby.phaseSpeed].durationLabel})
+                    </Text>
+                </View>
             </View>
 
             <FlatList
@@ -111,6 +133,16 @@ const LobbyScreen = () => {
             />
 
             <View className="mt-6 gap-3">
+                {isHost && (
+                    <CustomButton
+                        name={canStartGame ? "Lancer la partie" : "En attente de joueurs..."}
+                        onPress={handleStartGame}
+                        icon="play"
+                        className={canStartGame ? "bg-green-600" : "bg-zinc-600"}
+                        disabled={canStartGame}
+                    />
+                )}
+
                 {isHost && (
                     <CustomButton
                         name="Modifier les paramètres"

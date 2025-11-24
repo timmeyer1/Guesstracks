@@ -1,25 +1,25 @@
 import { nanoid } from 'nanoid/non-secure'
-import {useAuthStore} from "../../stores/auth.store";
-import {useLobbyStore} from "../../stores/lobby.store";
-import {Alert} from "react-native";
-import { LobbySettings } from '../../components/lobby/CreateLobbyModal';
+import { useAuthStore } from "../../stores/auth.store"
+import { useLobbyStore } from "../../stores/lobby.store"
+import { DEFAULT_LOBBY_SETTINGS } from "../../core/constants/lobby.constants"
 
-export const createLobby = (settings: LobbySettings) => {
+export const createLobby = () => {
     const { user, token } = useAuthStore.getState()
     const { setLobby, addUser } = useLobbyStore.getState()
 
     if (!user || !token) {
-        console.warn('Impossible de créer un lobby : utilisateur non connecté.')
+        console.warn('❌ Utilisateur non connecté')
         return
     }
 
     const newLobby = {
         token: nanoid(10),
-        name: ` Lobby de ${user.display_name} `,
+        name: `Lobby de ${user.display_name}`,
         nb_player: 1,
-        max_player: 15,
-        rounds: settings.rounds,
-        phaseSpeed: settings.phaseSpeed,
+        max_player: DEFAULT_LOBBY_SETTINGS.maxPlayers,
+        gameMode: DEFAULT_LOBBY_SETTINGS.gameMode,
+        rounds: DEFAULT_LOBBY_SETTINGS.rounds,
+        phaseSpeed: DEFAULT_LOBBY_SETTINGS.phaseSpeed,
     }
 
     setLobby(newLobby)
@@ -30,7 +30,7 @@ export const createLobby = (settings: LobbySettings) => {
         account_type: user.account_type,
     })
 
-    console.log('Lobby créé:', newLobby)
+    console.log('✅ Lobby créé:', newLobby)
 }
 
 export const leaveLobby = () => {
@@ -38,19 +38,19 @@ export const leaveLobby = () => {
     const { users, resetLobby, removeUser } = useLobbyStore.getState()
 
     if (!user || !token) {
-        console.warn('Impossible de quitter : utilisateur non connecté.')
+        console.warn('❌ Utilisateur non connecté')
         return false
     }
 
-    // si le dernier joueur quitte, on supprime le lobby
+    // si c'est le dernier joueur → supprime le lobby
     if (users.length <= 1) {
         resetLobby()
-        console.log('🗑️ Lobby supprimé (dernier joueur)')
+        console.log('🗑️ Lobby supprimé')
         return true
     }
 
-    // sinon, on retire l'utilisateur
+    // sinon, retire juste le joueur
     removeUser(token)
-    console.log('👋 Utilisateur retiré du lobby')
-    return false  // false = le lobby existe encore
+    console.log('👋 Joueur retiré')
+    return false
 }

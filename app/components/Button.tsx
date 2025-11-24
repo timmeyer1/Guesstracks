@@ -8,6 +8,7 @@ type ButtonProps = {
     className?: string;
     icon?: string;
     available?: boolean;
+    disabled?: boolean;
 };
 
 export const CustomButton = ({

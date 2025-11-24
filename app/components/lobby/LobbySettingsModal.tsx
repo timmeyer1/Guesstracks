@@ -1,26 +1,22 @@
-import React, { useState, useEffect } from "react";
-import {
-    Modal,
-    View,
-    Text,
-    TouchableOpacity,
-    Pressable,
-    ScrollView,
-} from "react-native";
-import Slider from "@react-native-community/slider";
+import React, { useState, useEffect } from "react"
+import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView } from "react-native"
+import Slider from "@react-native-community/slider"
+import { GAME_MODES, PHASE_SPEEDS, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
+import { GameMode, PhaseSpeed } from "../../core/types"
 
 export type LobbySettings = {
-    rounds: number;
-    phaseSpeed: "lent" | "normal" | "rapide";
-};
+    gameMode: GameMode
+    rounds: number
+    phaseSpeed: PhaseSpeed
+}
 
 type LobbySettingsModalProps = {
-    visible: boolean;
-    mode: "create" | "edit";
-    onClose: () => void;
-    onConfirm: (settings: LobbySettings) => void;
-    initialSettings?: LobbySettings;
-};
+    visible: boolean
+    mode: "create" | "edit"
+    onClose: () => void
+    onConfirm: (settings: LobbySettings) => void
+    initialSettings?: LobbySettings
+}
 
 export const LobbySettingsModal = ({
     visible,
@@ -29,34 +25,43 @@ export const LobbySettingsModal = ({
     onConfirm,
     initialSettings,
 }: LobbySettingsModalProps) => {
-    const [rounds, setRounds] = useState(initialSettings?.rounds ?? 10);
-    const [phaseSpeed, setPhaseSpeed] = useState<"lent" | "normal" | "rapide">(
-        initialSettings?.phaseSpeed ?? "normal"
-    );
+    const [gameMode, setGameMode] = useState<GameMode>(
+        initialSettings?.gameMode ?? DEFAULT_LOBBY_SETTINGS.gameMode
+    )
+    const [rounds, setRounds] = useState(
+        initialSettings?.rounds ?? DEFAULT_LOBBY_SETTINGS.rounds
+    )
+    const [phaseSpeed, setPhaseSpeed] = useState<PhaseSpeed>(
+        initialSettings?.phaseSpeed ?? DEFAULT_LOBBY_SETTINGS.phaseSpeed
+    )
 
-    // Sync props when editing
+    // synchro avec les paramètres initiaux quand la modal s'ouvre
     useEffect(() => {
         if (visible && initialSettings) {
-            setRounds(initialSettings.rounds);
-            setPhaseSpeed(initialSettings.phaseSpeed);
+            setGameMode(initialSettings.gameMode)
+            setRounds(initialSettings.rounds)
+            setPhaseSpeed(initialSettings.phaseSpeed)
         }
-    }, [visible, initialSettings]);
+    }, [visible, initialSettings])
 
     const handleConfirm = () => {
-        onConfirm({ rounds, phaseSpeed });
-        onClose();
-    };
+        onConfirm({ gameMode, rounds, phaseSpeed })
+        onClose()
+    }
 
     const handleClose = () => {
+        // reset aux valeurs initiales ou par défaut
         if (initialSettings) {
-            setRounds(initialSettings.rounds);
-            setPhaseSpeed(initialSettings.phaseSpeed);
+            setGameMode(initialSettings.gameMode)
+            setRounds(initialSettings.rounds)
+            setPhaseSpeed(initialSettings.phaseSpeed)
         } else {
-            setRounds(10);
-            setPhaseSpeed("normal");
+            setGameMode(DEFAULT_LOBBY_SETTINGS.gameMode)
+            setRounds(DEFAULT_LOBBY_SETTINGS.rounds)
+            setPhaseSpeed(DEFAULT_LOBBY_SETTINGS.phaseSpeed)
         }
-        onClose();
-    };
+        onClose()
+    }
 
     return (
         <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
@@ -70,13 +75,29 @@ export const LobbySettingsModal = ({
                     </Text>
 
                     <Text className="text-gray-400 text-sm mb-6 text-center">
-                        {mode === "create"
-                            ? "Configure ta partie !"
-                            : "Modifie les règles de ta partie"}
+                        {mode === "create" ? "Configure ta partie !" : "Modifie les règles"}
                     </Text>
 
                     <ScrollView className="mb-6">
-                        {/* Nombre de manches */}
+                        <View className="mb-6">
+                            <Text className="text-white font-semibold mb-3 text-center">
+                                Mode de jeu
+                            </Text>
+                            <View className="flex-row gap-2">
+                                {(Object.keys(GAME_MODES) as GameMode[]).map((mode) => (
+                                    <TouchableOpacity
+                                        key={mode}
+                                        className={`flex-1 py-3 rounded-xl items-center ${gameMode === mode ? "bg-primary-start" : "bg-zinc-800"
+                                            }`}
+                                        onPress={() => setGameMode(mode)}
+                                    >
+                                        <Text className="text-2xl mb-1">{GAME_MODES[mode].icon}</Text>
+                                        <Text className="text-white font-bold">{GAME_MODES[mode].label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
                         <View className="mb-6">
                             <Text className="text-white font-semibold mb-3 text-center">
                                 Nombre de manches : {rounds}
@@ -84,8 +105,8 @@ export const LobbySettingsModal = ({
                             <View className="bg-zinc-800 rounded-full p-1">
                                 <Slider
                                     style={{ width: "100%", height: 40 }}
-                                    minimumValue={5}
-                                    maximumValue={20}
+                                    minimumValue={LOBBY_LIMITS.MIN_ROUNDS}
+                                    maximumValue={LOBBY_LIMITS.MAX_ROUNDS}
                                     step={1}
                                     value={rounds}
                                     onValueChange={setRounds}
@@ -95,32 +116,31 @@ export const LobbySettingsModal = ({
                                 />
                             </View>
                             <View className="flex-row justify-between mt-2">
-                                <Text className="text-gray-400 text-xs">5</Text>
-                                <Text className="text-gray-400 text-xs">20</Text>
+                                <Text className="text-gray-400 text-xs">{LOBBY_LIMITS.MIN_ROUNDS}</Text>
+                                <Text className="text-gray-400 text-xs">{LOBBY_LIMITS.MAX_ROUNDS}</Text>
                             </View>
                         </View>
 
-                        {/* Vitesse des phases */}
                         <View className="mb-4">
                             <Text className="text-white font-semibold mb-3 text-center">
                                 Vitesse des phases
                             </Text>
                             <View className="flex-row gap-2">
-                                {(["lent", "normal", "rapide"] as const).map((speed) => (
+                                {(Object.keys(PHASE_SPEEDS) as PhaseSpeed[]).map((speed) => (
                                     <TouchableOpacity
                                         key={speed}
                                         className={`flex-1 py-3 rounded-xl items-center ${phaseSpeed === speed ? "bg-primary-start" : "bg-zinc-800"
                                             }`}
                                         onPress={() => setPhaseSpeed(speed)}
                                     >
-                                        <Text className="text-white font-bold capitalize">{speed}</Text>
+                                        <Text className="text-white font-bold">{PHASE_SPEEDS[speed].label}</Text>
+                                        <Text className="text-gray-400 text-xs mt-1">{PHASE_SPEEDS[speed].durationLabel}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
                         </View>
                     </ScrollView>
 
-                    {/* Buttons */}
                     <View className="flex-row gap-2.5 w-full">
                         <TouchableOpacity
                             className="flex-1 py-3 rounded-xl items-center bg-zinc-800"
@@ -141,5 +161,5 @@ export const LobbySettingsModal = ({
                 </Pressable>
             </Pressable>
         </Modal>
-    );
-};
+    )
+}
