@@ -6,6 +6,7 @@ import { TrackStore } from "../stores/tracks.store";
 import { spotifyService } from "../modules/spotify";
 import { CustomButton } from "../components/Button";
 import { ScreenLayout } from "../components/ScreenLayout";
+import { SectionTitle } from "../components/SectionTitle";
 
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
@@ -44,54 +45,73 @@ export const LoginScreen = () => {
     return (
         <ScreenLayout>
             <View className="flex-1 justify-center items-center w-full">
-                <View className="mb-8">
-                    <Image
-                        source={require('../images/logo.png')}
-                        style={{ width: 120, height: 120 }}
-                    />
-                </View>
-
-                <Text className="text-3xl font-bold text-white mb-4">
-                    GuessTracks
-                </Text>
-
-                <Text className="text-lg text-gray-400 mb-12">
-                    Devine les musiques likées !
-                </Text>
-
-                <Text className="text-base text-gray-500 text-center px-6 mb-12">
-                    Connecte-toi avec ton service de musique préféré pour jouer avec tes amis.
-                </Text>
-
+                <Image
+                    source={require('../images/logo.png')}
+                    style={{ width: 150, height: 150 }}
+                />
                 <View className="w-full gap-4">
+
+                    <SectionTitle
+                        title="Guesstracks"
+                        subtitle="Connecte-toi avec ton service de musique préféré pour jouer avec tes amis."
+                        align="center"
+                        size="xl"
+                        className="py-4"
+                    />
+
                     <CustomButton
                         name="Spotify"
                         icon="spotify"
                         onPress={handleLogin}
-                        className="bg-spotify-primary"
-                    />
-
-                    <CustomButton
-                        name="Deezer"
-                        icon="deezer"
-                        onPress={() => console.log("Deezer")}
-                        className="bg-deezer-primary"
-                        available={false}
+                        variant="spotify"
                     />
 
                     <CustomButton
                         name="Apple Music"
                         icon="apple"
                         onPress={() => console.log("Apple Music")}
-                        className="bg-apple-primary"
-                        available={false}
+                        variant="apple_music"
+                        available={true}
                     />
+
+                    <CustomButton
+                        name="Deezer"
+                        icon="deezer"
+                        onPress={() => console.log("Deezer")}
+                        variant="deezer"
+                        available={true}
+                    />
+
+                    <CustomButton
+                        name="Youtube Music"
+                        icon="youtube"
+                        onPress={() => console.log("Youtube Music")}
+                        variant="youtube_music"
+                        available={true}
+                    />
+
+                    <SectionTitle
+                        title="ou"
+                        align="center"
+                        size="sm"
+                    />
+
+                    <CustomButton
+                        name="Se connecter en tant qu'invité"
+                        onPress={() => console.log("Youtube Music")}
+                        variant="dark"
+                        available={true}
+                    />
+
                 </View>
             </View>
 
-            <Text className="text-sm text-gray-600 text-center px-8">
-                En te connectant, tu acceptes de partager tes titres likés pour jouer avec tes amis
-            </Text>
+            <SectionTitle
+                subtitle="En te connectant, tu acceptes de partager tes titres likés pour jouer avec tes amis"
+                align="center"
+                size="xs"
+            />
+
         </ScreenLayout>
     );
 };

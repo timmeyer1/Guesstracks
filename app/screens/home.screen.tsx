@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Alert, Image } from 'react-native';
+import { View, Alert } from 'react-native';
 import { useAuthStore } from '../stores/auth.store';
 import { TrackStore } from '../stores/tracks.store';
 import { spotifyService } from '../modules/spotify';
-import { CustomButton } from "../components/Button";
 import { createLobby } from "../modules/lobby/lobby.service";
 import { useNavigation } from '@react-navigation/native';
-import { ScreenLayout } from '../components/ScreenLayout';
 import { JoinLobbyModal } from '../components/lobby/JoinLobbyModal';
+import { UserProfileCard } from '../components/UserProfileCard';
+import { SectionTitle } from '../components/SectionTitle';
+import { IconButton } from '../components/IconButton';
+import { ScreenLayout } from '../components/ScreenLayout';
+import { CustomButton } from '../components/Button';
 
 export const HomeScreen = () => {
     const totalTracks = TrackStore((s) => s.totalTracks);
@@ -20,11 +23,11 @@ export const HomeScreen = () => {
     useEffect(() => {
         const loadTracks = async () => {
             try {
-                const totalTracks = await spotifyService.getTotalTracks();
-                TrackStore.getState().setTotalTracks(totalTracks);
-                console.log(`✅ ${totalTracks} tracks récupérées`);
+                const total = await spotifyService.getTotalTracks();
+                TrackStore.getState().setTotalTracks(total);
+                console.log(`✅ ${total} tracks récupérées`);
             } catch (error) {
-                console.error('Erreur lors du chargement des tracks :', error);
+                console.error('Erreur chargement tracks :', error);
             }
         };
         loadTracks();
@@ -36,7 +39,7 @@ export const HomeScreen = () => {
             "Es-tu sûr de vouloir te déconnecter ?",
             [
                 { text: "Annuler", style: "cancel" },
-                { text: "Oui", onPress: () => logoutFn() },
+                { text: "Oui", onPress: logoutFn },
             ],
             { cancelable: true }
         );
@@ -49,66 +52,86 @@ export const HomeScreen = () => {
 
     const handleJoinLobby = (code: string) => {
         console.log('Code entré:', code);
-        // TODO: Logique pour rejoindre le lobby avec le code
+        // TODO: Logique pour rejoindre le lobby
+    };
+
+    const handleChooseMusic = () => {
+        console.log('Choisir mes musiques');
+        // TODO: Navigation vers écran de sélection de musique
+    };
+
+    const handleSettings = () => {
+        console.log('Paramètres');
+        // TODO: Navigation vers paramètres
     };
 
     return (
         <ScreenLayout>
             <View className="flex-1 justify-center items-center w-full">
-                {user?.img && (
-                    <Image
-                        style={{ width: 120, height: 120, borderRadius: 60 }}
-                        source={
-                            user?.img
-                                ? { uri: user.img }
-                                : require('../images/fallback.png')
-                        }
-                    />
-                )}
 
-                <Text className="text-2xl text-white mt-6 mb-2">
-                    Bienvenue {user?.display_name} !
-                </Text>
-
-                <Text className="text-lg text-spotify-primary mb-4">
-                    {user?.account_type && user?.account_type.charAt(0)?.toUpperCase() + user?.account_type.slice(1)}
-                </Text>
-
-                <Text className="text-base text-gray-400 mb-8">
-                    {totalTracks} titres likés
-                </Text>
-
-                <View className="w-full gap-4">
-                    <CustomButton
-                        name="Créer une partie"
-                        onPress={handleCreateLobby}  // ✅ Direct
-                        icon="plus"
-                        className="bg-primary-start"
+                {/* Contenu principal */}
+                <View className="flex-1 justify-between">
+                    {/* Profil utilisateur */}
+                    <UserProfileCard
+                        name={user?.display_name}
+                        img={user?.img}
+                        totalTracks={totalTracks}
                     />
 
-                    <CustomButton
-                        name="Rejoindre une partie"
-                        onPress={() => setIsJoinModalVisible(true)}
-                        icon="users"
-                        className="bg-zinc-700"
+                    {/* Section principale */}
+                    <View className="flex-1 gap-10">
+
+                        <View className="gap-3 w-full">
+                            <SectionTitle title="On lance quoi ?" align="left" size='lg' />
+                            <CustomButton
+                                name="Créer une partie"
+                                icon="plus"
+                                onPress={handleCreateLobby}
+                                variant="white"
+                            />
+                            <CustomButton
+                                name="Rejoindre une partie"
+                                icon="user-group"
+                                onPress={() => setIsJoinModalVisible(true)}
+                                variant="dark"
+                            />
+                        </View>
+
+                        <View className="gap-3 w-full">
+                            <SectionTitle title="Pas de musique ?" align="left" size='lg' subtitle="On s'en occupe !" />
+
+                            <CustomButton
+                                name="Choisir mes musiques"
+                                icon="magnifying-glass"
+                                onPress={() => setIsJoinModalVisible(true)}
+                                variant="white"
+                            />
+                        </View>
+                    </View>
+
+                </View>
+
+                {/* Barre de navigation du bas */}
+                <View className="flex-row gap-6">
+                    <IconButton
+                        icon="gear"
+                        onPress={handleSettings}
+                        variant="white"
+                    />
+                    <IconButton
+                        icon="arrow-right-from-bracket"
+                        onPress={confirmLogout}
+                        variant="white"
+                        color="#FF4E6B"
                     />
                 </View>
-            </View>
 
-            <View className="w-full">
-                <CustomButton
-                    name="Déconnexion"
-                    onPress={confirmLogout}
-                    icon="arrow-right-from-bracket"
-                    className="bg-red-500"
+                <JoinLobbyModal
+                    visible={isJoinModalVisible}
+                    onClose={() => setIsJoinModalVisible(false)}
+                    onConfirm={handleJoinLobby}
                 />
             </View>
-
-            <JoinLobbyModal
-                visible={isJoinModalVisible}
-                onClose={() => setIsJoinModalVisible(false)}
-                onConfirm={handleJoinLobby}
-            />
         </ScreenLayout>
     );
 };

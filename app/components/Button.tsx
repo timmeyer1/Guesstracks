@@ -1,6 +1,7 @@
 import React, { useRef } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { ButtonVariant, buttonVariants } from "../core/constants/variants.constants";
 
 type ButtonProps = {
     name: string;
@@ -9,6 +10,7 @@ type ButtonProps = {
     icon?: string;
     available?: boolean;
     disabled?: boolean;
+    variant?: ButtonVariant;
 };
 
 export const CustomButton = ({
@@ -16,7 +18,8 @@ export const CustomButton = ({
     onPress,
     className,
     icon,
-    available = true
+    available = true,
+    variant = 'white',
 }: ButtonProps) => {
     const scale = useRef(new Animated.Value(1)).current;
 
@@ -38,6 +41,8 @@ export const CustomButton = ({
         }).start();
     };
 
+    const { textClass, iconColor, bgClass } = buttonVariants[variant];
+
     return (
         <Animated.View style={{ transform: [{ scale }] }} className="w-full">
             <Pressable
@@ -46,32 +51,27 @@ export const CustomButton = ({
                 onPress={available ? onPress : undefined}
                 disabled={!available}
                 className={`
-                    rounded-full 
+                    rounded-2xl
                     py-4 px-6
                     flex-row 
                     items-center 
                     justify-center 
                     gap-3
-                    ${available ? className : 'bg-gray-700 opacity-50'}
+                    ${available ? bgClass : 'bg-darkgray opacity-25'}
+                    ${className}
                 `}
             >
                 {icon && (
                     <FontAwesome6
                         name={icon}
                         size={24}
-                        color="white"
+                        color={available ? iconColor : '#888888'}
                     />
                 )}
-                <Text className="text-white text-lg font-semibold">
+                <Text className={`text-sm font-semibold ${available ? textClass : 'text-gray-500'}`}>
                     {name}
                 </Text>
             </Pressable>
-
-            {!available && (
-                <Text className="text-xs text-gray-500 text-center mt-1">
-                    coming soon
-                </Text>
-            )}
         </Animated.View>
     );
 };
