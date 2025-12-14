@@ -72,6 +72,7 @@ export const HomeScreen = () => {
                 {/* Contenu principal */}
                 <View className="flex-1 justify-between">
                     {/* Profil utilisateur */}
+                    {/* TODO: Faire en sorte que si le pseudo est trop, il soit raccourci f*/}
                     <UserProfileCard
                         name={user?.display_name}
                         img={user?.img}
@@ -85,13 +86,13 @@ export const HomeScreen = () => {
                             <SectionTitle title="On lance quoi ?" align="left" size='lg' />
                             <CustomButton
                                 name="Créer une partie"
-                                icon="plus"
+                                icon="Plus"
                                 onPress={handleCreateLobby}
                                 variant="white"
                             />
                             <CustomButton
                                 name="Rejoindre une partie"
-                                icon="user-group"
+                                icon="Users"
                                 onPress={() => setIsJoinModalVisible(true)}
                                 variant="dark"
                             />
@@ -102,7 +103,7 @@ export const HomeScreen = () => {
 
                             <CustomButton
                                 name="Choisir mes musiques"
-                                icon="magnifying-glass"
+                                icon="Search"
                                 onPress={() => setIsJoinModalVisible(true)}
                                 variant="white"
                             />
@@ -114,12 +115,12 @@ export const HomeScreen = () => {
                 {/* Barre de navigation du bas */}
                 <View className="flex-row gap-6">
                     <IconButton
-                        icon="gear"
+                        icon="Settings"
                         onPress={handleSettings}
                         variant="white"
                     />
                     <IconButton
-                        icon="arrow-right-from-bracket"
+                        icon="LogOut"
                         onPress={confirmLogout}
                         variant="white"
                         color="#FF4E6B"

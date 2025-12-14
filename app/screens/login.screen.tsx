@@ -61,14 +61,14 @@ export const LoginScreen = () => {
 
                     <CustomButton
                         name="Spotify"
-                        icon="spotify"
+                        iconFA="spotify"
                         onPress={handleLogin}
                         variant="spotify"
                     />
 
                     <CustomButton
                         name="Apple Music"
-                        icon="apple"
+                        iconFA="apple"
                         onPress={() => console.log("Apple Music")}
                         variant="apple_music"
                         available={true}
@@ -76,7 +76,7 @@ export const LoginScreen = () => {
 
                     <CustomButton
                         name="Deezer"
-                        icon="deezer"
+                        iconFA="deezer"
                         onPress={() => console.log("Deezer")}
                         variant="deezer"
                         available={true}
@@ -84,7 +84,7 @@ export const LoginScreen = () => {
 
                     <CustomButton
                         name="Youtube Music"
-                        icon="youtube"
+                        iconFA="youtube"
                         onPress={() => console.log("Youtube Music")}
                         variant="youtube_music"
                         available={true}

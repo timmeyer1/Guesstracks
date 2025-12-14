@@ -5,6 +5,8 @@ type SectionTitleProps = {
     subtitle?: string;
     align?: 'left' | 'center' | 'right';
     size?: 'sm' | 'md' | 'lg' | 'xl' | 'xs';
+    titleSize?: 'sm' | 'md' | 'lg' | 'xl' | 'xs';
+    subtitleSize?: 'sm' | 'md' | 'lg' | 'xl' | 'xs';
     className?: string;
     titleClassName?: string;
     subtitleClassName?: string;
@@ -15,36 +17,43 @@ export const SectionTitle = ({
     subtitle,
     align = 'center',
     size = 'lg',
+    titleSize,
+    subtitleSize,
     className = '',
     titleClassName = '',
     subtitleClassName = ''
 }: SectionTitleProps) => {
 
-    // Mapping pour l'alignement
     const alignmentClass = {
         left: 'text-left',
         center: 'text-center',
         right: 'text-right',
     }[align];
 
-    // Mapping pour les tailles
-    const sizeClasses = {
-        xl: { title: 'text-xl', subtitle: 'text-sm' },
-        lg: { title: 'text-lg', subtitle: 'text-md' },
-        md: { title: 'text-md', subtitle: 'text-sm' },
-        sm: { title: 'text-sm', subtitle: 'text-xs' },
-        xs: { title: 'text-xs', subtitle: 'text-xs' },
-    }[size];
+    const sizeMapping = {
+        xl: 'text-xl',
+        lg: 'text-lg',
+        md: 'text-md',
+        sm: 'text-sm',
+        xs: 'text-xs',
+    };
+    const finalTitleSize = titleSize ? sizeMapping[titleSize] : sizeMapping[size];
+    const finalSubtitleSize = subtitleSize ? sizeMapping[subtitleSize] : (
+        size === 'xl' ? sizeMapping.sm :
+            size === 'lg' ? sizeMapping.md :
+                size === 'md' ? sizeMapping.sm :
+                    sizeMapping.xs
+    );
 
     return (
         <View className={className}>
             {title && (
-                <Text className={`${sizeClasses.title} font-bold text-black ${alignmentClass} ${titleClassName}`}>
+                <Text className={`${finalTitleSize} font-bold text-black ${alignmentClass} ${titleClassName}`}>
                     {title}
                 </Text>
             )}
             {subtitle && (
-                <Text className={`${sizeClasses.subtitle} text-darkgray ${alignmentClass} ${subtitleClassName}`}>
+                <Text className={`${finalSubtitleSize} text-darkgray ${alignmentClass} ${subtitleClassName}`}>
                     {subtitle}
                 </Text>
             )}

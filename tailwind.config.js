@@ -10,8 +10,8 @@ module.exports = {
       fontSize: {
         'xl': '48px',
         'lg': '40px',
-        'md': '26px',
-        'sm': '18',
+        'md': '30px',
+        'sm': '18px',
         'xs': '14px',
       },
       colors: {

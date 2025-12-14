@@ -1,10 +1,10 @@
 import React, { useRef } from 'react';
 import { View, Pressable, Animated } from 'react-native';
-import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import * as LucideIcons from 'lucide-react-native';
 import { ButtonVariant, buttonVariants } from '../core/constants/variants.constants';
 
 type IconButtonProps = {
-    icon: string;
+    icon: keyof typeof LucideIcons;
     onPress: () => void;
     variant?: ButtonVariant;
     className?: string;
@@ -38,6 +38,9 @@ export const IconButton = ({
 
     const { iconColor, bgClass } = buttonVariants[variant];
 
+    // Récupère le composant d'icône dynamiquement
+    const IconComponent = LucideIcons[icon] as React.ComponentType<any>;
+
     return (
         <Animated.View style={{ transform: [{ scale }] }}>
             <Pressable
@@ -46,7 +49,12 @@ export const IconButton = ({
                 onPress={onPress}
                 className={`${bgClass} rounded-3xl p-5 ${className}`}
             >
-                <FontAwesome6 name={icon} size={24} color={color || iconColor} />
+                {IconComponent && (
+                    <IconComponent
+                        size={24}
+                        color={color || iconColor}
+                    />
+                )}
             </Pressable>
         </Animated.View>
     );

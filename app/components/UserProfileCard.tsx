@@ -8,6 +8,25 @@ type UserProfileCardProps = {
 };
 
 export const UserProfileCard = ({ name, img, totalTracks }: UserProfileCardProps) => {
+    const getSubtitleSize = (name: string | undefined): 'sm' | 'md' | 'lg' | 'xl' | 'xs' => {
+        if (!name) return 'md';
+        const length = name.length;
+
+        if (length <= 12) return 'md';
+        if (length <= 19) return 'sm';
+        if (length <= 25) return 'xs';
+        return 'xs';
+    };
+
+    const truncateIfNeeded = (name: string | undefined, maxLength: number = 30) => {
+        if (!name) return '';
+        if (name.length <= maxLength) return name;
+        return name.substring(0, maxLength) + '...';
+    };
+
+    const subtitleSize = getSubtitleSize(name);
+    const displayName = truncateIfNeeded(name);
+
     return (
         <View className="flex items-center my-12">
 
@@ -23,17 +42,17 @@ export const UserProfileCard = ({ name, img, totalTracks }: UserProfileCardProps
                         <Text className="text-white text-lg">👤</Text>
                     )}
                 </View>
-                <View>
+
+                <View className="flex-1 max-w-[220px]">
                     <SectionTitle
                         title="Bienvenue"
                         align="left"
-                        
+                        titleSize="lg"
+                        subtitleSize={subtitleSize}
+                        subtitle={displayName}
+                        subtitleClassName="capitalize"
                     />
-                    <Text className="text-lg text-black mb-3 capitalize">
-                        {name}
-                    </Text>
                 </View>
-
 
             </View>
 

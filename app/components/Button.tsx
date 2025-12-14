@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
+import * as LucideIcons from 'lucide-react-native';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { ButtonVariant, buttonVariants } from "../core/constants/variants.constants";
 
@@ -7,7 +8,8 @@ type ButtonProps = {
     name: string;
     onPress?: () => void;
     className?: string;
-    icon?: string;
+    icon?: keyof typeof LucideIcons;
+    iconFA?: string; // pour fontawesome
     available?: boolean;
     disabled?: boolean;
     variant?: ButtonVariant;
@@ -18,6 +20,7 @@ export const CustomButton = ({
     onPress,
     className,
     icon,
+    iconFA,
     available = true,
     variant = 'white',
 }: ButtonProps) => {
@@ -43,6 +46,8 @@ export const CustomButton = ({
 
     const { textClass, iconColor, bgClass } = buttonVariants[variant];
 
+    const IconComponent = icon ? (LucideIcons[icon] as React.ComponentType<any>) : null;
+
     return (
         <Animated.View style={{ transform: [{ scale }] }} className="w-full">
             <Pressable
@@ -61,13 +66,21 @@ export const CustomButton = ({
                     ${className}
                 `}
             >
-                {icon && (
+                {iconFA && (
                     <FontAwesome6
-                        name={icon}
+                        name={iconFA}
                         size={24}
                         color={available ? iconColor : '#888888'}
                     />
                 )}
+
+                {IconComponent && (
+                    <IconComponent
+                        size={24}
+                        color={available ? iconColor : '#888888'}
+                    />
+                )}
+
                 <Text className={`text-sm font-semibold ${available ? textClass : 'text-gray-500'}`}>
                     {name}
                 </Text>

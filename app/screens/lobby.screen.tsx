@@ -77,14 +77,6 @@ const LobbyScreen = () => {
 
     return (
         <ScreenLayout>
-            <Text className="text-2xl text-white font-bold text-center mb-2">
-                {lobby.name}
-            </Text>
-
-            <Text className="text-base text-gray-400 text-center mb-4">
-                {lobby.nb_player}/{lobby.max_player} joueurs
-            </Text>
-
             <View className="bg-zinc-800 rounded-lg p-4 mb-4">
                 <Text className="text-white font-semibold mb-2 text-center">
                     {GAME_MODES[lobby.gameMode].icon} {GAME_MODES[lobby.gameMode].label}
@@ -98,6 +90,15 @@ const LobbyScreen = () => {
                     </Text>
                 </View>
             </View>
+            
+            <Text className="text-2xl text-dark font-bold text-center mb-2">
+                {lobby.name}
+            </Text>
+
+            {/* <Text className="text-base text-gray-400 text-center mb-4">
+                {lobby.nb_player}/{lobby.max_player} joueurs
+            </Text> */}
+
 
             <FlatList
                 data={users}
