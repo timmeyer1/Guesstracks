@@ -7,6 +7,9 @@ module.exports = {
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
+      boxShadow: {
+        card: '0 4px 12px rgba(0,0,0,0.06)',
+      },
       fontSize: {
         'xl': '48px',
         'lg': '40px',
@@ -15,11 +18,10 @@ module.exports = {
         'xs': '14px',
       },
       colors: {
-
+        // IMPORTANT: les couleurs doivent être synchronisées avec app/core/constants/colors.constants.ts
         // mains
-        // IMPORTANT: Doit également être changé pour l'icone dans app/components/Button.tsx
         dark: '#020202',
-        white: '#FAFAFA', 
+        white: '#FAFAFA',
         offwhite: '#F2F2F2',
         darkgray: '#474747',
         disconnect: '#C31A1A',
@@ -32,7 +34,6 @@ module.exports = {
         blindtest: '#E07422',
 
         // plateformes
-        // IMPORTANT: Doit également être changé pour l'icone dans app/components/Button.tsx
         spotify: '#1ED760',
         apple_music: '#FF4E6B',
         deezer: '#A238FF',

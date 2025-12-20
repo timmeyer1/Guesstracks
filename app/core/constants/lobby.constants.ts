@@ -12,8 +12,8 @@ export const GAME_MODES = {
         icon: '💡',
         // description: '',
     },
-} as const satisfies Record<GameMode, { label: string; icon: string}>
-    
+} as const satisfies Record<GameMode, { label: string; icon: string }>
+
 // vitesses des phases
 export const PHASE_SPEEDS = {
     slow: {
@@ -33,20 +33,20 @@ export const PHASE_SPEEDS = {
     },
 } as const satisfies Record<PhaseSpeed, { label: string; duration: number; durationLabel: string }>
 
-// paramètres par défaut
-export const DEFAULT_LOBBY_SETTINGS = {
-    gameMode: 'guesstracks' as GameMode,
-    rounds: 10,
-    phaseSpeed: 'normal' as PhaseSpeed,
-    maxPlayers: 10,
-}
-
 // limites
 export const LOBBY_LIMITS = {
     MIN_ROUNDS: 5,
     MAX_ROUNDS: 20,
     MIN_PLAYERS_TO_START: 2,
-    MAX_PLAYERS: 10,
+    MAX_PLAYERS: 12,
+}
+
+// paramètres par défaut
+export const DEFAULT_LOBBY_SETTINGS = {
+    gameMode: 'guesstracks' as GameMode,
+    rounds: 10,
+    phaseSpeed: 'normal' as PhaseSpeed,
+    maxPlayers: LOBBY_LIMITS.MAX_PLAYERS,
 }
 
 // récupère le label d'un mode de jeu

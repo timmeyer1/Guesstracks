@@ -14,7 +14,7 @@ export const createLobby = () => {
 
     const newLobby = {
         token: nanoid(10),
-        name: `Lobby de ${user.display_name}`,
+        name: `${user.display_name}`,
         nb_player: 1,
         max_player: DEFAULT_LOBBY_SETTINGS.maxPlayers,
         gameMode: DEFAULT_LOBBY_SETTINGS.gameMode,
@@ -35,22 +35,32 @@ export const createLobby = () => {
 
 export const leaveLobby = () => {
     const { user, token } = useAuthStore.getState()
-    const { users, resetLobby, removeUser } = useLobbyStore.getState()
+    const { users, resetLobby, removeUser, setUsers } = useLobbyStore.getState()
 
     if (!user || !token) {
         console.warn('❌ Utilisateur non connecté')
-        return false
+        return { shouldNavigate: false }
     }
 
-    // si c'est le dernier joueur → supprime le lobby
-    if (users.length <= 1) {
+    const isHost = users[0]?.token === token
+
+    // CAS 1 : hote seul = supprime lobby
+    if (isHost && users.length === 1) {
         resetLobby()
-        console.log('🗑️ Lobby supprimé')
-        return true
+        console.log('🗑️ Lobby supprimé (hôte seul)')
+        return { shouldNavigate: true }
     }
 
-    // sinon, retire juste le joueur
+    // CAS 2 : hote avec joueurs = transfère l'hôte
+    if (isHost && users.length > 1) {
+        const newUsers = users.slice(1) // retire l'hôte actuel
+        setUsers(newUsers)
+        console.log('👑 Nouvel hôte:', newUsers[0].name)
+        return { shouldNavigate: true }
+    }
+
+    // CAS 3 : joueur normal = retire juste du lobby
     removeUser(token)
     console.log('👋 Joueur retiré')
-    return false
+    return { shouldNavigate: true }
 }
