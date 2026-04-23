@@ -1,5 +1,6 @@
 import { View, Text, Image } from 'react-native';
 import { SectionTitle } from './SectionTitle';
+import { PlayerAvatar } from './lobby/PlayerAvatar';
 
 type UserProfileCardProps = {
     name?: string;
@@ -32,7 +33,7 @@ export const UserProfileCard = ({ name, img, totalTracks }: UserProfileCardProps
 
             <View className="flex flex-row gap-8 items-center">
 
-                <View className="w-24 h-24 rounded-full bg-black items-center justify-center mb-4 gap-2">
+                {/* <View className="w-24 h-24 rounded-full bg-black items-center justify-center mb-4 gap-2">
                     {img ? (
                         <Image
                             style={{ width: 96, height: 96, borderRadius: 48 }}
@@ -41,7 +42,14 @@ export const UserProfileCard = ({ name, img, totalTracks }: UserProfileCardProps
                     ) : (
                         <Text className="text-white text-lg">👤</Text>
                     )}
-                </View>
+                </View> */}
+
+                <PlayerAvatar
+                    name={''}
+                    size='lg'
+                    img={img ?? undefined}
+                    isHost={false}
+                />
 
                 <View className="flex-1 max-w-[220px]">
                     <SectionTitle

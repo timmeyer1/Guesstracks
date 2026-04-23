@@ -13,7 +13,7 @@ import { CustomButton } from "../components/Button"
 import { IconButton } from "../components/IconButton"
 import { ScreenLayout } from "../components/ScreenLayout"
 import { LobbySettingsModal } from '../components/lobby/LobbySettingsModal'
-import { GameModeCard } from '../components/GameModeCard'
+import { GameModeCard } from '../components/lobby/GameModeCard'
 import { PlayersGrid } from '../components/lobby/PlayersGrid'
 import { SectionTitle } from '../components/SectionTitle'
 
@@ -110,9 +110,14 @@ const LobbyScreen = () => {
                     contentContainerStyle={{ paddingBottom: 20 }}
                 >
                     <PlayersGrid
-                        users={users.slice(0, lobby.max_player)}
-                        maxPlayers={lobby.max_player}
-                        onInvite={handleInvitePlayers}
+                        users={[
+                            { token: '1', name: 'Alice', img: 'https://i.pravatar.cc/100?img=1' },
+                            { token: '2', name: 'Bob', img: 'https://i.pravatar.cc/100?img=2' },
+                            { token: '3', name: 'Carol', img: 'https://i.pravatar.cc/100?img=3' },
+                            { token: '4', name: 'Dave', img: 'https://i.pravatar.cc/100?img=4' },
+                        ]}
+                        maxPlayers={6}
+                        onInvite={() => { }}
                     />
                 </ScrollView>
 

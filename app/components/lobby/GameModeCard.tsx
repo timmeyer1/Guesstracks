@@ -1,9 +1,9 @@
 import React from 'react'
 import { View, Text } from 'react-native'
 import { Flag, Clock, HelpCircle, Music, Trophy } from 'lucide-react-native'
-import { GAME_MODES, PHASE_SPEEDS } from '../core/constants/lobby.constants'
-import { COLORS, type GameMode } from '../core/constants/colors.constants'
-import { SectionTitle } from './SectionTitle'
+import { GAME_MODES, PHASE_SPEEDS } from '../../core/constants/lobby.constants'
+import { COLORS, type GameMode } from '../../core/constants/colors.constants'
+import { SectionTitle } from '../SectionTitle'
 
 interface GameModeCardProps {
     gameMode?: GameMode

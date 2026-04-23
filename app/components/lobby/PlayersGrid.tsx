@@ -2,7 +2,7 @@ import React from 'react'
 import { View, Text, TouchableOpacity } from 'react-native'
 import { Plus } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
-import { PlayerAvatar } from './PlayerAvatar'
+import { PlayerAvatar, AVATAR_SIZES } from './PlayerAvatar'
 
 interface User {
     token: string
@@ -10,26 +10,28 @@ interface User {
     img?: string
 }
 
+type AvatarSize = keyof typeof AVATAR_SIZES
+
 interface PlayersGridProps {
     users: User[]
     maxPlayers: number
     onInvite: () => void
+    size?: AvatarSize
 }
 
 export const PlayersGrid: React.FC<PlayersGridProps> = ({
     users,
     maxPlayers,
-    onInvite
+    onInvite,
+    size = 'md'
 }) => {
-    // Créer la liste des éléments à afficher
-    const items = [...users]
+    const px = AVATAR_SIZES[size]
 
-    // Ajouter le bouton + si pas à la limite
+    const items = [...users]
     if (users.length < maxPlayers) {
         items.push({ token: 'add-button', isAddButton: true } as any)
     }
 
-    // Diviser en lignes de 3
     const rows: any[][] = []
     for (let i = 0; i < items.length; i += 3) {
         rows.push(items.slice(i, i + 3))
@@ -41,20 +43,20 @@ export const PlayersGrid: React.FC<PlayersGridProps> = ({
                 <View
                     key={`row-${rowIndex}`}
                     className="flex-row mb-4"
-                    style={{ gap: 16, width: 272 }}
+                    style={{ gap: 16, width: (px + 16) * 3 - 16 }}
                 >
                     {row.map((item, index) => {
-                        // Si c'est le bouton +
                         if (item.isAddButton) {
                             return (
                                 <TouchableOpacity
                                     key="add-button"
                                     onPress={onInvite}
                                     className="items-center"
-                                    style={{ width: 80, paddingTop: 16 }}
+                                    style={{ width: px, paddingTop: px * 0.2 }}
                                 >
-                                    <View className="w-20 h-20 rounded-full bg-offwhite justify-center items-center">
-                                        <Plus size={32} color={COLORS.dark} />
+                                    <View style={{ width: px, height: px, borderRadius: px / 2 }}
+                                        className="bg-offwhite justify-center items-center">
+                                        <Plus size={px * 0.4} color={COLORS.dark} />
                                     </View>
                                     <Text className="text-dark text-sm font-semibold mt-1">
                                         Inviter
@@ -63,11 +65,11 @@ export const PlayersGrid: React.FC<PlayersGridProps> = ({
                             )
                         }
 
-                        // Sinon c'est un joueur
                         const actualIndex = rowIndex * 3 + index
                         return (
                             <PlayerAvatar
                                 key={item.token}
+                                size={size}
                                 name={item.name}
                                 img={item.img}
                                 isHost={actualIndex === 0}
