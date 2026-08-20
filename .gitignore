@@ -43,3 +43,6 @@ yarn-error.*
 
 # codegraph
 .codegraph
+
+#claude
+.claude

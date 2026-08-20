@@ -5,7 +5,7 @@ import { COLORS } from '../../core/constants/colors.constants'
 import { PlayerAvatar, AVATAR_SIZES } from './PlayerAvatar'
 
 interface User {
-    token: string
+    id: string
     name: string
     img?: string
 }
@@ -29,7 +29,7 @@ export const PlayersGrid: React.FC<PlayersGridProps> = ({
 
     const items = [...users]
     if (users.length < maxPlayers) {
-        items.push({ token: 'add-button', isAddButton: true } as any)
+        items.push({ id: 'add-button', isAddButton: true } as any)
     }
 
     const rows: any[][] = []
@@ -68,7 +68,7 @@ export const PlayersGrid: React.FC<PlayersGridProps> = ({
                         const actualIndex = rowIndex * 3 + index
                         return (
                             <PlayerAvatar
-                                key={item.token}
+                                key={item.id}
                                 size={size}
                                 name={item.name}
                                 img={item.img}

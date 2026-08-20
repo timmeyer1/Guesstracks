@@ -2,7 +2,10 @@ import React, { useState, useEffect } from "react"
 import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView } from "react-native"
 import Slider from "@react-native-community/slider"
 import { GAME_MODES, PHASE_SPEEDS, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
+import { COLORS } from "../../core/constants/colors.constants"
 import { GameMode, PhaseSpeed } from "../../core/types"
+import { SectionTitle } from "../SectionTitle"
+import { CustomButton } from "../Button"
 
 export type LobbySettings = {
     gameMode: GameMode
@@ -66,43 +69,50 @@ export const LobbySettingsModal = ({
     return (
         <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
             <Pressable
-                className="flex-1 bg-black/60 justify-center items-center"
+                className="flex-1 bg-black/60 justify-center items-center px-8"
                 onPress={handleClose}
             >
-                <Pressable className="bg-[#1a1a1a] w-4/5 rounded-3xl p-6">
-                    <Text className="text-white text-2xl font-bold mb-2 text-center">
-                        {mode === "create" ? "Créer une partie" : "Paramètres"}
-                    </Text>
+                <Pressable className="bg-white w-full rounded-3xl p-6" style={{ maxHeight: '85%' }}>
+                    <SectionTitle
+                        title={mode === "create" ? "Créer une partie" : "Paramètres"}
+                        subtitle={mode === "create" ? "Configure ta partie !" : "Modifie les règles"}
+                        align="center"
+                        titleSize="md"
+                        subtitleSize="sm"
+                        className="mb-6"
+                    />
 
-                    <Text className="text-gray-400 text-sm mb-6 text-center">
-                        {mode === "create" ? "Configure ta partie !" : "Modifie les règles"}
-                    </Text>
-
-                    <ScrollView className="mb-6">
+                    <ScrollView className="mb-6" showsVerticalScrollIndicator={false}>
                         <View className="mb-6">
-                            <Text className="text-white font-semibold mb-3 text-center">
-                                Mode de jeu
-                            </Text>
+                            <SectionTitle title="Mode de jeu" align="center" titleSize="sm" className="mb-3" />
                             <View className="flex-row gap-2">
-                                {(Object.keys(GAME_MODES) as GameMode[]).map((mode) => (
-                                    <TouchableOpacity
-                                        key={mode}
-                                        className={`flex-1 py-3 rounded-xl items-center ${gameMode === mode ? "bg-primary-start" : "bg-zinc-800"
-                                            }`}
-                                        onPress={() => setGameMode(mode)}
-                                    >
-                                        <Text className="text-2xl mb-1">{GAME_MODES[mode].icon}</Text>
-                                        <Text className="text-white font-bold">{GAME_MODES[mode].label}</Text>
-                                    </TouchableOpacity>
-                                ))}
+                                {(Object.keys(GAME_MODES) as GameMode[]).map((mode) => {
+                                    const selected = gameMode === mode
+                                    return (
+                                        <TouchableOpacity
+                                            key={mode}
+                                            className={`flex-1 py-3 rounded-2xl items-center ${selected ? "bg-primary" : "bg-offwhite"
+                                                }`}
+                                            onPress={() => setGameMode(mode)}
+                                        >
+                                            <Text className="text-2xl mb-1">{GAME_MODES[mode].icon}</Text>
+                                            <Text className={`font-bold ${selected ? "text-white" : "text-black"}`}>
+                                                {GAME_MODES[mode].label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )
+                                })}
                             </View>
                         </View>
 
                         <View className="mb-6">
-                            <Text className="text-white font-semibold mb-3 text-center">
-                                Nombre de manches : {rounds}
-                            </Text>
-                            <View className="bg-zinc-800 rounded-full p-1">
+                            <SectionTitle
+                                title={`Nombre de manches : ${rounds}`}
+                                align="center"
+                                titleSize="sm"
+                                className="mb-3"
+                            />
+                            <View className="bg-offwhite rounded-full p-1">
                                 <Slider
                                     style={{ width: "100%", height: 40 }}
                                     minimumValue={LOBBY_LIMITS.MIN_ROUNDS}
@@ -110,53 +120,54 @@ export const LobbySettingsModal = ({
                                     step={1}
                                     value={rounds}
                                     onValueChange={setRounds}
-                                    minimumTrackTintColor="#9622e0"
+                                    minimumTrackTintColor={COLORS.primary}
                                     maximumTrackTintColor="transparent"
-                                    thumbTintColor="#9622e0"
+                                    thumbTintColor={COLORS.primary}
                                 />
                             </View>
                             <View className="flex-row justify-between mt-2">
-                                <Text className="text-gray-400 text-xs">{LOBBY_LIMITS.MIN_ROUNDS}</Text>
-                                <Text className="text-gray-400 text-xs">{LOBBY_LIMITS.MAX_ROUNDS}</Text>
+                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MIN_ROUNDS}</Text>
+                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MAX_ROUNDS}</Text>
                             </View>
                         </View>
 
                         <View className="mb-4">
-                            <Text className="text-white font-semibold mb-3 text-center">
-                                Vitesse des phases
-                            </Text>
+                            <SectionTitle title="Vitesse des phases" align="center" titleSize="sm" className="mb-3" />
                             <View className="flex-row gap-2">
-                                {(Object.keys(PHASE_SPEEDS) as PhaseSpeed[]).map((speed) => (
-                                    <TouchableOpacity
-                                        key={speed}
-                                        className={`flex-1 py-3 rounded-xl items-center ${phaseSpeed === speed ? "bg-primary-start" : "bg-zinc-800"
-                                            }`}
-                                        onPress={() => setPhaseSpeed(speed)}
-                                    >
-                                        <Text className="text-white font-bold">{PHASE_SPEEDS[speed].label}</Text>
-                                        <Text className="text-gray-400 text-xs mt-1">{PHASE_SPEEDS[speed].durationLabel}</Text>
-                                    </TouchableOpacity>
-                                ))}
+                                {(Object.keys(PHASE_SPEEDS) as PhaseSpeed[]).map((speed) => {
+                                    const selected = phaseSpeed === speed
+                                    return (
+                                        <TouchableOpacity
+                                            key={speed}
+                                            className={`flex-1 py-3 rounded-2xl items-center ${selected ? "bg-primary" : "bg-offwhite"
+                                                }`}
+                                            onPress={() => setPhaseSpeed(speed)}
+                                        >
+                                            <Text className={`font-bold ${selected ? "text-white" : "text-black"}`}>
+                                                {PHASE_SPEEDS[speed].label}
+                                            </Text>
+                                            <Text className={`text-xs mt-1 ${selected ? "text-white" : "text-darkgray"}`}>
+                                                {PHASE_SPEEDS[speed].durationLabel}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )
+                                })}
                             </View>
                         </View>
                     </ScrollView>
 
                     <View className="flex-row gap-2.5 w-full">
-                        <TouchableOpacity
-                            className="flex-1 py-3 rounded-xl items-center bg-zinc-800"
-                            onPress={handleClose}
-                        >
-                            <Text className="text-white font-bold">Annuler</Text>
-                        </TouchableOpacity>
+                        <View className="flex-1">
+                            <CustomButton name="Annuler" onPress={handleClose} variant="dark" />
+                        </View>
 
-                        <TouchableOpacity
-                            className="flex-1 py-3 rounded-xl items-center bg-primary-start"
-                            onPress={handleConfirm}
-                        >
-                            <Text className="text-white font-bold">
-                                {mode === "create" ? "Créer" : "Sauvegarder"}
-                            </Text>
-                        </TouchableOpacity>
+                        <View className="flex-1">
+                            <CustomButton
+                                name={mode === "create" ? "Créer" : "Sauvegarder"}
+                                onPress={handleConfirm}
+                                variant="white"
+                            />
+                        </View>
                     </View>
                 </Pressable>
             </Pressable>

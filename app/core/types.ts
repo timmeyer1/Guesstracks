@@ -12,7 +12,7 @@ export type GameMode = 'guesstracks' | 'blindtest'
 export type PhaseSpeed = 'slow' | 'normal' | 'fast'
 
 export type LobbyType = {
-    token: string;
+    code: string;
     name: string;
     nb_player: number;
     max_player: number;
@@ -23,7 +23,7 @@ export type LobbyType = {
 
 
 export type LobbyUserType = {
-    token: string
+    id: string
     name: string
     img?: string
     account_type?: string

@@ -1,9 +1,9 @@
 // app/screens/lobby.screen.tsx
 import React, { useState } from 'react'
-import { View, Text, Alert, ScrollView } from 'react-native'
+import { View, Text, Alert, ScrollView, Share } from 'react-native'
 import { useNavigation } from "@react-navigation/native"
 
-import { leaveLobby } from '../modules/lobby/lobby.service'
+import { leaveLobby, updateLobbySettings } from '../modules/lobby/lobby.service'
 import { useLobbyStore } from "../stores/lobby.store"
 import { LOBBY_LIMITS } from '../core/constants/lobby.constants'
 import { useAuthStore } from "../stores/auth.store"
@@ -18,14 +18,14 @@ import { PlayersGrid } from '../components/lobby/PlayersGrid'
 import { SectionTitle } from '../components/SectionTitle'
 
 const LobbyScreen = () => {
-    const { lobby, users, updateLobbySettings } = useLobbyStore()
-    const { token } = useAuthStore()
+    const { lobby, users } = useLobbyStore()
+    const { user } = useAuthStore()
     const navigation = useNavigation()
 
     const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false)
     const [isGameModeSelected, setIsGameModeSelected] = useState(false)
 
-    const isHost = users[0]?.token === token
+    const isHost = users[0]?.id === user?.id
     const canStartGame = users.length >= LOBBY_LIMITS.MIN_PLAYERS_TO_START && isGameModeSelected
 
     const handleLeaveLobby = () => {
@@ -36,8 +36,8 @@ const LobbyScreen = () => {
                 { text: "Rester", style: "cancel" },
                 {
                     text: "Quitter",
-                    onPress: () => {
-                        const result = leaveLobby()
+                    onPress: async () => {
+                        const result = await leaveLobby()
                         if (result.shouldNavigate) {
                             navigation.reset({
                                 index: 0,
@@ -51,12 +51,16 @@ const LobbyScreen = () => {
         )
     }
 
-    const handleUpdateSettings = (settings: {
+    const handleUpdateSettings = async (settings: {
         gameMode: 'guesstracks' | 'blindtest'
         rounds: number
         phaseSpeed: 'slow' | 'normal' | 'fast'
     }) => {
-        updateLobbySettings(settings)
+        const result = await updateLobbySettings(settings)
+        if (!result.ok) {
+            Alert.alert("Impossible de sauvegarder", result.error)
+            return
+        }
         setIsGameModeSelected(true)
     }
 
@@ -71,8 +75,15 @@ const LobbyScreen = () => {
         Alert.alert("C'est parti !", "La partie va commencer...")
     }
 
-    const handleInvitePlayers = () => {
-        Alert.alert("Inviter des joueurs", "Fonctionnalité à venir !")
+    const handleInvitePlayers = async () => {
+        if (!lobby) return
+        try {
+            await Share.share({
+                message: `Rejoins ma partie sur Guesstracks avec le code ${lobby.code} !`,
+            })
+        } catch (error) {
+            console.warn('⚠️ Erreur de partage:', error)
+        }
     }
 
     if (!lobby) {
@@ -99,8 +110,10 @@ const LobbyScreen = () => {
 
                 <SectionTitle
                     title={`Lobby de ${lobby.name}`}
+                    subtitle={`Code : ${lobby.code}`}
                     align='center'
                     titleSize='md'
+                    subtitleSize='sm'
                     className="mb-4"
                 />
 
@@ -110,14 +123,9 @@ const LobbyScreen = () => {
                     contentContainerStyle={{ paddingBottom: 20 }}
                 >
                     <PlayersGrid
-                        users={[
-                            { token: '1', name: 'Alice', img: 'https://i.pravatar.cc/100?img=1' },
-                            { token: '2', name: 'Bob', img: 'https://i.pravatar.cc/100?img=2' },
-                            { token: '3', name: 'Carol', img: 'https://i.pravatar.cc/100?img=3' },
-                            { token: '4', name: 'Dave', img: 'https://i.pravatar.cc/100?img=4' },
-                        ]}
-                        maxPlayers={6}
-                        onInvite={() => { }}
+                        users={users}
+                        maxPlayers={lobby.max_player}
+                        onInvite={handleInvitePlayers}
                     />
                 </ScrollView>
 

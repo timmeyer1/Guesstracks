@@ -3,7 +3,7 @@ import { View, Alert } from 'react-native'
 import { useAuthStore } from '../stores/auth.store'
 import { TrackStore } from '../stores/tracks.store'
 import { spotifyService } from '../modules/spotify'
-import { createLobby } from "../modules/lobby/lobby.service"
+import { createLobby, joinLobby } from "../modules/lobby/lobby.service"
 import { useNavigation } from '@react-navigation/native'
 import { COLORS } from '../core/constants/colors.constants'
 import { JoinLobbyModal } from '../components/home/JoinLobbyModal'
@@ -20,6 +20,9 @@ export const HomeScreen = () => {
     const navigation = useNavigation()
 
     const [isJoinModalVisible, setIsJoinModalVisible] = useState(false)
+    const [joinError, setJoinError] = useState<string | undefined>(undefined)
+    const [isJoining, setIsJoining] = useState(false)
+    const [isCreating, setIsCreating] = useState(false)
 
     useEffect(() => {
         const loadTracks = async () => {
@@ -46,14 +49,37 @@ export const HomeScreen = () => {
         )
     }
 
-    const handleCreateLobby = () => {
-        createLobby()
+    const handleCreateLobby = async () => {
+        if (isCreating) return
+        setIsCreating(true)
+        const result = await createLobby()
+        setIsCreating(false)
+
+        if (!result.ok) {
+            Alert.alert("Impossible de créer la partie", result.error)
+            return
+        }
         navigation.navigate("Lobby")
     }
 
-    const handleJoinLobby = (code: string) => {
-        console.log('Code entré:', code)
-        // TODO: Logique pour rejoindre le lobby
+    const handleOpenJoinModal = () => {
+        setJoinError(undefined)
+        setIsJoinModalVisible(true)
+    }
+
+    const handleJoinLobby = async (code: string) => {
+        if (isJoining) return
+        setIsJoining(true)
+        const result = await joinLobby(code)
+        setIsJoining(false)
+
+        if (!result.ok) {
+            setJoinError(result.error)
+            return
+        }
+        setJoinError(undefined)
+        setIsJoinModalVisible(false)
+        navigation.navigate("Lobby")
     }
 
     return (
@@ -72,15 +98,16 @@ export const HomeScreen = () => {
                         <View className="gap-3 w-full">
                             <SectionTitle title="On lance quoi ?" align="left" size='lg' />
                             <CustomButton
-                                name="Créer une partie"
+                                name={isCreating ? "Création..." : "Créer une partie"}
                                 icon="Plus"
                                 onPress={handleCreateLobby}
                                 variant="white"
+                                available={!isCreating}
                             />
                             <CustomButton
                                 name="Rejoindre une partie"
                                 icon="Users"
-                                onPress={() => setIsJoinModalVisible(true)}
+                                onPress={handleOpenJoinModal}
                                 variant="dark"
                             />
                         </View>
@@ -95,8 +122,9 @@ export const HomeScreen = () => {
                             <CustomButton
                                 name="Choisir mes musiques"
                                 icon="Search"
-                                onPress={() => setIsJoinModalVisible(true)}
+                                onPress={() => { }}
                                 variant="white"
+                                available={false}
                             />
                         </View>
                     </View>
@@ -121,6 +149,9 @@ export const HomeScreen = () => {
                     visible={isJoinModalVisible}
                     onClose={() => setIsJoinModalVisible(false)}
                     onConfirm={handleJoinLobby}
+                    error={joinError}
+                    onCodeChange={() => setJoinError(undefined)}
+                    isSubmitting={isJoining}
                 />
             </View>
         </ScreenLayout>
