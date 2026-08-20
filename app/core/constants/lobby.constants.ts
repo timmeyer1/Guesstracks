@@ -18,13 +18,13 @@ export const GAME_MODES = {
 export const PHASE_SPEEDS = {
     slow: {
         label: 'Lent',
-        duration: 20,
-        durationLabel: '20s',
+        duration: 30,
+        durationLabel: '30s',
     },
     normal: {
         label: 'Normal',
-        duration: 12,
-        durationLabel: '12s',
+        duration: 15,
+        durationLabel: '15s',
     },
     fast: {
         label: 'Rapide',

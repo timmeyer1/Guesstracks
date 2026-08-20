@@ -330,13 +330,19 @@ const endRound = (code, io) => {
 
         const correctSelected = selectedIds.filter((id) => correctSet.has(id)).length
         const incorrectSelected = selectedIds.filter((id) => !correctSet.has(id)).length
+        // une seule personne cochée à tort annule les points de la manche, même
+        // si le reste de la sélection était correct
+        const hasWrongPick = incorrectSelected > 0
         const recall = correctSet.size > 0 ? correctSelected / correctSet.size : 0
-        const isPerfect = recall === 1 && incorrectSelected === 0 && selectedIds.length > 0
+        const earnedPoints = !hasWrongPick && recall > 0
+        const isPerfect = !hasWrongPick && recall === 1 && selectedIds.length > 0
 
         const speedFactor = Math.max(SCORING.MIN_SPEED_FACTOR, 1 - elapsedMs / (round.duration * 1000))
 
-        let points = recall > 0 ? Math.round(SCORING.BASE_POINTS * recall * speedFactor) : 0
-        points -= incorrectSelected * SCORING.WRONG_PICK_PENALTY
+        // plus on identifie de bonnes réponses (sans erreur), plus le score se
+        // rapproche du maximum : une seule bonne personne sur plusieurs ne
+        // rapporte qu'une fraction des points, toutes les rapporte en entier
+        let points = earnedPoints ? Math.round(SCORING.BASE_POINTS * recall * speedFactor) : 0
 
         if (isPerfect) {
             score.streak += 1
@@ -350,8 +356,8 @@ const endRound = (code, io) => {
         }
 
         points = Math.max(0, points)
-        if (recall > 0) score.correctRounds += 1
-        if (recall === 1 && (score.fastestMs === null || elapsedMs < score.fastestMs)) {
+        if (earnedPoints) score.correctRounds += 1
+        if (isPerfect && (score.fastestMs === null || elapsedMs < score.fastestMs)) {
             score.fastestMs = elapsedMs
         }
 

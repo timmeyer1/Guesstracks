@@ -21,8 +21,8 @@ export const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 // vitesse de phase -> durée de la manche en secondes (source de vérité serveur,
 // dupliquée côté client pour l'affichage dans app/core/constants/lobby.constants.ts)
 export const PHASE_DURATIONS = {
-    slow: 20,
-    normal: 12,
+    slow: 30,
+    normal: 15,
     fast: 7,
 }
 
@@ -34,7 +34,6 @@ export const QUESTION_TYPES = {
 export const SCORING = {
     BASE_POINTS: 1000,
     MIN_SPEED_FACTOR: 0.3, // même à la dernière seconde, on garde 30% du multiplicateur de vitesse
-    WRONG_PICK_PENALTY: 150, // par personne cochée à tort (mode guesstracks)
     PERFECT_BONUS: 150, // manche identifiée à 100% sans erreur
     STREAK_BONUS_PER_LEVEL: 50, // par manche parfaite consécutive au-delà de la première
     STREAK_BONUS_CAP: 500,

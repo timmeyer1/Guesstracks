@@ -47,12 +47,12 @@ export const SectionTitle = ({
 
     return (
         <View className={className}>
-            {title && (
+            {!!title && (
                 <Text className={`${finalTitleSize} font-bold text-black ${alignmentClass} ${titleClassName}`}>
                     {title}
                 </Text>
             )}
-            {subtitle && (
+            {!!subtitle && (
                 <Text className={`${finalSubtitleSize} text-darkgray ${alignmentClass} ${subtitleClassName}`}>
                     {subtitle}
                 </Text>
