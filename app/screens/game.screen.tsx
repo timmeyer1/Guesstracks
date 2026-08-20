@@ -1,20 +1,20 @@
 // app/screens/game.screen.tsx
 import React from 'react'
-import { View, Text, Image } from 'react-native'
+import { View, Text, Image, KeyboardAvoidingView, Platform } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 
 import { useGameStore } from '../stores/game.store'
 import { useAuthStore } from '../stores/auth.store'
 import { leaveGame, submitAnswer } from '../modules/game/game.service'
 import { leaveLobby } from '../modules/lobby/lobby.service'
-import { isWhoLikedOption, isGuessTrackOption } from '../core/types'
 
 import { ScreenLayout } from '../components/ScreenLayout'
 import { SectionTitle } from '../components/SectionTitle'
 import { RoundHeader } from '../components/game/RoundHeader'
 import { AudioPlayer } from '../components/game/AudioPlayer'
 import { WhoLikedQuestion } from '../components/game/WhoLikedQuestion'
-import { GuessTrackOptions } from '../components/game/GuessTrackOptions'
+import { SearchTrackQuestion } from '../components/game/SearchTrackQuestion'
+import { BlurredCover } from '../components/game/BlurredCover'
 import { RoundResult } from '../components/game/RoundResult'
 import { FinalResults } from '../components/game/FinalResults'
 
@@ -28,6 +28,7 @@ const GameScreen = () => {
         lastRoundEnd,
         finalLeaderboard,
         totalRounds,
+        catalog,
         mySelection,
         hasAnswered,
         toggleSelection,
@@ -39,12 +40,20 @@ const GameScreen = () => {
         navigation.reset({ index: 0, routes: [{ name: 'Home' }] })
     }
 
+    // le lobby (et l'abonnement socket de partie) reste actif en arrière-plan
+    // pendant toute la partie : revenir dessus suffit, l'hôte peut relancer
+    const handleStayInLobby = () => {
+        useGameStore.getState().reset()
+        navigation.goBack()
+    }
+
     if (phase === 'finished') {
         return (
             <ScreenLayout>
                 <FinalResults
                     leaderboard={finalLeaderboard}
                     totalRounds={totalRounds}
+                    onStayInLobby={handleStayInLobby}
                     onBackToHome={handleBackToHome}
                 />
             </ScreenLayout>
@@ -60,54 +69,75 @@ const GameScreen = () => {
     }
 
     if (phase === 'in_round' && round) {
+        const isSearchMode = round.questionType === 'guess_track'
+
         return (
-            <ScreenLayout>
-                <RoundHeader
-                    roundIndex={round.roundIndex}
-                    totalRounds={round.totalRounds}
-                    startedAt={round.startedAt}
-                    duration={round.duration}
-                    gameMode={gameMode}
-                />
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                <ScreenLayout noPadding>
+                    {/* padding vertical réduit par rapport au reste de l'app : en mode
+                    blindtest, chaque pixel compte pour garder la recherche visible
+                    au-dessus du clavier */}
+                    <View className={`flex-1 px-8 ${isSearchMode ? 'pt-6 pb-4' : 'py-10'}`}>
+                        <RoundHeader
+                            roundIndex={round.roundIndex}
+                            totalRounds={round.totalRounds}
+                            startedAt={round.startedAt}
+                            duration={round.duration}
+                            gameMode={gameMode}
+                        />
 
-                {round.track.name && (
-                    <View className="items-center mb-4">
-                        {round.track.image && (
-                            <Image
-                                source={{ uri: round.track.image }}
-                                style={{ width: 80, height: 80, borderRadius: 16 }}
-                                className="mb-2"
-                            />
+                        {!isSearchMode ? (
+                            <>
+                                <View className="items-center mb-4">
+                                    {round.track.image && (
+                                        <Image
+                                            source={{ uri: round.track.image }}
+                                            style={{ width: 80, height: 80, borderRadius: 16 }}
+                                            className="mb-2"
+                                        />
+                                    )}
+                                    <Text className="text-black text-lg font-bold text-center">{round.track.name}</Text>
+                                    <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
+                                </View>
+
+                                <View className="mb-6">
+                                    <AudioPlayer previewUrl={round.track.previewUrl} />
+                                </View>
+
+                                <WhoLikedQuestion
+                                    options={round.options}
+                                    selected={mySelection}
+                                    hasAnswered={hasAnswered}
+                                    onToggle={(id) => toggleSelection(id, true)}
+                                    onSubmit={() => submitAnswer(mySelection)}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <View className="flex-row items-center gap-3 mb-3">
+                                    <BlurredCover imageUri={round.track.image} size={72} />
+                                    <View className="flex-1">
+                                        <AudioPlayer previewUrl={round.track.previewUrl} compact />
+                                    </View>
+                                </View>
+
+                                <SearchTrackQuestion
+                                    catalog={catalog}
+                                    hasAnswered={hasAnswered}
+                                    selectedId={mySelection[0] ?? null}
+                                    onAnswer={(id) => {
+                                        toggleSelection(id, false)
+                                        submitAnswer([id])
+                                    }}
+                                />
+                            </>
                         )}
-                        <Text className="text-black text-lg font-bold text-center">{round.track.name}</Text>
-                        <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
                     </View>
-                )}
-
-                <View className="mb-6">
-                    <AudioPlayer previewUrl={round.track.previewUrl} />
-                </View>
-
-                {round.questionType === 'who_liked' ? (
-                    <WhoLikedQuestion
-                        options={round.options.filter(isWhoLikedOption)}
-                        selected={mySelection}
-                        hasAnswered={hasAnswered}
-                        onToggle={(id) => toggleSelection(id, true)}
-                        onSubmit={() => submitAnswer(mySelection)}
-                    />
-                ) : (
-                    <GuessTrackOptions
-                        options={round.options.filter(isGuessTrackOption)}
-                        selected={mySelection}
-                        hasAnswered={hasAnswered}
-                        onAnswer={(id) => {
-                            toggleSelection(id, false)
-                            submitAnswer([id])
-                        }}
-                    />
-                )}
-            </ScreenLayout>
+                </ScreenLayout>
+            </KeyboardAvoidingView>
         )
     }
 

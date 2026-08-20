@@ -9,6 +9,7 @@ import type { FinalLeaderboardEntry } from '../../core/types'
 type FinalResultsProps = {
     leaderboard: FinalLeaderboardEntry[]
     totalRounds: number
+    onStayInLobby: () => void
     onBackToHome: () => void
 }
 
@@ -16,7 +17,12 @@ type FinalResultsProps = {
 const PODIUM_ORDER = [1, 0, 2]
 const PODIUM_HEIGHTS = [96, 128, 72]
 
-export const FinalResults: React.FC<FinalResultsProps> = ({ leaderboard, totalRounds, onBackToHome }) => {
+export const FinalResults: React.FC<FinalResultsProps> = ({
+    leaderboard,
+    totalRounds,
+    onStayInLobby,
+    onBackToHome,
+}) => {
     const podium = leaderboard.slice(0, 3)
     const rest = leaderboard.slice(3)
 
@@ -93,7 +99,10 @@ export const FinalResults: React.FC<FinalResultsProps> = ({ leaderboard, totalRo
                 ))}
             </ScrollView>
 
-            <CustomButton name="Retour à l'accueil" onPress={onBackToHome} variant="dark" icon="Home" />
+            <View className="gap-2.5">
+                <CustomButton name="Rester dans le lobby" onPress={onStayInLobby} variant="white" icon="Users" />
+                <CustomButton name="Quitter" onPress={onBackToHome} variant="dark" icon="LogOut" />
+            </View>
         </View>
     )
 }

@@ -66,5 +66,27 @@ export const createLobbyRouter = (io) => {
         }
     })
 
+    router.post('/lobbies/:code/kick', async (req, res, next) => {
+        try {
+            const code = req.params.code.toUpperCase()
+            const lobby = await lobbyService.kickPlayer(code, req.body.requesterId, req.body.targetId)
+            broadcast(code, lobby)
+            res.json({ lobby })
+        } catch (err) {
+            next(err)
+        }
+    })
+
+    router.post('/lobbies/:code/transfer-host', async (req, res, next) => {
+        try {
+            const code = req.params.code.toUpperCase()
+            const lobby = await lobbyService.transferHost(code, req.body.requesterId, req.body.targetId)
+            broadcast(code, lobby)
+            res.json({ lobby })
+        } catch (err) {
+            next(err)
+        }
+    })
+
     return router
 }

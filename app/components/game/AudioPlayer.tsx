@@ -8,6 +8,10 @@ type AudioPlayerProps = {
     previewUrl?: string | null
     autoPlay?: boolean
     color?: string
+    // mise en page réduite (bouton + barre sur une ligne), utilisée quand
+    // l'espace vertical est précieux (ex: recherche du blindtest, au-dessus
+    // du clavier)
+    compact?: boolean
 }
 
 // `useAudioPlayer` recrée l'instance native dès que `previewUrl` change et
@@ -17,6 +21,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     previewUrl,
     autoPlay = true,
     color = COLORS.primary,
+    compact = false,
 }) => {
     const player = useAudioPlayer(previewUrl ?? null)
     const status = useAudioPlayerStatus(player)
@@ -29,6 +34,16 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }, [status.isLoaded])
 
     if (!previewUrl) {
+        if (compact) {
+            return (
+                <View className="bg-offwhite rounded-2xl px-4 py-3 flex-row items-center">
+                    <Music size={18} color={COLORS.darkgray} />
+                    <Text className="text-darkgray text-xs ml-2 flex-1" numberOfLines={2}>
+                        Pas d'extrait disponible, fie-toi à tes souvenirs !
+                    </Text>
+                </View>
+            )
+        }
         return (
             <View className="bg-offwhite rounded-3xl p-6 items-center justify-center">
                 <Music size={32} color={COLORS.darkgray} />
@@ -44,6 +59,31 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     const togglePlayback = () => {
         if (status.playing) player.pause()
         else player.play()
+    }
+
+    if (compact) {
+        return (
+            <View className="bg-offwhite rounded-2xl px-3 py-3 flex-row items-center">
+                <TouchableOpacity
+                    onPress={togglePlayback}
+                    className="rounded-full w-10 h-10 items-center justify-center mr-3"
+                    style={{ backgroundColor: color }}
+                >
+                    {status.playing ? (
+                        <Pause size={18} color={COLORS.white} fill={COLORS.white} />
+                    ) : (
+                        <Play size={18} color={COLORS.white} fill={COLORS.white} />
+                    )}
+                </TouchableOpacity>
+
+                <View className="flex-1 h-1.5 bg-white rounded-full overflow-hidden">
+                    <View
+                        className="h-full rounded-full"
+                        style={{ width: `${progress * 100}%`, backgroundColor: color }}
+                    />
+                </View>
+            </View>
+        )
     }
 
     return (

@@ -17,6 +17,7 @@ type ServerLobby = {
     gameMode: LobbyType['gameMode']
     rounds: number
     phaseSpeed: LobbyType['phaseSpeed']
+    settingsConfirmed: boolean
     maxPlayers: number
     players: ServerPlayer[]
 }
@@ -42,6 +43,7 @@ const applyServerLobby = (serverLobby: ServerLobby) => {
         gameMode: serverLobby.gameMode,
         rounds: serverLobby.rounds,
         phaseSpeed: serverLobby.phaseSpeed,
+        settingsConfirmed: serverLobby.settingsConfirmed,
     })
     setUsers(serverLobby.players.map(toLobbyUser))
 }
@@ -126,6 +128,44 @@ export const leaveLobby = async (): Promise<{ shouldNavigate: boolean }> => {
     stopWatchingLobby()
     resetLobby()
     return { shouldNavigate: true }
+}
+
+export const kickPlayer = async (targetId: string): Promise<LobbyResult> => {
+    const { user } = useAuthStore.getState()
+    const { lobby } = useLobbyStore.getState()
+    if (!user || !lobby) {
+        return { ok: false, error: 'Aucun lobby actif' }
+    }
+
+    try {
+        const { data } = await lobbyApiClient.post<{ lobby: ServerLobby }>(`/lobbies/${lobby.code}/kick`, {
+            requesterId: user.id,
+            targetId,
+        })
+        applyServerLobby(data.lobby)
+        return { ok: true }
+    } catch (error) {
+        return { ok: false, error: extractLobbyErrorMessage(error) }
+    }
+}
+
+export const transferHost = async (targetId: string): Promise<LobbyResult> => {
+    const { user } = useAuthStore.getState()
+    const { lobby } = useLobbyStore.getState()
+    if (!user || !lobby) {
+        return { ok: false, error: 'Aucun lobby actif' }
+    }
+
+    try {
+        const { data } = await lobbyApiClient.post<{ lobby: ServerLobby }>(`/lobbies/${lobby.code}/transfer-host`, {
+            requesterId: user.id,
+            targetId,
+        })
+        applyServerLobby(data.lobby)
+        return { ok: true }
+    } catch (error) {
+        return { ok: false, error: extractLobbyErrorMessage(error) }
+    }
 }
 
 export const updateLobbySettings = async (settings: {

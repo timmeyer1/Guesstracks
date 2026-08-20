@@ -20,6 +20,7 @@ export type LobbyType = {
     gameMode: GameMode;
     rounds: number;
     phaseSpeed: PhaseSpeed;
+    settingsConfirmed: boolean;
 };
 
 
@@ -41,24 +42,13 @@ export type WhoLikedOption = {
     img: string | null
 }
 
-// mode blindtest : QCM de titres (le bon + des leurres)
-export type GuessTrackOption = {
-    id: string
-    label: string
-}
-
-export type GameRoundOption = WhoLikedOption | GuessTrackOption
-
-export const isGuessTrackOption = (option: GameRoundOption): option is GuessTrackOption =>
-    'label' in option
-
-export const isWhoLikedOption = (option: GameRoundOption): option is WhoLikedOption =>
-    'name' in option
-
+// mode blindtest : un seul titre "à trouver" par recherche dans le catalogue
+// (cf. CatalogEntry), donc pas d'options à choix multiple ici
 export type GameRoundTrack = {
     id: string
     // absents tant que questionType === 'guess_track' et que la manche est en cours
-    // (ce sont justement les infos à deviner)
+    // (ce sont justement les infos à deviner) ; l'image reste présente mais
+    // doit être affichée floutée par le client
     name?: string
     artist?: string
     album?: string
@@ -70,10 +60,19 @@ export type GameRoundStart = {
     roundIndex: number
     totalRounds: number
     questionType: QuestionType
-    options: GameRoundOption[]
+    options: WhoLikedOption[] // vide en mode blindtest
     duration: number
     startedAt: number
     track: GameRoundTrack
+}
+
+// catalogue de recherche du mode blindtest : tous les titres likés par le
+// lobby (uniquement le nom, jamais l'artiste, pour ne pas faciliter la
+// recherche), envoyé une seule fois au lancement de la partie
+export type CatalogEntry = {
+    id: string
+    name: string
+    artist: string
 }
 
 export type GameRoundPlayerResult = {
@@ -84,6 +83,8 @@ export type GameRoundPlayerResult = {
     correctSelected: number
     incorrectSelected: number
     isPerfect: boolean
+    basePoints: number
+    bonusPoints: number
     points: number
     totalPoints: number
     streak: number
@@ -116,6 +117,7 @@ export type GameRoundEnd = {
 export type GameStarted = {
     totalRounds: number
     gameMode: GameMode
+    catalog?: CatalogEntry[] // présent uniquement en mode blindtest
 }
 
 export type GameEnd = {

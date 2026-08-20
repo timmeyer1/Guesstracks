@@ -17,13 +17,18 @@ interface PlayersGridProps {
     maxPlayers: number
     onInvite: () => void
     size?: AvatarSize
+    // hôte uniquement : appui sur un autre joueur pour le gérer (mettre hôte, expulser)
+    currentUserId?: string
+    onSelectPlayer?: (user: User) => void
 }
 
 export const PlayersGrid: React.FC<PlayersGridProps> = ({
     users,
     maxPlayers,
     onInvite,
-    size = 'md'
+    size = 'md',
+    currentUserId,
+    onSelectPlayer,
 }) => {
     const px = AVATAR_SIZES[size]
 
@@ -66,14 +71,24 @@ export const PlayersGrid: React.FC<PlayersGridProps> = ({
                         }
 
                         const actualIndex = rowIndex * 3 + index
-                        return (
+                        const avatar = (
                             <PlayerAvatar
-                                key={item.id}
                                 size={size}
                                 name={item.name}
                                 img={item.img}
                                 isHost={actualIndex === 0}
                             />
+                        )
+
+                        const canManage = !!onSelectPlayer && item.id !== currentUserId
+                        if (!canManage) {
+                            return <View key={item.id}>{avatar}</View>
+                        }
+
+                        return (
+                            <TouchableOpacity key={item.id} onPress={() => onSelectPlayer(item)}>
+                                {avatar}
+                            </TouchableOpacity>
                         )
                     })}
                 </View>

@@ -117,6 +117,52 @@ export const updateLobbySettings = async (code, playerId, settings) => {
         lobby.rounds = rounds
     }
 
+    lobby.settingsConfirmed = true
+    await lobby.save()
+    return lobby.toPublic()
+}
+
+// le premier joueur du tableau est toujours l'hôte (cf. lobby.model.js)
+export const kickPlayer = async (code, requesterId, targetId) => {
+    const lobby = await getLobby(code)
+
+    const isHost = lobby.players[0]?.id === requesterId
+    if (!isHost) {
+        throw new LobbyError("Seul l'hôte peut expulser un joueur", 403)
+    }
+    if (requesterId === targetId) {
+        throw new LobbyError("Tu ne peux pas t'expulser toi-même")
+    }
+
+    const before = lobby.players.length
+    lobby.players = lobby.players.filter((p) => p.id !== targetId)
+    if (lobby.players.length === before) {
+        throw new LobbyError('Joueur introuvable', 404)
+    }
+
+    await lobby.save()
+    return lobby.toPublic()
+}
+
+export const transferHost = async (code, requesterId, targetId) => {
+    const lobby = await getLobby(code)
+
+    const isHost = lobby.players[0]?.id === requesterId
+    if (!isHost) {
+        throw new LobbyError("Seul l'hôte peut transférer son rôle", 403)
+    }
+
+    const targetIndex = lobby.players.findIndex((p) => p.id === targetId)
+    if (targetIndex === -1) {
+        throw new LobbyError('Joueur introuvable', 404)
+    }
+    if (targetIndex === 0) {
+        return lobby.toPublic()
+    }
+
+    const [target] = lobby.players.splice(targetIndex, 1)
+    lobby.players.unshift(target)
+
     await lobby.save()
     return lobby.toPublic()
 }

@@ -6,6 +6,7 @@ import type {
     GameRoundEnd,
     LeaderboardEntry,
     FinalLeaderboardEntry,
+    CatalogEntry,
 } from '../core/types'
 
 type GameStoreType = {
@@ -16,6 +17,7 @@ type GameStoreType = {
     lastRoundEnd: GameRoundEnd | null
     leaderboard: LeaderboardEntry[]
     finalLeaderboard: FinalLeaderboardEntry[]
+    catalog: CatalogEntry[] // titres cherchables en mode blindtest
     mySelection: string[]
     hasAnswered: boolean
     error: string | null
@@ -23,6 +25,7 @@ type GameStoreType = {
     setPhase: (phase: GamePhase) => void
     setGameMode: (gameMode: GameMode) => void
     setTotalRounds: (totalRounds: number) => void
+    setCatalog: (catalog: CatalogEntry[]) => void
     startRound: (round: GameRoundStart) => void
     endRound: (payload: GameRoundEnd) => void
     setLeaderboard: (leaderboard: LeaderboardEntry[]) => void
@@ -41,6 +44,7 @@ const initialState = {
     lastRoundEnd: null as GameRoundEnd | null,
     leaderboard: [] as LeaderboardEntry[],
     finalLeaderboard: [] as FinalLeaderboardEntry[],
+    catalog: [] as CatalogEntry[],
     mySelection: [] as string[],
     hasAnswered: false,
     error: null as string | null,
@@ -52,6 +56,7 @@ export const useGameStore = create<GameStoreType>((set, get) => ({
     setPhase: (phase) => set({ phase }),
     setGameMode: (gameMode) => set({ gameMode }),
     setTotalRounds: (totalRounds) => set({ totalRounds }),
+    setCatalog: (catalog) => set({ catalog }),
 
     startRound: (round) =>
         set({

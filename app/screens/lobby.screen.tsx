@@ -3,13 +3,14 @@ import React, { useEffect, useState } from 'react'
 import { View, Text, Alert, ScrollView, Share } from 'react-native'
 import { useNavigation } from "@react-navigation/native"
 
-import { leaveLobby, updateLobbySettings } from '../modules/lobby/lobby.service'
+import { leaveLobby, updateLobbySettings, kickPlayer, transferHost } from '../modules/lobby/lobby.service'
 import { startWatchingGame, stopWatchingGame, leaveGame, submitMyTracks, startGame } from '../modules/game/game.service'
 import { useLobbyStore } from "../stores/lobby.store"
 import { useGameStore } from "../stores/game.store"
 import { LOBBY_LIMITS } from '../core/constants/lobby.constants'
 import { useAuthStore } from "../stores/auth.store"
 import { COLORS } from '../core/constants/colors.constants'
+import type { LobbyUserType } from '../core/types'
 
 import { CustomButton } from "../components/Button"
 import { IconButton } from "../components/IconButton"
@@ -17,6 +18,7 @@ import { ScreenLayout } from "../components/ScreenLayout"
 import { LobbySettingsModal } from '../components/lobby/LobbySettingsModal'
 import { GameModeCard } from '../components/lobby/GameModeCard'
 import { PlayersGrid } from '../components/lobby/PlayersGrid'
+import { PlayerActionsModal } from '../components/lobby/PlayerActionsModal'
 import { SectionTitle } from '../components/SectionTitle'
 
 const LobbyScreen = () => {
@@ -27,9 +29,13 @@ const LobbyScreen = () => {
     const navigation = useNavigation()
 
     const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false)
-    const [isGameModeSelected, setIsGameModeSelected] = useState(false)
+    const [selectedPlayer, setSelectedPlayer] = useState<LobbyUserType | null>(null)
 
     const isHost = users[0]?.id === user?.id
+    // dérivé de l'état serveur partagé (et non d'un état local) pour que tous
+    // les joueurs voient la même chose, y compris ceux qui rejoignent après
+    // que l'hôte a déjà choisi les réglages
+    const isGameModeSelected = lobby?.settingsConfirmed ?? false
     const canStartGame = users.length >= LOBBY_LIMITS.MIN_PLAYERS_TO_START && isGameModeSelected
 
     // écoute les événements de partie dès l'entrée dans le lobby, et envoie ses
@@ -57,6 +63,20 @@ const LobbyScreen = () => {
         Alert.alert("Impossible de lancer la partie", gameError)
         useGameStore.getState().setError(null)
     }, [gameError])
+
+    // détecte une expulsion par l'hôte : on n'apparaît plus dans la liste
+    // diffusée par le serveur
+    useEffect(() => {
+        if (!lobby || !user || users.length === 0) return
+        const stillIn = users.some((u) => u.id === user.id)
+        if (stillIn) return
+
+        Alert.alert("Expulsé", "L'hôte t'a retiré de ce lobby.")
+        leaveGame()
+        useLobbyStore.getState().resetLobby()
+        navigation.reset({ index: 0, routes: [{ name: 'Home' }] })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [users, lobby, user])
 
     const handleLeaveLobby = () => {
         Alert.alert(
@@ -90,9 +110,7 @@ const LobbyScreen = () => {
         const result = await updateLobbySettings(settings)
         if (!result.ok) {
             Alert.alert("Impossible de sauvegarder", result.error)
-            return
         }
-        setIsGameModeSelected(true)
     }
 
     const handleStartGame = () => {
@@ -106,6 +124,27 @@ const LobbyScreen = () => {
         // le serveur diffuse "game:started" à tout le lobby, qui redirige
         // chaque joueur vers l'écran de jeu (cf. l'effet sur gamePhase ci-dessus)
         startGame()
+    }
+
+    const handleSelectPlayer = (player: LobbyUserType) => {
+        if (!isHost || player.id === user?.id) return
+        setSelectedPlayer(player)
+    }
+
+    const handleTransferHost = async () => {
+        if (!selectedPlayer) return
+        const target = selectedPlayer
+        setSelectedPlayer(null)
+        const result = await transferHost(target.id)
+        if (!result.ok) Alert.alert("Impossible", result.error)
+    }
+
+    const handleKickPlayer = async () => {
+        if (!selectedPlayer) return
+        const target = selectedPlayer
+        setSelectedPlayer(null)
+        const result = await kickPlayer(target.id)
+        if (!result.ok) Alert.alert("Impossible", result.error)
     }
 
     const handleInvitePlayers = async () => {
@@ -159,6 +198,8 @@ const LobbyScreen = () => {
                         users={users}
                         maxPlayers={lobby.max_player}
                         onInvite={handleInvitePlayers}
+                        currentUserId={user?.id}
+                        onSelectPlayer={isHost ? handleSelectPlayer : undefined}
                     />
                 </ScrollView>
 
@@ -209,6 +250,13 @@ const LobbyScreen = () => {
                 onClose={() => setIsSettingsModalVisible(false)}
                 onConfirm={handleUpdateSettings}
                 initialSettings={isGameModeSelected ? lobby : undefined}
+            />
+
+            <PlayerActionsModal
+                player={selectedPlayer}
+                onClose={() => setSelectedPlayer(null)}
+                onTransferHost={handleTransferHost}
+                onKick={handleKickPlayer}
             />
         </ScreenLayout>
     )

@@ -152,16 +152,13 @@ const buildBlindtestRounds = async (pool, requestedRounds) => {
         rounds.push({ track: { ...track, previewUrl } })
     }
 
-    return rounds.map((round) => {
-        const distractorPool = pool.filter((t) => t.id !== round.track.id)
-        const distractors = shuffle(distractorPool).slice(0, 3)
-        const options = shuffle([
-            { id: round.track.id, label: `${round.track.name} — ${round.track.artist}` },
-            ...distractors.map((t) => ({ id: t.id, label: `${t.name} — ${t.artist}` })),
-        ])
-        return { ...round, options }
-    })
+    return rounds
 }
+
+// catalogue de recherche du blindtest : tous les titres likés par le lobby,
+// envoyé une seule fois (le joueur cherche dedans plutôt que de choisir parmi
+// des options imposées)
+const buildCatalog = (pool) => pool.map((t) => ({ id: t.id, name: t.name, artist: t.artist }))
 
 const publicRound = (game, round) => {
     const hideIdentity = round.questionType === 'guess_track'
@@ -173,7 +170,7 @@ const publicRound = (game, round) => {
         duration: round.duration,
         startedAt: round.startedAt,
         track: hideIdentity
-            ? { id: round.track.id, previewUrl: round.track.previewUrl }
+            ? { id: round.track.id, previewUrl: round.track.previewUrl, image: round.track.image }
             : {
                   id: round.track.id,
                   name: round.track.name,
@@ -205,7 +202,10 @@ const buildLeaderboard = (game) =>
 
 export const startGame = async ({ code, playerId, lobby, io }) => {
     const game = getOrCreate(code)
-    if (game.status !== 'collecting') {
+    // une partie terminée peut être relancée (rejouer sans quitter le lobby) :
+    // les joueurs n'ont pas besoin de renvoyer leurs titres likés, seuls les
+    // scores et les manches repartent de zéro
+    if (!['collecting', 'finished'].includes(game.status)) {
         throw new GameError('La partie est déjà lancée')
     }
 
@@ -215,6 +215,10 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     }
     if (lobby.players.length < LOBBY_LIMITS.MIN_PLAYERS_TO_START) {
         throw new GameError('Il faut au moins 2 joueurs pour lancer la partie')
+    }
+
+    if (game.status === 'finished') {
+        game.scores = new Map()
     }
 
     const activePlayerIds = lobby.players.map((p) => p.id)
@@ -249,7 +253,7 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         index,
         track: r.track,
         questionType,
-        options: questionType === 'who_liked' ? activePlayerIds.map((id) => game.playersInfo.get(id)) : r.options,
+        options: questionType === 'who_liked' ? activePlayerIds.map((id) => game.playersInfo.get(id)) : [],
         correctAnswerIds: questionType === 'who_liked' ? r.likedBy : [r.track.id],
         duration: PHASE_DURATIONS[game.phaseSpeed],
         startedAt: null,
@@ -260,6 +264,7 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     io.to(room(code)).emit('game:started', {
         totalRounds: game.rounds.length,
         gameMode: game.gameMode,
+        catalog: questionType === 'guess_track' ? buildCatalog(pool) : undefined,
     })
 
     startNextRound(code, io)
@@ -342,20 +347,21 @@ const endRound = (code, io) => {
         // plus on identifie de bonnes réponses (sans erreur), plus le score se
         // rapproche du maximum : une seule bonne personne sur plusieurs ne
         // rapporte qu'une fraction des points, toutes les rapporte en entier
-        let points = earnedPoints ? Math.round(SCORING.BASE_POINTS * recall * speedFactor) : 0
+        const basePoints = earnedPoints ? Math.round(SCORING.BASE_POINTS * recall * speedFactor) : 0
+        let bonusPoints = 0
 
         if (isPerfect) {
             score.streak += 1
             score.bestStreak = Math.max(score.bestStreak, score.streak)
             score.perfectRounds += 1
             const streakLevel = Math.max(0, score.streak - 1)
-            points += Math.min(SCORING.STREAK_BONUS_CAP, streakLevel * SCORING.STREAK_BONUS_PER_LEVEL)
-            points += SCORING.PERFECT_BONUS
+            bonusPoints += Math.min(SCORING.STREAK_BONUS_CAP, streakLevel * SCORING.STREAK_BONUS_PER_LEVEL)
+            bonusPoints += SCORING.PERFECT_BONUS
         } else {
             score.streak = 0
         }
 
-        points = Math.max(0, points)
+        const points = Math.max(0, basePoints + bonusPoints)
         if (earnedPoints) score.correctRounds += 1
         if (isPerfect && (score.fastestMs === null || elapsedMs < score.fastestMs)) {
             score.fastestMs = elapsedMs
@@ -372,6 +378,8 @@ const endRound = (code, io) => {
             correctSelected,
             incorrectSelected,
             isPerfect,
+            basePoints,
+            bonusPoints,
             points,
             totalPoints: score.total,
             streak: score.streak,

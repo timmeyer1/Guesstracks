@@ -46,20 +46,46 @@ export const RoundResult: React.FC<RoundResultProps> = ({ result, questionType, 
 
             {myResult && (
                 <View
-                    className="rounded-3xl p-4 mb-4 items-center"
+                    className="rounded-3xl p-4 mb-4"
                     style={{ backgroundColor: myResult.points > 0 ? COLORS.success + '20' : COLORS.error + '20' }}
                 >
-                    <Text
-                        className="text-2xl font-bold"
-                        style={{ color: myResult.points > 0 ? COLORS.success : COLORS.error }}
-                    >
-                        +{myResult.points} pts
-                    </Text>
-                    {myResult.isPerfect && (
-                        <Text className="text-darkgray text-sm mt-1">Parfait ! Série de {myResult.streak} 🔥</Text>
-                    )}
-                    {!myResult.answered && (
-                        <Text className="text-darkgray text-sm mt-1">Pas de réponse envoyée à temps</Text>
+                    <View className="items-center mb-1">
+                        <Text
+                            className="text-2xl font-bold"
+                            style={{ color: myResult.points > 0 ? COLORS.success : COLORS.error }}
+                        >
+                            +{myResult.points} pts
+                        </Text>
+                        {myResult.isPerfect && (
+                            <Text className="text-darkgray text-sm mt-1">Parfait ! Série de {myResult.streak} 🔥</Text>
+                        )}
+                        {!myResult.answered && (
+                            <Text className="text-darkgray text-sm mt-1">Pas de réponse envoyée à temps</Text>
+                        )}
+                    </View>
+
+                    {myResult.points > 0 && (
+                        <View
+                            className="rounded-2xl p-3 mt-2 gap-1"
+                            style={{ backgroundColor: 'rgba(255, 255, 255, 0.6)' }}
+                        >
+                            <View className="flex-row justify-between">
+                                <Text className="text-darkgray text-sm">Points normaux</Text>
+                                <Text className="text-black font-semibold text-sm">{myResult.basePoints} pts</Text>
+                            </View>
+                            {myResult.bonusPoints > 0 && (
+                                <View className="flex-row justify-between">
+                                    <Text className="text-darkgray text-sm">Bonus</Text>
+                                    <Text className="text-black font-semibold text-sm">
+                                        +{myResult.bonusPoints} pts
+                                    </Text>
+                                </View>
+                            )}
+                            <View className="flex-row justify-between pt-1">
+                                <Text className="text-black font-bold text-sm">Total de la manche</Text>
+                                <Text className="text-black font-bold text-sm">{myResult.points} pts</Text>
+                            </View>
+                        </View>
                     )}
                 </View>
             )}

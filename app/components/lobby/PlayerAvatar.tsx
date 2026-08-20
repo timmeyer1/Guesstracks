@@ -34,8 +34,10 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
             <View style={{ paddingTop: px * 0.2 }}>
                 <View className="relative items-center mb-1">
                     {isHost && (
-                        <View className="absolute -top-1 z-10 bg-white rounded-md p-1"
-                            style={{ top: -(px * 0.2) }}>  {/* remonte dans le padding */}
+                        <View
+                            className="absolute -top-1 z-10 bg-white rounded-md p-1"
+                            style={{ top: -(px * 0.2) }} // remonte dans le padding
+                        >
                             <Crown size={px * 0.31} color={COLORS.primary} fill={COLORS.primary} />
                         </View>
                     )}

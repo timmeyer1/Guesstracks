@@ -61,6 +61,7 @@ export const startWatchingGame = () => {
             useGameStore.getState().setPhase('collecting')
             useGameStore.getState().setGameMode(payload.gameMode)
             useGameStore.getState().setTotalRounds(payload.totalRounds)
+            useGameStore.getState().setCatalog(payload.catalog ?? [])
         },
         onRoundStart: (payload: GameRoundStart) => {
             useGameStore.getState().startRound(payload)

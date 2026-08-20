@@ -17,6 +17,10 @@ const lobbySchema = new mongoose.Schema({
     gameMode: { type: String, enum: GAME_MODES, default: 'guesstracks' },
     rounds: { type: Number, min: LOBBY_LIMITS.MIN_ROUNDS, max: LOBBY_LIMITS.MAX_ROUNDS, default: 10 },
     phaseSpeed: { type: String, enum: PHASE_SPEEDS, default: 'normal' },
+    // le lobby a des valeurs par défaut dès sa création, mais tant que l'hôte
+    // n'a pas explicitement validé les réglages, on ne veut pas les afficher
+    // comme "choisis" aux autres joueurs (cf. LobbySettingsModal)
+    settingsConfirmed: { type: Boolean, default: false },
     maxPlayers: { type: Number, default: LOBBY_LIMITS.MAX_PLAYERS, max: LOBBY_LIMITS.MAX_PLAYERS },
     players: { type: [playerSchema], default: [] },
     createdAt: { type: Date, default: Date.now, expires: '6h' },
@@ -30,6 +34,7 @@ lobbySchema.methods.toPublic = function toPublic() {
         gameMode: this.gameMode,
         rounds: this.rounds,
         phaseSpeed: this.phaseSpeed,
+        settingsConfirmed: this.settingsConfirmed,
         maxPlayers: this.maxPlayers,
         players: this.players,
     }
