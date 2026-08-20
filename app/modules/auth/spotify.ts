@@ -4,7 +4,10 @@ import * as AuthSession from 'expo-auth-session';
 WebBrowser.maybeCompleteAuthSession();
 
 const CLIENT_ID = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID!;
-const REDIRECT_URI = __DEV__ ? 'exp://localhost:8081' : 'guesstracks://callback';
+// Calcule automatiquement la bonne URI (host:port réel du serveur Expo en dev,
+// scheme "guesstracks://" en build standalone) : un "localhost" codé en dur
+// ne fonctionne pas sur un appareil physique, qui a son propre localhost.
+const REDIRECT_URI = AuthSession.makeRedirectUri({ scheme: 'guesstracks' });
 
 const discovery = {
     authorizationEndpoint: 'https://accounts.spotify.com/authorize',
@@ -13,6 +16,7 @@ const discovery = {
 
 export const loginWithSpotify = async () => {
     console.log('--------------------------------------------------------------------------');
+    console.log('redirect URI (à whitelister dans le dashboard Spotify) :', REDIRECT_URI);
 
     const request = await AuthSession.loadAsync(
         {
