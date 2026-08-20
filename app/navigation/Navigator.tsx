@@ -5,8 +5,25 @@ import { LoginScreen } from '../screens/login.screen';
 import { HomeScreen } from '../screens/home.screen';
 import { useAuthStore } from '../stores/auth.store';
 import LobbyScreen from "../screens/lobby.screen";
+import GameScreen from "../screens/game.screen";
 
-const Stack = createNativeStackNavigator();
+export type RootStackParamList = {
+    Login: undefined
+    Home: undefined
+    Lobby: undefined
+    Game: undefined
+}
+
+// permet à useNavigation() d'être correctement typé partout dans l'app sans
+// avoir à répéter le générique à chaque appel
+declare global {
+    // eslint-disable-next-line @typescript-eslint/no-namespace
+    namespace ReactNavigation {
+        interface RootParamList extends RootStackParamList {}
+    }
+}
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AuthNavigator = () => {
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -26,6 +43,13 @@ export const AuthNavigator = () => {
                         <Stack.Screen
                             name="Lobby"
                             component={LobbyScreen}
+                            options={{
+                                gestureEnabled: false  // Désactive le swipe
+                            }}
+                        />
+                        <Stack.Screen
+                            name="Game"
+                            component={GameScreen}
                             options={{
                                 gestureEnabled: false  // Désactive le swipe
                             }}

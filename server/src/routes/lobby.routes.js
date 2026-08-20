@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import * as lobbyService from '../services/lobby.service.js'
+import { cleanupGame } from '../services/game.service.js'
 
 export const createLobbyRouter = (io) => {
     const router = Router()
@@ -42,6 +43,7 @@ export const createLobbyRouter = (io) => {
             const code = req.params.code.toUpperCase()
             const result = await lobbyService.leaveLobby(code, req.body.playerId)
             if (result.closed) {
+                cleanupGame(code)
                 io.to(`lobby:${code}`).emit('lobby:closed')
             } else {
                 broadcast(code, result.lobby)

@@ -1,10 +1,12 @@
 // app/screens/lobby.screen.tsx
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { View, Text, Alert, ScrollView, Share } from 'react-native'
 import { useNavigation } from "@react-navigation/native"
 
 import { leaveLobby, updateLobbySettings } from '../modules/lobby/lobby.service'
+import { startWatchingGame, stopWatchingGame, leaveGame, submitMyTracks, startGame } from '../modules/game/game.service'
 import { useLobbyStore } from "../stores/lobby.store"
+import { useGameStore } from "../stores/game.store"
 import { LOBBY_LIMITS } from '../core/constants/lobby.constants'
 import { useAuthStore } from "../stores/auth.store"
 import { COLORS } from '../core/constants/colors.constants'
@@ -20,6 +22,8 @@ import { SectionTitle } from '../components/SectionTitle'
 const LobbyScreen = () => {
     const { lobby, users } = useLobbyStore()
     const { user } = useAuthStore()
+    const gamePhase = useGameStore((s) => s.phase)
+    const gameError = useGameStore((s) => s.error)
     const navigation = useNavigation()
 
     const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false)
@@ -27,6 +31,32 @@ const LobbyScreen = () => {
 
     const isHost = users[0]?.id === user?.id
     const canStartGame = users.length >= LOBBY_LIMITS.MIN_PLAYERS_TO_START && isGameModeSelected
+
+    // écoute les événements de partie dès l'entrée dans le lobby, et envoie ses
+    // titres likés pour que le pool soit prêt quand l'hôte lancera la partie
+    useEffect(() => {
+        if (!lobby) return
+        startWatchingGame()
+        submitMyTracks()
+        return () => stopWatchingGame()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lobby?.code])
+
+    // tous les joueurs (pas seulement l'hôte) sont redirigés dès que le
+    // serveur démarre la partie
+    useEffect(() => {
+        if (gamePhase !== 'idle') {
+            navigation.navigate('Game')
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gamePhase])
+
+    // ex: "pas assez de musiques likées en commun", "seul l'hôte peut lancer"...
+    useEffect(() => {
+        if (!gameError) return
+        Alert.alert("Impossible de lancer la partie", gameError)
+        useGameStore.getState().setError(null)
+    }, [gameError])
 
     const handleLeaveLobby = () => {
         Alert.alert(
@@ -38,6 +68,7 @@ const LobbyScreen = () => {
                     text: "Quitter",
                     onPress: async () => {
                         const result = await leaveLobby()
+                        leaveGame()
                         if (result.shouldNavigate) {
                             navigation.reset({
                                 index: 0,
@@ -72,7 +103,9 @@ const LobbyScreen = () => {
             )
             return
         }
-        Alert.alert("C'est parti !", "La partie va commencer...")
+        // le serveur diffuse "game:started" à tout le lobby, qui redirige
+        // chaque joueur vers l'écran de jeu (cf. l'effet sur gamePhase ci-dessus)
+        startGame()
     }
 
     const handleInvitePlayers = async () => {

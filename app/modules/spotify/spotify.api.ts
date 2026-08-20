@@ -18,10 +18,11 @@ export const spotifyApi = {
     getUserProfile: () =>
         apiClient.get(`${SPOTIFY_BASE_URL}/me`),
 
-    getUserLikedTracks: () =>
+    getUserLikedTracks: (limit = 50, offset = 0) =>
         apiClient.get(`${SPOTIFY_BASE_URL}/me/tracks`,{
             params:{
-                limit:50,
+                limit,
+                offset,
             }
         }),
 };
