@@ -83,22 +83,20 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
 
     return (
         <View>
-            <Text className="text-black text-lg font-bold text-center mb-3">
-                Quelle est cette musique ?
-            </Text>
-
             <View className="items-center mb-3">
                 <StatusPill text={`Temps restant : ${remaining}s`} />
             </View>
 
             {/* zIndex élevé pour que le dropdown flotte au-dessus du reste du
             contenu au lieu de pousser la mise en page (sinon gros vide tant
-            que rien n'est tapé) */}
+            que rien n'est tapé). Il s'ouvre vers le haut (bottom-full) car la
+            barre de recherche est en bas de l'écran, juste au-dessus du clavier. */}
             <View style={{ zIndex: 10 }}>
                 <View className="flex-row items-center bg-offwhite rounded-2xl px-4 py-3">
                     <Search size={18} color={COLORS.darkgray} />
                     <TextInput
                         className="flex-1 ml-2 text-black text-base"
+                        style={{ letterSpacing: 0 }}
                         value={query}
                         onChangeText={setQuery}
                         placeholder="Cherche un titre ou un artiste..."
@@ -110,7 +108,7 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
 
                 {showDropdown && (
                     <View
-                        className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-card overflow-hidden"
+                        className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl shadow-card overflow-hidden"
                         style={{ maxHeight: 240, elevation: 6 }}
                     >
                         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

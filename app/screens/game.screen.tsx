@@ -90,70 +90,85 @@ const GameScreen = () => {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 <ScreenLayout noPadding shapes={!isSearchMode ? GAME_SHAPES : undefined}>
-                    {/* padding vertical réduit par rapport au reste de l'app : en mode
-                    blindtest, chaque pixel compte pour garder la recherche visible
-                    au-dessus du clavier */}
-                    <View className={`flex-1 px-8 ${isSearchMode ? 'pt-6 pb-4' : 'py-10'}`}>
-                        <RoundHeader
-                            roundIndex={round.roundIndex}
-                            totalRounds={round.totalRounds}
-                            startedAt={round.startedAt}
-                            duration={round.duration}
-                            gameMode={gameMode}
-                            compact
-                        />
+                    {!isSearchMode ? (
+                        <View className="flex-1 px-8 py-10">
+                            <RoundHeader
+                                roundIndex={round.roundIndex}
+                                totalRounds={round.totalRounds}
+                                startedAt={round.startedAt}
+                                duration={round.duration}
+                                gameMode={gameMode}
+                                compact
+                            />
 
-                        {!isSearchMode ? (
-                            <>
-                                <View className="items-center mb-4">
-                                    {round.track.image && (
-                                        <Image
-                                            source={{ uri: round.track.image }}
-                                            style={{ width: 80, height: 80, borderRadius: 16 }}
-                                            className="mb-2"
-                                        />
-                                    )}
-                                    <Text className="text-black text-lg font-bold text-center">{round.track.name}</Text>
-                                    <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
-                                </View>
+                            <View className="items-center mb-4">
+                                {round.track.image && (
+                                    <Image
+                                        source={{ uri: round.track.image }}
+                                        style={{ width: 80, height: 80, borderRadius: 16 }}
+                                        className="mb-2"
+                                    />
+                                )}
+                                <Text className="text-black text-lg font-bold text-center">{round.track.name}</Text>
+                                <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
+                            </View>
 
-                                <View className="mb-6">
-                                    <AudioPlayer previewUrl={round.track.previewUrl} />
-                                </View>
+                            <View className="mb-6">
+                                <AudioPlayer previewUrl={round.track.previewUrl} />
+                            </View>
 
-                                <WhoLikedQuestion
-                                    options={round.options}
-                                    selected={mySelection}
-                                    hasAnswered={hasAnswered}
+                            <WhoLikedQuestion
+                                options={round.options}
+                                selected={mySelection}
+                                hasAnswered={hasAnswered}
+                                startedAt={round.startedAt}
+                                duration={round.duration}
+                                onToggle={(id) => toggleSelection(id, true)}
+                                onSubmit={() => submitAnswer(mySelection)}
+                            />
+                        </View>
+                    ) : (
+                        // en mode blindtest, la pochette floutée et le titre restent en
+                        // haut, tandis que le décompte et la recherche restent groupés en
+                        // bas de l'écran : quand le clavier s'ouvre, KeyboardAvoidingView
+                        // réduit l'espace disponible et ce bloc du bas remonte au-dessus
+                        <View className="flex-1 px-8 pt-6 pb-4 justify-between">
+                            <View>
+                                <RoundHeader
+                                    roundIndex={round.roundIndex}
+                                    totalRounds={round.totalRounds}
                                     startedAt={round.startedAt}
                                     duration={round.duration}
-                                    onToggle={(id) => toggleSelection(id, true)}
-                                    onSubmit={() => submitAnswer(mySelection)}
+                                    gameMode={gameMode}
+                                    compact
                                 />
-                            </>
-                        ) : (
-                            <>
-                                <View className="flex-row items-center gap-3 mb-3">
-                                    <BlurredCover imageUri={round.track.image} size={72} />
-                                    <View className="flex-1">
-                                        <AudioPlayer previewUrl={round.track.previewUrl} compact />
-                                    </View>
+
+                                <View className="items-center mt-4 mb-3">
+                                    <BlurredCover imageUri={round.track.image} size={140} />
                                 </View>
 
-                                <SearchTrackQuestion
-                                    catalog={catalog}
-                                    hasAnswered={hasAnswered}
-                                    selectedId={mySelection[0] ?? null}
-                                    startedAt={round.startedAt}
-                                    duration={round.duration}
-                                    onAnswer={(id) => {
-                                        toggleSelection(id, false)
-                                        submitAnswer([id])
-                                    }}
-                                />
-                            </>
-                        )}
-                    </View>
+                                <View className="mb-4">
+                                    <AudioPlayer previewUrl={round.track.previewUrl} compact />
+                                </View>
+
+                                <Text className="text-black text-lg font-bold text-center">
+                                    Quelle est cette musique ?
+                                </Text>
+                            </View>
+
+                            <SearchTrackQuestion
+                                catalog={catalog}
+                                hasAnswered={hasAnswered}
+                                selectedId={mySelection[0] ?? null}
+                                startedAt={round.startedAt}
+                                duration={round.duration}
+                                onAnswer={(id) => {
+                                    toggleSelection(id, false)
+                                    submitAnswer([id])
+                                }}
+                            />
+                        </View>
+                    )}
                 </ScreenLayout>
             </KeyboardAvoidingView>
         )
