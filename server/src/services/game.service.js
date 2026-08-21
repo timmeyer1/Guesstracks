@@ -299,7 +299,7 @@ const buildCatalog = async (pool) => {
         const batch = pool.slice(i, i + DEEZER_ARTIST_BATCH_SIZE)
         const artists = await Promise.all(batch.map((t) => resolveDeezerArtist(t)))
         batch.forEach((t, index) => {
-            entries.push({ id: t.id, name: t.name, artist: artists[index] })
+            entries.push({ id: t.id, name: t.name, artist: artists[index], image: t.image ?? null })
         })
     }
     return entries

@@ -67,12 +67,12 @@ export type GameRoundStart = {
 }
 
 // catalogue de recherche du mode blindtest : tous les titres likés par le
-// lobby (uniquement le nom, jamais l'artiste, pour ne pas faciliter la
-// recherche), envoyé une seule fois au lancement de la partie
+// lobby, envoyé une seule fois au lancement de la partie
 export type CatalogEntry = {
     id: string
     name: string
     artist: string
+    image?: string | null
 }
 
 export type GameRoundPlayerResult = {
