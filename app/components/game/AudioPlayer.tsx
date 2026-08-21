@@ -8,9 +8,8 @@ type AudioPlayerProps = {
     previewUrl?: string | null
     autoPlay?: boolean
     color?: string
-    // mise en page réduite (bouton + barre sur une ligne), utilisée quand
-    // l'espace vertical est précieux (ex: recherche du blindtest, au-dessus
-    // du clavier)
+    // bouton plus petit, utilisé quand l'espace vertical est précieux (ex:
+    // recherche du blindtest, au-dessus du clavier)
     compact?: boolean
 }
 
@@ -54,58 +53,27 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         )
     }
 
-    const progress = status.duration > 0 ? Math.min(1, status.currentTime / status.duration) : 0
-
     const togglePlayback = () => {
         if (status.playing) player.pause()
         else player.play()
     }
 
-    if (compact) {
-        return (
-            <View className="bg-offwhite rounded-2xl px-3 py-3 flex-row items-center">
-                <TouchableOpacity
-                    onPress={togglePlayback}
-                    className="rounded-full w-10 h-10 items-center justify-center mr-3"
-                    style={{ backgroundColor: color }}
-                >
-                    {status.playing ? (
-                        <Pause size={18} color={COLORS.white} fill={COLORS.white} />
-                    ) : (
-                        <Play size={18} color={COLORS.white} fill={COLORS.white} />
-                    )}
-                </TouchableOpacity>
-
-                <View className="flex-1 h-1.5 bg-white rounded-full overflow-hidden">
-                    <View
-                        className="h-full rounded-full"
-                        style={{ width: `${progress * 100}%`, backgroundColor: color }}
-                    />
-                </View>
-            </View>
-        )
-    }
+    const buttonSizeClass = compact ? 'w-10 h-10' : 'w-16 h-16'
+    const iconSize = compact ? 18 : 28
 
     return (
-        <View className="bg-offwhite rounded-3xl p-6 items-center">
+        <View className="items-center">
             <TouchableOpacity
                 onPress={togglePlayback}
-                className="rounded-full w-16 h-16 items-center justify-center mb-3"
+                className={`rounded-full ${buttonSizeClass} items-center justify-center`}
                 style={{ backgroundColor: color }}
             >
                 {status.playing ? (
-                    <Pause size={28} color={COLORS.white} fill={COLORS.white} />
+                    <Pause size={iconSize} color={COLORS.white} fill={COLORS.white} />
                 ) : (
-                    <Play size={28} color={COLORS.white} fill={COLORS.white} />
+                    <Play size={iconSize} color={COLORS.white} fill={COLORS.white} />
                 )}
             </TouchableOpacity>
-
-            <View className="w-full h-1.5 bg-white rounded-full overflow-hidden">
-                <View
-                    className="h-full rounded-full"
-                    style={{ width: `${progress * 100}%`, backgroundColor: color }}
-                />
-            </View>
         </View>
     )
 }
