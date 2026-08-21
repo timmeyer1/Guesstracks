@@ -10,12 +10,17 @@ import { SectionTitle } from "../components/SectionTitle";
 
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
+    const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
     const { setLikedTracks, setTotalTracks } = TrackStore.getState();
 
     const handleLogin = async () => {
         try {
             const data = await loginWithSpotify();
             if (!data?.access_token) return;
+
+            // posé tout de suite : apiClient (getMyLikedTracks, getTotalTracks
+            // plus bas) lit le token depuis ce store, pas depuis un paramètre
+            setToken(data.access_token);
 
             const userProfile = await getSpotifyUserProfile(data.access_token);
             const imageUrl = userProfile.images?.[0]?.url || null;
@@ -34,11 +39,12 @@ export const LoginScreen = () => {
             const totalTracks = await spotifyService.getTotalTracks();
             setTotalTracks(totalTracks);
 
-            // setToken() bascule isAuthenticated et déclenche donc la navigation
-            // vers Home : on ne l'appelle qu'une fois les titres likés en place,
-            // sinon un joueur rapide peut arriver au lobby et y soumettre 0 titre
+            // isAuthenticated ne bascule qu'ici (une fois les titres likés en
+            // place) : c'est lui qui déclenche la navigation hors de cet écran
+            // (cf. Navigator.tsx), et un joueur qui atteindrait le lobby avant
+            // que TrackStore.likedTracks soit rempli y soumettrait 0 titre
             // (submitMyTracks ne se relance jamais après coup)
-            setToken(data.access_token);
+            setAuthenticated(true);
 
             console.log('✅ Connexion réussie');
         } catch (error) {
