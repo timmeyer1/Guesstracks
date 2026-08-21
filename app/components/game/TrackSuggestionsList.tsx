@@ -16,32 +16,25 @@ type TrackSuggestionsListProps = {
 }
 
 const MENU_MAX_HEIGHT = 288
+const OPEN_ANIMATION_MS = 180
 
 // Menu de suggestions du blindtest : remonté à chaque fois que la recherche
-// redevient assez longue (cf. SearchTrackQuestion). Petit effet "bwong" à
-// l'ouverture (fondu + léger zoom avec rebond, ancré en bas puisque le menu
-// s'ouvre vers le haut) plutôt qu'un simple fondu, pour un rendu plus vivant.
-// Depuis le passage de la FlatList sur react-native-gesture-handler (cf.
-// import plus haut), son moteur de geste négocie le scroll indépendamment
-// des transforms des ancêtres, donc animer ce zoom ne recasse pas le
-// scroll — contrairement à l'ancienne FlatList native RN, sensible à un
-// transform sur un ancêtre combiné à un overflow: hidden (bug Android connu).
+// redevient assez longue (cf. SearchTrackQuestion), donc un simple fondu au
+// montage suffit à donner l'impression d'un menu qui s'ouvre plutôt que d'un
+// bloc qui apparaît d'un coup. Pas de glissement (transform) en plus du
+// fondu : combiné à un ancêtre en overflow: hidden, un transform sur un
+// ancêtre d'une FlatList est un bug Android connu qui la rend non
+// scrollable — exactement le problème rencontré ici.
 export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ suggestions, onSelect }) => {
     const openAnim = useRef(new Animated.Value(0)).current
 
     useEffect(() => {
-        Animated.spring(openAnim, {
+        Animated.timing(openAnim, {
             toValue: 1,
+            duration: OPEN_ANIMATION_MS,
             useNativeDriver: true,
-            friction: 6,
-            tension: 200,
         }).start()
     }, [openAnim])
-
-    const scale = openAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0.9, 1],
-    })
 
     return (
         // L'ombre (shadow-card / elevation) et le overflow-hidden qui rogne la
@@ -58,14 +51,9 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
                 maxHeight: MENU_MAX_HEIGHT,
                 elevation: 6,
                 opacity: openAnim,
-                transform: [{ scale }],
-                transformOrigin: 'bottom',
             }}
         >
-            <View
-                className="bg-white rounded-2xl border border-offwhite overflow-hidden"
-                style={{ maxHeight: MENU_MAX_HEIGHT }}
-            >
+            <View className="bg-white rounded-2xl overflow-hidden" style={{ maxHeight: MENU_MAX_HEIGHT }}>
                 {/* FlatList plutôt que ScrollView : ne rend que les lignes visibles à
                 l'écran au lieu de tout le catalogue filtré d'un coup — un artiste avec
                 beaucoup de titres, ou un catalogue volumineux, reste fluide en
