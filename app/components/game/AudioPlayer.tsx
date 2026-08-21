@@ -7,6 +7,8 @@ import { COLORS } from '../../core/constants/colors.constants'
 type AudioPlayerProps = {
     previewUrl?: string | null
     autoPlay?: boolean
+    // couleur de fond du bouton, claire par défaut (comme la pastille
+    // StatusPill "Temps restant" à côté de laquelle il est souvent affiché)
     color?: string
     // bouton plus petit, utilisé quand l'espace vertical est précieux (ex:
     // recherche du blindtest, au-dessus du clavier)
@@ -19,7 +21,7 @@ type AudioPlayerProps = {
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     previewUrl,
     autoPlay = true,
-    color = COLORS.primary,
+    color = COLORS.offwhite,
     compact = false,
 }) => {
     const player = useAudioPlayer(previewUrl ?? null)
@@ -72,9 +74,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 style={{ backgroundColor: color }}
             >
                 {status.playing ? (
-                    <Pause size={iconSize} color={COLORS.white} fill={COLORS.white} />
+                    <Pause size={iconSize} color={COLORS.dark} fill={COLORS.dark} />
                 ) : (
-                    <Play size={iconSize} color={COLORS.white} fill={COLORS.white} />
+                    <Play size={iconSize} color={COLORS.dark} fill={COLORS.dark} />
                 )}
             </TouchableOpacity>
         </View>
