@@ -39,22 +39,28 @@ export const AuthNavigator = () => {
                 }}
             >
                 {!isAuthenticated ? (
-                    <Stack.Screen name="Login" component={LoginScreen} />
+                    // écran de déconnexion : fondu plutôt que glissement
+                    <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
                 ) : (
                     <>
-                        <Stack.Screen name="Home" component={HomeScreen} />
+                        {/* Home est la destination de "Quitter le lobby" / retour après
+                        déconnexion : fondu, pour la distinguer du glissement utilisé
+                        en entrant dans un lobby ou une partie */}
+                        <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'fade' }} />
                         <Stack.Screen
                             name="Lobby"
                             component={LobbyScreen}
                             options={{
-                                gestureEnabled: false  // Désactive le swipe
+                                gestureEnabled: false,  // Désactive le swipe
+                                animation: 'slide_from_right',
                             }}
                         />
                         <Stack.Screen
                             name="Game"
                             component={GameScreen}
                             options={{
-                                gestureEnabled: false  // Désactive le swipe
+                                gestureEnabled: false,  // Désactive le swipe
+                                animation: 'slide_from_right',
                             }}
                         />
                     </>

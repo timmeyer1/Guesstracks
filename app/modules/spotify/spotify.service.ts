@@ -38,20 +38,29 @@ export const spotifyService = {
         }
     },
 
-    async getMyLikedTracks(): Promise<TrackType[]> {
-        const tracks: TrackType[] = [];
-        let offset = 0;
+    // renvoie aussi `total` (déjà présent dans la réponse Spotify) pour éviter
+    // à l'appelant un aller-retour getTotalTracks() séparé après coup
+    async getMyLikedTracks(): Promise<{ tracks: TrackType[]; total: number }> {
+        const first = await spotifyApi.getUserLikedTracks(PAGE_SIZE, 0);
+        const total = first.data.total ?? 0;
+        const tracks: TrackType[] = (first.data.items ?? []).map(mapItem);
 
-        while (offset < MAX_TRACKS) {
-            const { data } = await spotifyApi.getUserLikedTracks(PAGE_SIZE, offset);
-            const items = data.items ?? [];
-            tracks.push(...items.map(mapItem));
-
-            if (!data.next || items.length < PAGE_SIZE) break;
-            offset += PAGE_SIZE;
+        // le premier appel renseigne le nombre total de pages restantes : on les
+        // récupère toutes en parallèle plutôt qu'en attendant chaque page l'une
+        // après l'autre, ce qui divise le temps de chargement par ~le nombre de pages
+        const remainingOffsets: number[] = [];
+        for (let offset = PAGE_SIZE; offset < Math.min(total, MAX_TRACKS); offset += PAGE_SIZE) {
+            remainingOffsets.push(offset);
         }
 
-        return tracks;
+        const pages = await Promise.all(
+            remainingOffsets.map((offset) => spotifyApi.getUserLikedTracks(PAGE_SIZE, offset))
+        );
+        for (const { data } of pages) {
+            tracks.push(...(data.items ?? []).map(mapItem));
+        }
+
+        return { tracks, total };
     },
 
     async getTotalTracks() {

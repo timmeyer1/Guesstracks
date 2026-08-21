@@ -30,8 +30,11 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
 
     return (
         <View className="flex-1">
-            <Text className="text-black text-lg font-bold text-center mb-4">
+            <Text className="text-black text-lg font-bold text-center">
                 Qui a liké cette musique ?
+            </Text>
+            <Text className="text-darkgray text-xs text-center mb-4">
+                Plusieurs choix possibles
             </Text>
 
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>

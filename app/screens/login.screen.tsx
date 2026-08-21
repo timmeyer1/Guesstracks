@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Text, View, Image } from "react-native";
 import { getSpotifyUserProfile, loginWithSpotify } from "../modules/auth/spotify";
 import { useAuthStore } from "../stores/auth.store";
@@ -12,17 +12,27 @@ export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
     const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
     const { setLikedTracks, setTotalTracks } = TrackStore.getState();
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     const handleLogin = async () => {
+        if (isLoggingIn) return;
+        setIsLoggingIn(true);
+
         try {
             const data = await loginWithSpotify();
             if (!data?.access_token) return;
 
-            // posé tout de suite : apiClient (getMyLikedTracks, getTotalTracks
-            // plus bas) lit le token depuis ce store, pas depuis un paramètre
+            // posé tout de suite : apiClient (getSpotifyUserProfile via fetch direct,
+            // mais aussi getMyLikedTracks juste après) lit le token depuis ce store
             setToken(data.access_token);
 
-            const userProfile = await getSpotifyUserProfile(data.access_token);
+            // le profil et les titres likés sont indépendants l'un de l'autre :
+            // on les récupère en parallèle plutôt qu'en séquence pour réduire
+            // le temps de connexion perçu
+            const [userProfile, { tracks, total }] = await Promise.all([
+                getSpotifyUserProfile(data.access_token),
+                spotifyService.getMyLikedTracks(),
+            ]);
             const imageUrl = userProfile.images?.[0]?.url || null;
 
             useAuthStore.getState().setUser({
@@ -33,11 +43,8 @@ export const LoginScreen = () => {
                 account_type: userProfile.product,
             });
 
-            const tracks = await spotifyService.getMyLikedTracks();
             setLikedTracks(tracks);
-
-            const totalTracks = await spotifyService.getTotalTracks();
-            setTotalTracks(totalTracks);
+            setTotalTracks(total);
 
             // isAuthenticated ne bascule qu'ici (une fois les titres likés en
             // place) : c'est lui qui déclenche la navigation hors de cet écran
@@ -49,6 +56,8 @@ export const LoginScreen = () => {
             console.log('✅ Connexion réussie');
         } catch (error) {
             console.error(error);
+        } finally {
+            setIsLoggingIn(false);
         }
     };
 
@@ -70,10 +79,12 @@ export const LoginScreen = () => {
                     />
 
                     <CustomButton
-                        name="Spotify"
+                        name={isLoggingIn ? "Connexion..." : "Spotify"}
                         iconFA="spotify"
                         onPress={handleLogin}
                         variant="spotify"
+                        available={!isLoggingIn}
+                        loading={isLoggingIn}
                     />
 
                     <CustomButton
