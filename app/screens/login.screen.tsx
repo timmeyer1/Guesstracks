@@ -71,7 +71,7 @@ export const LoginScreen = () => {
                         iconFA="apple"
                         onPress={() => console.log("Apple Music")}
                         variant="apple_music"
-                        available={true}
+                        available={false}
                     />
 
                     <CustomButton
@@ -79,7 +79,7 @@ export const LoginScreen = () => {
                         iconFA="deezer"
                         onPress={() => console.log("Deezer")}
                         variant="deezer"
-                        available={true}
+                        available={false}
                     />
 
                     <CustomButton
@@ -87,7 +87,7 @@ export const LoginScreen = () => {
                         iconFA="youtube"
                         onPress={() => console.log("Youtube Music")}
                         variant="youtube_music"
-                        available={true}
+                        available={false}
                     />
 
                     <SectionTitle
