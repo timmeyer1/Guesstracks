@@ -1,5 +1,11 @@
 import React, { useEffect, useRef } from 'react'
-import { Animated, View, Text, TouchableOpacity, Image, FlatList } from 'react-native'
+import { Animated, View, Text, Image } from 'react-native'
+// FlatList/TouchableOpacity de gesture-handler (pas de react-native) : moteur
+// de geste différent du ScrollView natif, qui négocie mieux la prise du
+// scroll face aux ancêtres qui interceptent le toucher sur Android (cause du
+// menu non scrollable sur certains appareils comme les Xiaomi/MIUI, malgré
+// nestedScrollEnabled sur la FlatList native)
+import { FlatList, TouchableOpacity } from 'react-native-gesture-handler'
 import { Check, Music } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import type { CatalogEntry } from '../../core/types'
