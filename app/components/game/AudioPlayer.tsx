@@ -62,7 +62,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
     // w-11 h-11 (44px) en compact : même hauteur que la pastille StatusPill
     // "Temps restant" à côté de laquelle ce bouton est affiché (cf.
-    // SearchTrackQuestion), pour que les deux forment un ensemble cohérent
+    // game.screen.tsx, en-tête de la manche en mode blindtest), pour que
+    // les deux forment un ensemble cohérent
     const buttonSizeClass = compact ? 'w-11 h-11' : 'w-16 h-16'
     const iconSize = compact ? 20 : 28
 

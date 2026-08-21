@@ -8,11 +8,13 @@ import { useGameStore } from '../stores/game.store'
 import { useAuthStore } from '../stores/auth.store'
 import { leaveGame, submitAnswer } from '../modules/game/game.service'
 import { leaveLobby } from '../modules/lobby/lobby.service'
+import { useCountdown } from '../core/hooks/useCountdown'
 
 import { ScreenLayout } from '../components/ScreenLayout'
 import { SectionTitle } from '../components/SectionTitle'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { CornerShape } from '../components/CornerShape'
+import { StatusPill } from '../components/StatusPill'
 import { COLORS } from '../core/constants/colors.constants'
 import { RoundHeader } from '../components/game/RoundHeader'
 import { AudioPlayer } from '../components/game/AudioPlayer'
@@ -63,6 +65,11 @@ const GameScreen = () => {
         hasAnswered,
         toggleSelection,
     } = useGameStore()
+
+    // affiché au-dessus de la pochette floutée en mode blindtest (cf. plus
+    // bas) : appelé sans condition (règle des hooks), round peut être vide
+    // hors phase "in_round"
+    const { remaining } = useCountdown(round?.startedAt ?? 0, round?.duration ?? 0)
 
     const handleBackToHome = async () => {
         await leaveLobby()
@@ -165,10 +172,10 @@ const GameScreen = () => {
                             />
                         </View>
                     ) : (
-                        // en mode blindtest, la pochette floutée et le titre restent en
-                        // haut, tandis que le décompte et la recherche restent groupés en
-                        // bas de l'écran : quand le clavier s'ouvre, KeyboardAvoidingView
-                        // réduit l'espace disponible et ce bloc du bas remonte au-dessus
+                        // en mode blindtest, le décompte, la pochette floutée et le titre
+                        // restent en haut, tandis que la recherche reste seule en bas de
+                        // l'écran : quand le clavier s'ouvre, KeyboardAvoidingView réduit
+                        // l'espace disponible et ce bloc du bas remonte au-dessus
                         <View
                             className="flex-1 px-8 pb-4 justify-between"
                             style={{ paddingTop: insets.top + topExtraSpacing }}
@@ -183,7 +190,12 @@ const GameScreen = () => {
                                     compact
                                 />
 
-                                <View className="items-center mt-4 mb-3">
+                                <View className="flex-row items-center justify-center gap-3 mt-4 mb-3">
+                                    <AudioPlayer previewUrl={round.track.previewUrl} compact />
+                                    <StatusPill text={`Temps restant : ${remaining}s`} />
+                                </View>
+
+                                <View className="items-center mb-3">
                                     <BlurredCover imageUri={round.track.image} size={blurredCoverSize} />
                                 </View>
 
@@ -196,9 +208,6 @@ const GameScreen = () => {
                                 catalog={catalog}
                                 hasAnswered={hasAnswered}
                                 selectedId={mySelection[0] ?? null}
-                                startedAt={round.startedAt}
-                                duration={round.duration}
-                                previewUrl={round.track.previewUrl}
                                 onAnswer={(id) => {
                                     toggleSelection(id, false)
                                     submitAnswer([id])

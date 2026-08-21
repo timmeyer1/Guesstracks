@@ -1,23 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Keyboard, View, Text, TextInput, TouchableOpacity, FlatList } from 'react-native'
-import { Search, Check } from 'lucide-react-native'
+import { Keyboard, View, Text, TextInput } from 'react-native'
+import { Search } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
-import { useCountdown } from '../../core/hooks/useCountdown'
-import { StatusPill } from '../StatusPill'
-import { AudioPlayer } from './AudioPlayer'
+import { TrackSuggestionsList } from './TrackSuggestionsList'
 import type { CatalogEntry } from '../../core/types'
 
 type SearchTrackQuestionProps = {
     catalog: CatalogEntry[]
     hasAnswered: boolean
     selectedId: string | null
-    startedAt: number
-    duration: number
-    // affiché à gauche de la pastille "Temps restant" (au lieu d'une ligne à
-    // part au-dessus) pour gagner de la place verticale au-dessus du clavier
-    previewUrl?: string | null
     onAnswer: (id: string) => void
 }
+
+// px-8 du conteneur parent (cf. game.screen.tsx) : la barre de recherche
+// s'aligne dessus, mais le menu de suggestions déborde de cette marge pour
+// occuper toute la largeur de l'écran (cf. plus bas)
+const SCREEN_HORIZONTAL_PADDING = 32
 
 const MIN_QUERY_LENGTH = 2
 // laisse le champ réagir instantanément à la frappe, mais ne relance la
@@ -39,14 +37,10 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
     catalog,
     hasAnswered,
     selectedId,
-    startedAt,
-    duration,
-    previewUrl,
     onAnswer,
 }) => {
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
-    const { remaining } = useCountdown(startedAt, duration)
     const inputRef = useRef<TextInput>(null)
 
     useEffect(() => {
@@ -162,74 +156,36 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
     const showDropdown = query.trim().length >= MIN_QUERY_LENGTH
 
     return (
-        <View>
-            <View className="flex-row items-center justify-center gap-3 mb-3">
-                <AudioPlayer previewUrl={previewUrl} compact />
-                <StatusPill text={`Temps restant : ${remaining}s`} />
+        // zIndex élevé pour que le dropdown flotte au-dessus du reste du
+        // contenu au lieu de pousser la mise en page (sinon gros vide tant que
+        // rien n'est tapé). Marge horizontale négative : ce conteneur déborde
+        // du px-8 du parent (cf. game.screen.tsx) pour que le menu de
+        // suggestions (qui s'aligne sur ses bords via left-0/right-0) occupe
+        // toute la largeur de l'écran plutôt que de rester cantonné à la zone
+        // de contenu — seule la barre de recherche elle-même récupère cette
+        // marge pour rester visuellement à sa place.
+        <View style={{ zIndex: 10, marginHorizontal: -SCREEN_HORIZONTAL_PADDING }}>
+            <View
+                className="flex-row items-center bg-offwhite rounded-2xl px-4 py-3"
+                style={{ marginHorizontal: SCREEN_HORIZONTAL_PADDING }}
+            >
+                <Search size={18} color={COLORS.darkgray} />
+                <TextInput
+                    ref={inputRef}
+                    className="flex-1 ml-2 text-black text-base"
+                    style={{ letterSpacing: 0 }}
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="Cherche un titre ou un artiste..."
+                    placeholderTextColor={COLORS.darkgray}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                />
             </View>
 
-            {/* zIndex élevé pour que le dropdown flotte au-dessus du reste du
-            contenu au lieu de pousser la mise en page (sinon gros vide tant
-            que rien n'est tapé). Il s'ouvre vers le haut (bottom-full) car la
-            barre de recherche est en bas de l'écran, juste au-dessus du clavier. */}
-            <View style={{ zIndex: 10 }}>
-                <View className="flex-row items-center bg-offwhite rounded-2xl px-4 py-3">
-                    <Search size={18} color={COLORS.darkgray} />
-                    <TextInput
-                        ref={inputRef}
-                        className="flex-1 ml-2 text-black text-base"
-                        style={{ letterSpacing: 0 }}
-                        value={query}
-                        onChangeText={setQuery}
-                        placeholder="Cherche un titre ou un artiste..."
-                        placeholderTextColor={COLORS.darkgray}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                    />
-                </View>
-
-                {/* TEMPORAIRE : ancienne version (pré-TrackSuggestionsList, avant
-                90fd6dcb) restaurée telle quelle pour tester si le scroll Android
-                fonctionne avec cette implémentation plus simple (pas d'Animated.View,
-                pas de useNativeDriver, overflow-hidden + shadow sur la même View) —
-                cf. discussion sur le scroll cassé sur Poco X3 malgré nestedScrollEnabled */}
-                {showDropdown && (
-                    <View
-                        className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl shadow-card overflow-hidden"
-                        style={{ maxHeight: 240, elevation: 6 }}
-                    >
-                        <FlatList
-                            data={suggestions}
-                            keyExtractor={(track) => track.id}
-                            keyboardShouldPersistTaps="handled"
-                            showsVerticalScrollIndicator={false}
-                            initialNumToRender={8}
-                            windowSize={5}
-                            renderItem={({ item: track }) => (
-                                <TouchableOpacity
-                                    onPress={() => handleSelect(track.id)}
-                                    className="flex-row items-center justify-between p-3 border-b border-offwhite"
-                                >
-                                    <View className="flex-1 pr-2">
-                                        <Text className="text-black font-semibold" numberOfLines={1}>
-                                            {track.name}
-                                        </Text>
-                                        <Text className="text-darkgray text-sm" numberOfLines={1}>
-                                            {track.artist}
-                                        </Text>
-                                    </View>
-                                    <Check size={18} color={COLORS.blindtest} />
-                                </TouchableOpacity>
-                            )}
-                            ListEmptyComponent={
-                                <Text className="text-darkgray text-sm text-center p-3">
-                                    Aucun titre trouvé
-                                </Text>
-                            }
-                        />
-                    </View>
-                )}
-            </View>
+            {/* Il s'ouvre vers le haut (bottom-full) car la barre de recherche
+            est en bas de l'écran, juste au-dessus du clavier. */}
+            {showDropdown && <TrackSuggestionsList suggestions={suggestions} onSelect={handleSelect} />}
         </View>
     )
 }
