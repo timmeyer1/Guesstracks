@@ -12,6 +12,7 @@ import { SectionTitle } from '../components/SectionTitle'
 import { IconButton } from '../components/IconButton'
 import { ScreenLayout } from '../components/ScreenLayout'
 import { CustomButton } from '../components/Button'
+import { CornerShape } from '../components/CornerShape'
 
 export const HomeScreen = () => {
     const totalTracks = TrackStore((s) => s.totalTracks)
@@ -83,7 +84,15 @@ export const HomeScreen = () => {
     }
 
     return (
-        <ScreenLayout>
+        <ScreenLayout
+            shapes={
+                <>
+                    <CornerShape size={190} rotate={-25} top={-65} left={-65} />
+                    <CornerShape size={160} rotate={20} top="45%" right={-85} />
+                    <CornerShape size={250} rotate={12} bottom={-70} left={-90} />
+                </>
+            }
+        >
             <View className="flex-1 justify-center items-center w-full">
                 <View className="flex-1 justify-between">
                     {/* Profil utilisateur */}
@@ -103,6 +112,7 @@ export const HomeScreen = () => {
                                 onPress={handleCreateLobby}
                                 variant="white"
                                 available={!isCreating}
+                                loading={isCreating}
                             />
                             <CustomButton
                                 name="Rejoindre une partie"

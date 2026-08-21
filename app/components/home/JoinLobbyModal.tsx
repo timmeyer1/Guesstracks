@@ -95,10 +95,11 @@ export const JoinLobbyModal = ({
 
                         <View className="flex-1">
                             <CustomButton
-                                name={isSubmitting ? "..." : "Rejoindre"}
+                                name={isSubmitting ? "Connexion..." : "Rejoindre"}
                                 onPress={handleConfirm}
                                 variant="white"
                                 available={code.length === CODE_LENGTH && !isSubmitting}
+                                loading={isSubmitting}
                             />
                         </View>
                     </View>

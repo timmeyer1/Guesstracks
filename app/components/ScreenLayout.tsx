@@ -9,6 +9,8 @@ interface ScreenLayoutProps {
     noPadding?: boolean;
     bgColor?: 'primary' | 'gray' | 'dark';
     className?: string;
+    /** Formes décoratives (voir <CornerShape />), affichées derrière le contenu et rognées aux bords de l'écran. */
+    shapes?: ReactNode;
 }
 
 export const ScreenLayout = ({
@@ -17,7 +19,8 @@ export const ScreenLayout = ({
     centered = false,
     noPadding = false,
     bgColor = 'gray',
-    className = ''
+    className = '',
+    shapes,
 }: ScreenLayoutProps) => {
     const Container = scrollable ? ScrollView : View;
 
@@ -27,18 +30,20 @@ export const ScreenLayout = ({
         dark: 'bg-zinc-900'
     };
 
-    const baseClasses = `flex-1 ${bgColorMap[bgColor]}`;
     const paddingClasses = noPadding ? '' : 'px-8 py-20';
     const centerClasses = centered ? 'justify-center items-center' : '';
 
-    const containerClasses = `${baseClasses} ${paddingClasses} ${centerClasses} ${className}`.trim();
+    const containerClasses = `flex-1 ${paddingClasses} ${centerClasses} ${className}`.trim();
 
     return (
-        <Container
-            className={containerClasses}
-            contentContainerStyle={scrollable ? { flexGrow: 1 } : undefined}
-        >
-            {children}
-        </Container>
+        <View className={`flex-1 ${bgColorMap[bgColor]} relative overflow-hidden`}>
+            {shapes}
+            <Container
+                className={containerClasses}
+                contentContainerStyle={scrollable ? { flexGrow: 1 } : undefined}
+            >
+                {children}
+            </Container>
+        </View>
     );
 };

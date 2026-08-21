@@ -15,6 +15,7 @@ import type { LobbyUserType } from '../core/types'
 import { CustomButton } from "../components/Button"
 import { IconButton } from "../components/IconButton"
 import { ScreenLayout } from "../components/ScreenLayout"
+import { CornerShape } from "../components/CornerShape"
 import { LobbySettingsModal } from '../components/lobby/LobbySettingsModal'
 import { GameModeCard } from '../components/lobby/GameModeCard'
 import { PlayersGrid } from '../components/lobby/PlayersGrid'
@@ -172,7 +173,15 @@ const LobbyScreen = () => {
     }
 
     return (
-        <ScreenLayout>
+        <ScreenLayout
+            shapes={
+                <>
+                    <CornerShape size={190} rotate={18} top={-60} right={-65} />
+                    <CornerShape size={140} rotate={-22} top="52%" left={-70} />
+                    <CornerShape size={220} rotate={-12} bottom={-75} right={-75} />
+                </>
+            }
+        >
             <View className="flex-1 w-full">
                 <GameModeCard
                     gameMode={isGameModeSelected ? lobby.gameMode : undefined}
@@ -220,6 +229,7 @@ const LobbyScreen = () => {
                                 onPress={handleStartGame}
                                 icon="Play"
                                 available={canStartGame}
+                                loading={!canStartGame}
                                 variant={canStartGame ? "white" : "dark"}
                             />
                         )}

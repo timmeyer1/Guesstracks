@@ -3,6 +3,7 @@ import { Animated, Pressable, Text } from "react-native"
 import * as LucideIcons from 'lucide-react-native'
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6'
 import { COLORS, type ButtonVariant } from "../core/constants/colors.constants"
+import { LoadingSpinner } from "./LoadingSpinner"
 
 type ButtonProps = {
     name: string
@@ -12,6 +13,8 @@ type ButtonProps = {
     iconFA?: string
     available?: boolean
     variant?: ButtonVariant
+    /** Affiche une icône de chargement animée à la place de l'icône, et désactive le bouton. */
+    loading?: boolean
 }
 
 const VARIANTS = {
@@ -31,11 +34,13 @@ export const CustomButton = ({
     iconFA,
     available = true,
     variant = 'white',
+    loading = false,
 }: ButtonProps) => {
     const scale = useRef(new Animated.Value(1)).current
+    const isAvailable = available && !loading
 
     const handlePressIn = () => {
-        if (!available) return
+        if (!isAvailable) return
         Animated.spring(scale, {
             toValue: 0.96,
             useNativeDriver: true,
@@ -44,7 +49,7 @@ export const CustomButton = ({
     }
 
     const handlePressOut = () => {
-        if (!available) return
+        if (!isAvailable) return
         Animated.spring(scale, {
             toValue: 1,
             useNativeDriver: true,
@@ -60,27 +65,33 @@ export const CustomButton = ({
             <Pressable
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
-                onPress={available ? onPress : undefined}
-                disabled={!available}
+                onPress={isAvailable ? onPress : undefined}
+                disabled={!isAvailable}
                 className={`
                     rounded-2xl py-4 px-6 flex-row items-center justify-center gap-3
                     ${available ? bgClass : 'bg-darkgray opacity-25'}
                     ${className}
                 `}
             >
-                {iconFA && (
-                    <FontAwesome6
-                        name={iconFA}
-                        size={24}
-                        color={available ? iconColor : COLORS.darkgray}
-                    />
-                )}
+                {loading ? (
+                    <LoadingSpinner size={24} color={available ? iconColor : COLORS.darkgray} />
+                ) : (
+                    <>
+                        {iconFA && (
+                            <FontAwesome6
+                                name={iconFA}
+                                size={24}
+                                color={available ? iconColor : COLORS.darkgray}
+                            />
+                        )}
 
-                {IconComponent && (
-                    <IconComponent
-                        size={24}
-                        color={available ? iconColor : COLORS.darkgray}
-                    />
+                        {IconComponent && (
+                            <IconComponent
+                                size={24}
+                                color={available ? iconColor : COLORS.darkgray}
+                            />
+                        )}
+                    </>
                 )}
 
                 <Text className={`text-sm font-semibold ${available ? textClass : 'text-gray-500'}`}>

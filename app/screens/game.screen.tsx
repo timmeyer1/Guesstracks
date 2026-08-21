@@ -10,6 +10,9 @@ import { leaveLobby } from '../modules/lobby/lobby.service'
 
 import { ScreenLayout } from '../components/ScreenLayout'
 import { SectionTitle } from '../components/SectionTitle'
+import { LoadingSpinner } from '../components/LoadingSpinner'
+import { CornerShape } from '../components/CornerShape'
+import { COLORS } from '../core/constants/colors.constants'
 import { RoundHeader } from '../components/game/RoundHeader'
 import { AudioPlayer } from '../components/game/AudioPlayer'
 import { WhoLikedQuestion } from '../components/game/WhoLikedQuestion'
@@ -76,7 +79,18 @@ const GameScreen = () => {
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
-                <ScreenLayout noPadding>
+                <ScreenLayout
+                    noPadding
+                    shapes={
+                        !isSearchMode ? (
+                            <>
+                                <CornerShape size={180} rotate={-22} top={-60} left={-65} />
+                                <CornerShape size={150} rotate={16} top="42%" right={-80} />
+                                <CornerShape size={200} rotate={6} bottom={-90} left="35%" />
+                            </>
+                        ) : undefined
+                    }
+                >
                     {/* padding vertical réduit par rapport au reste de l'app : en mode
                     blindtest, chaque pixel compte pour garder la recherche visible
                     au-dessus du clavier */}
@@ -143,6 +157,9 @@ const GameScreen = () => {
 
     return (
         <ScreenLayout centered>
+            <View className="mb-4">
+                <LoadingSpinner size={32} color={COLORS.primary} />
+            </View>
             <SectionTitle
                 title="Préparation de la partie..."
                 subtitle="On rassemble les musiques likées de tout le monde !"
