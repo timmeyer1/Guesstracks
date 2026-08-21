@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { Animated, View, Text, Image } from 'react-native'
+import { cssInterop } from 'nativewind'
 // FlatList/TouchableOpacity de gesture-handler (pas de react-native) : moteur
 // de geste différent du ScrollView natif, qui négocie mieux la prise du
 // scroll face aux ancêtres qui interceptent le toucher sur Android (cause du
@@ -9,6 +10,13 @@ import { FlatList, TouchableOpacity } from 'react-native-gesture-handler'
 import { Check, Music } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import type { CatalogEntry } from '../../core/types'
+
+// NativeWind ne convertit className -> style que pour les composants
+// react-native qu'il enregistre lui-même (View, TouchableOpacity de
+// react-native, etc.) : le TouchableOpacity de react-native-gesture-handler
+// n'en fait pas partie, donc className y était silencieusement ignoré sans
+// ça (flex-row, padding, bordure... tous absents malgré la classe posée)
+cssInterop(TouchableOpacity, { className: 'style' })
 
 type TrackSuggestionsListProps = {
     suggestions: CatalogEntry[]
