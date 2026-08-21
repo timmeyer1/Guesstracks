@@ -26,7 +26,7 @@ import { FinalResults } from '../components/game/FinalResults'
 const GAME_SHAPES = (
     <>
         <CornerShape size="50%" rotate={-90} top="-20%" left="-17%" />
-        <CornerShape size="50%" rotate={16} top="42%" right="-37%" />
+        <CornerShape size="50%" rotate={-20} top="42%" right="-47%" />
         <CornerShape size="50%" rotate={110} bottom="-21%" left="35%" />
     </>
 )
@@ -100,7 +100,7 @@ const GameScreen = () => {
                             startedAt={round.startedAt}
                             duration={round.duration}
                             gameMode={gameMode}
-                            compact={!isSearchMode}
+                            compact
                         />
 
                         {!isSearchMode ? (
@@ -144,6 +144,8 @@ const GameScreen = () => {
                                     catalog={catalog}
                                     hasAnswered={hasAnswered}
                                     selectedId={mySelection[0] ?? null}
+                                    startedAt={round.startedAt}
+                                    duration={round.duration}
                                     onAnswer={(id) => {
                                         toggleSelection(id, false)
                                         submitAnswer([id])

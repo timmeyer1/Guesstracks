@@ -2,12 +2,16 @@ import React, { useMemo, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native'
 import { Search, Check } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
+import { useCountdown } from '../../core/hooks/useCountdown'
+import { StatusPill } from '../StatusPill'
 import type { CatalogEntry } from '../../core/types'
 
 type SearchTrackQuestionProps = {
     catalog: CatalogEntry[]
     hasAnswered: boolean
     selectedId: string | null
+    startedAt: number
+    duration: number
     onAnswer: (id: string) => void
 }
 
@@ -27,9 +31,12 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
     catalog,
     hasAnswered,
     selectedId,
+    startedAt,
+    duration,
     onAnswer,
 }) => {
     const [query, setQuery] = useState('')
+    const { remaining } = useCountdown(startedAt, duration)
 
     // recherche sur le titre ET l'artiste (chercher juste par titre était
     // trop difficile en pratique) ; les correspondances par titre sont
@@ -79,6 +86,10 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
             <Text className="text-black text-lg font-bold text-center mb-3">
                 Quelle est cette musique ?
             </Text>
+
+            <View className="items-center mb-3">
+                <StatusPill text={`Temps restant : ${remaining}s`} />
+            </View>
 
             {/* zIndex élevé pour que le dropdown flotte au-dessus du reste du
             contenu au lieu de pousser la mise en page (sinon gros vide tant

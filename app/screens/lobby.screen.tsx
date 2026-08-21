@@ -32,6 +32,7 @@ const LobbyScreen = () => {
 
     const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false)
     const [selectedPlayer, setSelectedPlayer] = useState<LobbyUserType | null>(null)
+    const [isStartingGame, setIsStartingGame] = useState(false)
 
     const isHost = users[0]?.id === user?.id
     // dérivé de l'état serveur partagé (et non d'un état local) pour que tous
@@ -62,6 +63,7 @@ const LobbyScreen = () => {
     // ex: "pas assez de musiques likées en commun", "seul l'hôte peut lancer"...
     useEffect(() => {
         if (!gameError) return
+        setIsStartingGame(false)
         Alert.alert("Impossible de lancer la partie", gameError)
         useGameStore.getState().setError(null)
     }, [gameError])
@@ -123,6 +125,8 @@ const LobbyScreen = () => {
             )
             return
         }
+        if (isStartingGame) return
+        setIsStartingGame(true)
         // le serveur diffuse "game:started" à tout le lobby, qui redirige
         // chaque joueur vers l'écran de jeu (cf. l'effet sur gamePhase ci-dessus)
         startGame()
@@ -227,10 +231,12 @@ const LobbyScreen = () => {
                         {isHost && isGameModeSelected && (
                             canStartGame ? (
                                 <CustomButton
-                                    name="Lancer la partie"
+                                    name={isStartingGame ? "Lancement..." : "Lancer la partie"}
                                     onPress={handleStartGame}
                                     icon="Play"
                                     variant="white"
+                                    available={!isStartingGame}
+                                    loading={isStartingGame}
                                 />
                             ) : (
                                 <StatusPill text="En attente de joueurs" />
