@@ -94,17 +94,37 @@ export const stopWatchingGame = () => {
 // à appeler en quittant le lobby (la partie ne doit pas survivre après ça)
 export const leaveGame = () => {
     stopWatchingGame()
+    // remplacement complet (cf. game.store.ts) : plus aucune raison de garder
+    // submittedPlayerIds/pendingReturnPlayerIds une fois qu'on quitte pour de bon
     useGameStore.getState().reset()
 }
 
+const SUBMIT_TRACKS_RETRY_MS = 1500
+const SUBMIT_TRACKS_MAX_ATTEMPTS = 4
+
 // envoie ses titres likés au serveur dès l'entrée dans le lobby, pour que le
-// pool soit prêt quand l'hôte lance la partie
-export const submitMyTracks = () => {
+// pool soit prêt quand l'hôte lance la partie. Si TrackStore n'est pas encore
+// rempli au moment de l'appel (course possible juste après une connexion),
+// réessaie quelques fois plutôt que d'abandonner silencieusement et
+// définitivement — un abandon silencieux ici laissait "En attente des
+// musiques d'un joueur" bloqué indéfiniment côté hôte, sans qu'aucune
+// nouvelle tentative ne soit jamais faite.
+export const submitMyTracks = (attempt = 1) => {
     const { lobby } = useLobbyStore.getState()
     const player = buildPlayerPayload()
     const tracks = TrackStore.getState().likedTracks
 
-    if (!lobby || !player || tracks.length === 0) return
+    if (!lobby || !player) return
+
+    if (tracks.length === 0) {
+        if (attempt >= SUBMIT_TRACKS_MAX_ATTEMPTS) {
+            console.warn('⚠️ Aucun titre liké disponible après plusieurs tentatives, envoi abandonné')
+            return
+        }
+        setTimeout(() => submitMyTracks(attempt + 1), SUBMIT_TRACKS_RETRY_MS)
+        return
+    }
+
     emitSubmitTracks(lobby.code, player, tracks)
 }
 

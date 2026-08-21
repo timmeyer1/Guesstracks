@@ -2,15 +2,22 @@ import React from 'react'
 import { View, Text, Image, ScrollView } from 'react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
+import { AudioPlayer } from './AudioPlayer'
 import type { GameRoundEnd, QuestionType } from '../../core/types'
 
 type RoundResultProps = {
     result: GameRoundEnd
     questionType: QuestionType
     myPlayerId: string
+    // absent du payload "round:end" du serveur (cf. game.service.js) pour ne
+    // pas influencer la manche pendant qu'elle est encore en cours ; on le
+    // récupère à la place depuis le round qui vient de se terminer côté
+    // client (cf. game.screen.tsx) pour prolonger l'extrait pendant l'écran
+    // de résultat plutôt que de le couper net
+    previewUrl?: string | null
 }
 
-export const RoundResult: React.FC<RoundResultProps> = ({ result, questionType, myPlayerId }) => {
+export const RoundResult: React.FC<RoundResultProps> = ({ result, questionType, myPlayerId, previewUrl }) => {
     const nameOf = (id: string) => result.leaderboard.find((entry) => entry.playerId === id)?.name ?? '???'
     const myResult = result.results.find((r) => r.playerId === myPlayerId)
 
@@ -32,6 +39,12 @@ export const RoundResult: React.FC<RoundResultProps> = ({ result, questionType, 
                     subtitleSize="sm"
                 />
             </View>
+
+            {previewUrl && (
+                <View className="mb-4">
+                    <AudioPlayer previewUrl={previewUrl} compact />
+                </View>
+            )}
 
             <View className="bg-offwhite rounded-3xl p-4 mb-4 items-center">
                 <Text className="text-darkgray text-sm mb-1">

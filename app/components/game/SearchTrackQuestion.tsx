@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { Keyboard, View, Text, TextInput, TouchableOpacity, FlatList } from 'react-native'
 import { Search, Check } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { useCountdown } from '../../core/hooks/useCountdown'
@@ -16,7 +16,11 @@ type SearchTrackQuestionProps = {
 }
 
 const MIN_QUERY_LENGTH = 2
-const MAX_SUGGESTIONS = 6
+// laisse le champ réagir instantanément à la frappe, mais ne relance la
+// recherche qu'une fois la frappe stabilisée : sur un gros catalogue, refaire
+// le scan complet à chaque caractère tapé lors d'une frappe rapide est ce qui
+// causait les freezes sur les téléphones plus anciens
+const SEARCH_DEBOUNCE_MS = 120
 
 // insensible à la casse et aux accents, pour que "orleans" trouve "Orléans"
 const DIACRITICS_RANGE = new RegExp('[\\u0300-\\u036f]', 'g')
@@ -36,30 +40,101 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
     onAnswer,
 }) => {
     const [query, setQuery] = useState('')
+    const [debouncedQuery, setDebouncedQuery] = useState('')
     const { remaining } = useCountdown(startedAt, duration)
+    const inputRef = useRef<TextInput>(null)
 
-    // recherche sur le titre ET l'artiste (chercher juste par titre était
-    // trop difficile en pratique) ; les correspondances par titre sont
-    // classées avant celles par artiste seul
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS)
+        return () => clearTimeout(timer)
+    }, [query])
+
+    // ouvre le clavier dès le début de la manche, pour chercher sans avoir à
+    // taper une première fois sur le champ. Ce composant est remonté à
+    // chaque nouvelle manche (game.screen.tsx bascule entièrement sur
+    // <RoundResult> entre deux manches), donc un effet au montage suffit —
+    // le court délai évite qu'un focus() appelé trop tôt (juste après le
+    // montage, avant que KeyboardAvoidingView ait fini de se mettre en place)
+    // ne fasse rien, un problème RN classique avec la prop autoFocus seule
+    useEffect(() => {
+        if (hasAnswered) return
+        const timer = setTimeout(() => inputRef.current?.focus(), 150)
+        return () => clearTimeout(timer)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    // le clavier doit rester utilisable tant qu'il faut trouver le titre, puis
+    // se refermer dès que ce n'est plus le cas : soit ce joueur vient de
+    // répondre (la manche continue pour les autres, ce composant reste monté
+    // mais bascule sur la carte "Réponse envoyée" ci-dessous), soit la manche
+    // se termine côté serveur sans qu'il ait répondu (le parent démonte alors
+    // ce composant pour afficher le résultat, cf. game.screen.tsx) — le
+    // TextInput perdant le focus dans les deux cas ne suffit pas toujours à
+    // fermer le clavier logiciel tout seul, d'où le Keyboard.dismiss() explicite
+    useEffect(() => {
+        if (hasAnswered) Keyboard.dismiss()
+    }, [hasAnswered])
+
+    useEffect(() => () => Keyboard.dismiss(), [])
+
+    // normalize() (dont la normalisation Unicode NFD) est l'opération la plus
+    // coûteuse de la recherche : calculée ici une seule fois par catalogue
+    // (au changement de manche), pas à chaque caractère tapé — avant, elle
+    // tournait sur tout le catalogue à chaque frappe, ce qui devenait sensible
+    // sur un gros catalogue et sur des appareils plus anciens
+    const normalizedCatalog = useMemo(
+        () =>
+            catalog.map((track) => {
+                const normalizedName = normalize(track.name)
+                const normalizedArtist = normalize(track.artist)
+                return {
+                    track,
+                    normalizedName,
+                    // précalculé aussi : c'est ce que scanne la recherche combinée
+                    // ci-dessous, inutile de le reconstruire à chaque frappe
+                    haystack: `${normalizedName} ${normalizedArtist}`,
+                }
+            }),
+        [catalog]
+    )
+
+    // recherche sur le titre ET l'artiste. Au-delà d'une simple sous-chaîne
+    // sur un seul champ, "dj snake taki taki" ou "taki taki dj snake" (titre +
+    // artiste combinés, dans n'importe quel ordre) doivent aussi retrouver le
+    // titre : chaque mot de la recherche est donc cherché indépendamment dans
+    // le titre + l'artiste concaténés, plutôt que d'exiger que la recherche
+    // entière soit une sous-chaîne d'un seul des deux champs. Se base sur
+    // debouncedQuery (pas query) : cf. SEARCH_DEBOUNCE_MS plus haut.
     const suggestions = useMemo(() => {
-        const normalizedQuery = normalize(query)
+        const normalizedQuery = normalize(debouncedQuery)
         if (normalizedQuery.length < MIN_QUERY_LENGTH) return []
+
+        const queryWords = normalizedQuery.split(/\s+/).filter(Boolean)
 
         const nameStartsWith: CatalogEntry[] = []
         const nameContains: CatalogEntry[] = []
-        const artistMatches: CatalogEntry[] = []
+        const combinedMatches: CatalogEntry[] = []
 
-        for (const track of catalog) {
-            const normalizedName = normalize(track.name)
-            const normalizedArtist = normalize(track.artist)
-
-            if (normalizedName.startsWith(normalizedQuery)) nameStartsWith.push(track)
-            else if (normalizedName.includes(normalizedQuery)) nameContains.push(track)
-            else if (normalizedArtist.includes(normalizedQuery)) artistMatches.push(track)
+        for (const { track, normalizedName, haystack } of normalizedCatalog) {
+            if (normalizedName.startsWith(normalizedQuery)) {
+                nameStartsWith.push(track)
+                continue
+            }
+            if (normalizedName.includes(normalizedQuery)) {
+                nameContains.push(track)
+                continue
+            }
+            if (queryWords.every((word) => haystack.includes(word))) {
+                combinedMatches.push(track)
+            }
         }
 
-        return [...nameStartsWith, ...nameContains, ...artistMatches].slice(0, MAX_SUGGESTIONS)
-    }, [query, catalog])
+        // pas de plafond ici : la liste défile dans une FlatList virtualisée
+        // (cf. plus bas, ne rend que les lignes visibles à l'écran même pour
+        // une longue liste) — un titre d'artiste ou un titre partagé par
+        // plusieurs versions doit rester accessible en scrollant, pas coupé
+        return [...nameStartsWith, ...nameContains, ...combinedMatches]
+    }, [debouncedQuery, normalizedCatalog])
 
     const selectedTrack = selectedId ? catalog.find((t) => t.id === selectedId) : null
 
@@ -95,6 +170,7 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
                 <View className="flex-row items-center bg-offwhite rounded-2xl px-4 py-3">
                     <Search size={18} color={COLORS.darkgray} />
                     <TextInput
+                        ref={inputRef}
                         className="flex-1 ml-2 text-black text-base"
                         style={{ letterSpacing: 0 }}
                         value={query}
@@ -111,10 +187,20 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
                         className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl shadow-card overflow-hidden"
                         style={{ maxHeight: 240, elevation: 6 }}
                     >
-                        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                            {suggestions.map((track) => (
+                        {/* FlatList plutôt que ScrollView : ne rend que les lignes
+                        visibles à l'écran au lieu de tout le catalogue filtré d'un
+                        coup — un artiste avec beaucoup de titres, ou un catalogue
+                        volumineux, restait fluide en scrollant mais créait autant
+                        de TouchableOpacity que de résultats dès le premier rendu */}
+                        <FlatList
+                            data={suggestions}
+                            keyExtractor={(track) => track.id}
+                            keyboardShouldPersistTaps="handled"
+                            showsVerticalScrollIndicator={false}
+                            initialNumToRender={8}
+                            windowSize={5}
+                            renderItem={({ item: track }) => (
                                 <TouchableOpacity
-                                    key={track.id}
                                     onPress={() => handleSelect(track.id)}
                                     className="flex-row items-center justify-between p-3 border-b border-offwhite"
                                 >
@@ -128,14 +214,13 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
                                     </View>
                                     <Check size={18} color={COLORS.blindtest} />
                                 </TouchableOpacity>
-                            ))}
-
-                            {suggestions.length === 0 && (
+                            )}
+                            ListEmptyComponent={
                                 <Text className="text-darkgray text-sm text-center p-3">
                                     Aucun titre trouvé
                                 </Text>
-                            )}
-                        </ScrollView>
+                            }
+                        />
                     </View>
                 )}
             </View>

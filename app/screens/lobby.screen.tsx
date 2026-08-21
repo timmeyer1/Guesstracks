@@ -24,11 +24,15 @@ import { IconButton } from "../components/IconButton"
 import { ScreenLayout } from "../components/ScreenLayout"
 import { CornerShape } from "../components/CornerShape"
 import { StatusPill } from "../components/StatusPill"
+import { LoadingSpinner } from "../components/LoadingSpinner"
 import { LobbySettingsModal } from '../components/lobby/LobbySettingsModal'
 import { GameModeCard } from '../components/lobby/GameModeCard'
 import { PlayersGrid } from '../components/lobby/PlayersGrid'
 import { PlayerActionsModal } from '../components/lobby/PlayerActionsModal'
 import { SectionTitle } from '../components/SectionTitle'
+import type { GamePhase } from '../core/types'
+
+const GAME_IN_PROGRESS_PHASES: GamePhase[] = ['collecting', 'in_round', 'round_result']
 
 const LobbyScreen = () => {
     const { lobby, users } = useLobbyStore()
@@ -64,6 +68,19 @@ const LobbyScreen = () => {
     // titres likés pour que le pool soit prêt quand l'hôte lancera la partie
     useEffect(() => {
         if (!lobby) return
+
+        // Repart d'un game store totalement propre à chaque changement RÉEL de
+        // lobby (pas à chaque retour dans le MÊME lobby, cf. la dépendance sur
+        // lobby.code) : un joueur qui rejoint un nouveau lobby juste après avoir
+        // quitté/été expulsé d'un ancien (ou qui y revient et en devient l'hôte)
+        // ne doit hériter d'aucun résidu de cet ancien lobby — ni son `phase`
+        // (sinon renvoi vers l'écran de jeu de l'ancienne partie), ni ses
+        // submittedPlayerIds/pendingReturnPlayerIds (sinon "En attente que 3
+        // joueurs..." fantôme dans un lobby où personne n'a encore joué).
+        // reset() ici est un remplacement complet (cf. game.store.ts), pas une
+        // fusion partielle : il n'y a donc rien d'autre à vider à la main.
+        useGameStore.getState().reset()
+
         startWatchingGame()
         submitMyTracks()
         return () => stopWatchingGame()
@@ -71,9 +88,17 @@ const LobbyScreen = () => {
     }, [lobby?.code])
 
     // tous les joueurs (pas seulement l'hôte) sont redirigés dès que le
-    // serveur démarre la partie
+    // serveur démarre la partie. Liste explicite des phases "partie en cours"
+    // plutôt que `!== 'idle'` : cette dernière incluait aussi 'finished', qui
+    // est justement la phase dont on part en pressant "Rester dans le lobby"
+    // (cf. handleStayInLobby dans game.screen.tsx). S'il restait la moindre
+    // fenêtre où cet écran se re-rendait avec gamePhase encore à 'finished'
+    // avant que le reset local n'ait fini de se propager, cet effet renvoyait
+    // aussitôt vers l'écran de jeu — un aller-retour de navigation silencieux
+    // (aucune exception, donc aucun log) qui pouvait laisser l'app bloquée
+    // sur un écran incohérent/vide.
     useEffect(() => {
-        if (gamePhase !== 'idle') {
+        if (GAME_IN_PROGRESS_PHASES.includes(gamePhase)) {
             navigation.navigate('Game')
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -199,9 +224,18 @@ const LobbyScreen = () => {
 
     // ne devrait s'afficher que le temps d'une frame pendant la transition de
     // navigation qui suit un départ/une expulsion du lobby (cf. handleLeaveLobby
-    // et la détection d'expulsion ci-dessus, qui redirigent vers Home juste après)
+    // et la détection d'expulsion ci-dessus, qui redirigent vers Home juste après).
+    // Un indicateur de chargement plutôt que `return null` : un écran vide sans
+    // aucun visuel est indiscernable d'un plantage silencieux pour l'utilisateur
+    // (cf. le bug du "Rester dans le lobby" plus haut) — si ce cas venait à durer
+    // plus qu'une frame pour une raison qu'on n'a pas anticipée, mieux vaut un
+    // spinner visible qu'un écran blanc muet.
     if (!lobby) {
-        return null
+        return (
+            <ScreenLayout centered>
+                <LoadingSpinner size={32} color={COLORS.primary} />
+            </ScreenLayout>
+        )
     }
 
     return (

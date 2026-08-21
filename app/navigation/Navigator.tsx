@@ -6,6 +6,7 @@ import { HomeScreen } from '../screens/home.screen';
 import { useAuthStore } from '../stores/auth.store';
 import LobbyScreen from "../screens/lobby.screen";
 import GameScreen from "../screens/game.screen";
+import { navigationRef } from "./navigationRef";
 
 export type RootStackParamList = {
     Login: undefined
@@ -29,7 +30,7 @@ export const AuthNavigator = () => {
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
     return (
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
             <Stack.Navigator
                 screenOptions={{
                     headerShown: false,

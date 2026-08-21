@@ -3,9 +3,10 @@ import type {TrackType} from "../../core/types";
 import type {AxiosResponse} from "axios";
 
 const PAGE_SIZE = 100;
-// borne le nombre de titres récupérés pour garder un temps de chargement
-// raisonnable tout en donnant assez de variété pour une partie (max 20 manches)
-const MAX_TRACKS = 300;
+// nombre de pages récupérées en parallèle : toutes les récupérer d'un coup
+// pour une grosse bibliothèque dépasse la limite de débit de l'API Deezer —
+// par lots, ça reste rapide sans jamais rien tronquer
+const FETCH_BATCH_SIZE = 5;
 
 const deezerError = (data: any) =>
     data?.error ? new Error(data.error.message || 'Erreur Deezer') : null;
@@ -26,8 +27,9 @@ const mapItem = (item: any): TrackType => ({
 
 // commun aux deux modes de récupération (OAuth "me" ou lookup public par id,
 // cf. plus bas) : le premier appel renseigne `total`, les pages restantes
-// sont récupérées en parallèle plutôt qu'en séquence pour diviser le temps
-// de chargement par ~le nombre de pages
+// sont récupérées par lots (cf. FETCH_BATCH_SIZE) pour diviser le temps de
+// chargement sans dépasser la limite de débit de l'API Deezer. Toutes les
+// pages sont récupérées, sans plafond sur le nombre de titres.
 const collectLikedTracks = async (
     fetchPage: (limit: number, index: number) => Promise<AxiosResponse<any>>
 ): Promise<{ tracks: TrackType[]; total: number }> => {
@@ -39,14 +41,17 @@ const collectLikedTracks = async (
     const tracks: TrackType[] = (first.data.data ?? []).map(mapItem);
 
     const remainingIndexes: number[] = [];
-    for (let index = PAGE_SIZE; index < Math.min(total, MAX_TRACKS); index += PAGE_SIZE) {
+    for (let index = PAGE_SIZE; index < total; index += PAGE_SIZE) {
         remainingIndexes.push(index);
     }
 
-    const pages = await Promise.all(remainingIndexes.map((index) => fetchPage(PAGE_SIZE, index)));
-    for (const { data } of pages) {
-        if (deezerError(data)) continue;
-        tracks.push(...(data.data ?? []).map(mapItem));
+    for (let i = 0; i < remainingIndexes.length; i += FETCH_BATCH_SIZE) {
+        const batch = remainingIndexes.slice(i, i + FETCH_BATCH_SIZE);
+        const pages = await Promise.all(batch.map((index) => fetchPage(PAGE_SIZE, index)));
+        for (const { data } of pages) {
+            if (deezerError(data)) continue;
+            tracks.push(...(data.data ?? []).map(mapItem));
+        }
     }
 
     return { tracks, total };

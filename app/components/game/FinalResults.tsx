@@ -4,6 +4,7 @@ import { Trophy } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
 import { CustomButton } from '../Button'
+import { AudioPlayer } from './AudioPlayer'
 import type { FinalLeaderboardEntry } from '../../core/types'
 
 type FinalResultsProps = {
@@ -11,6 +12,9 @@ type FinalResultsProps = {
     totalRounds: number
     onStayInLobby: () => void
     onBackToHome: () => void
+    // extrait de la toute dernière manche jouée (cf. game.screen.tsx), pour
+    // que la musique continue plutôt que de s'arrêter net à l'écran final
+    lastPreviewUrl?: string | null
 }
 
 // ordre d'affichage du podium : 2e, 1er, 3e (au centre, en hauteur)
@@ -22,6 +26,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
     totalRounds,
     onStayInLobby,
     onBackToHome,
+    lastPreviewUrl,
 }) => {
     const podium = leaderboard.slice(0, 3)
     const rest = leaderboard.slice(3)
@@ -74,6 +79,12 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
                     )
                 })}
             </View>
+
+            {lastPreviewUrl && (
+                <View className="mb-4">
+                    <AudioPlayer previewUrl={lastPreviewUrl} compact />
+                </View>
+            )}
 
             <ScrollView className="flex-1 mb-4" showsVerticalScrollIndicator={false}>
                 {rest.map((entry, index) => (

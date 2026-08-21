@@ -21,6 +21,15 @@ import { BlurredCover } from '../components/game/BlurredCover'
 import { RoundResult } from '../components/game/RoundResult'
 import { FinalResults } from '../components/game/FinalResults'
 
+const GUESSTRACKS_TITLE_MAX_LENGTH = 40
+// en mode guesstracks le titre est toujours affiché en entier pendant la
+// manche (ce n'est pas ce qu'on devine, cf. core/types.ts) : un titre trop
+// long peut prendre plusieurs lignes et pousser le reste de la mise en page
+const truncateTitle = (name?: string) =>
+    name && name.length > GUESSTRACKS_TITLE_MAX_LENGTH
+        ? `${name.slice(0, GUESSTRACKS_TITLE_MAX_LENGTH).trimEnd()}...`
+        : name
+
 // mêmes formes sur les 3 écrans de la partie (question, résultat de manche, résultats finaux)
 // pour garder une identité visuelle cohérente du début à la fin du jeu
 const GAME_SHAPES = (
@@ -54,9 +63,12 @@ const GameScreen = () => {
     }
 
     // le lobby (et l'abonnement socket de partie) reste actif en arrière-plan
-    // pendant toute la partie : revenir dessus suffit, l'hôte peut relancer
+    // pendant toute la partie : revenir dessus suffit, l'hôte peut relancer.
+    // resetForRematch (pas reset) : on reste dans CE lobby, donc
+    // submittedPlayerIds/pendingReturnPlayerIds doivent survivre le temps que
+    // le serveur confirme le retour de chacun (cf. game.store.ts)
     const handleStayInLobby = () => {
-        useGameStore.getState().reset()
+        useGameStore.getState().resetForRematch()
         navigation.goBack()
     }
 
@@ -68,6 +80,7 @@ const GameScreen = () => {
                     totalRounds={totalRounds}
                     onStayInLobby={handleStayInLobby}
                     onBackToHome={handleBackToHome}
+                    lastPreviewUrl={round?.track.previewUrl}
                 />
             </ScreenLayout>
         )
@@ -76,7 +89,12 @@ const GameScreen = () => {
     if (phase === 'round_result' && lastRoundEnd && round && user) {
         return (
             <ScreenLayout shapes={GAME_SHAPES}>
-                <RoundResult result={lastRoundEnd} questionType={round.questionType} myPlayerId={user.id} />
+                <RoundResult
+                    result={lastRoundEnd}
+                    questionType={round.questionType}
+                    myPlayerId={user.id}
+                    previewUrl={round.track.previewUrl}
+                />
             </ScreenLayout>
         )
     }
@@ -109,7 +127,9 @@ const GameScreen = () => {
                                         className="mb-2"
                                     />
                                 )}
-                                <Text className="text-black text-lg font-bold text-center">{round.track.name}</Text>
+                                <Text className="text-black text-lg font-bold text-center">
+                                    {truncateTitle(round.track.name)}
+                                </Text>
                                 <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
                             </View>
 

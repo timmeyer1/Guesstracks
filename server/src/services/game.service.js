@@ -8,6 +8,7 @@ import {
     RETURN_TO_LOBBY_TIMEOUT_MS,
 } from '../constants.js'
 import { resolvePreviewUrl, normalizeTrackText } from './preview.service.js'
+import { resolveDeezerArtist } from './deezer.service.js'
 import * as lobbyService from './lobby.service.js'
 
 export class GameError extends Error {
@@ -65,7 +66,7 @@ const shuffle = (items) => {
     const copy = [...items]
     for (let i = copy.length - 1; i > 0; i -= 1) {
         const j = Math.floor(Math.random() * (i + 1))
-        ;[copy[i], copy[j]] = [copy[j], copy[i]]
+            ;[copy[i], copy[j]] = [copy[j], copy[i]]
     }
     return copy
 }
@@ -76,9 +77,23 @@ export const submitTracks = (code, player, tracks, io) => {
     }
 
     const game = getOrCreate(code)
-    // partie déjà lancée : un envoi tardif (reconnexion, etc.) est ignoré,
-    // le pool a déjà été figé au démarrage
-    if (game.status !== 'collecting') return { accepted: false }
+    // partie déjà lancée : un envoi tardif (reconnexion, etc.) est ignoré, le
+    // pool a déjà été figé au démarrage. On rediffuse quand même l'état
+    // courant (même principe que clearPendingReturn pour
+    // pendingReturnPlayerIds) : un joueur expulsé pour inactivité en fin de
+    // partie (cf. handleReturnTimeout) puis revenu au lobby en retapant le
+    // code voit son game store local réinitialisé (cf. lobby.screen.tsx)
+    // avant de renvoyer ses musiques ici ; comme il n'a pas besoin de les
+    // renvoyer (déjà dans submittedTracks depuis la partie précédente), sans
+    // cette rediffusion il n'apprenait jamais que tout le monde avait déjà
+    // soumis, et "En attente des musiques de X joueurs" restait bloqué
+    // indéfiniment côté client s'il devenait hôte entre-temps.
+    if (game.status !== 'collecting') {
+        io?.to(room(code)).emit('game:tracksProgress', {
+            submittedPlayerIds: [...game.submittedTracks.keys()],
+        })
+        return { accepted: false }
+    }
 
     game.playersInfo.set(player.id, {
         id: player.id,
@@ -88,16 +103,26 @@ export const submitTracks = (code, player, tracks, io) => {
 
     const sanitized = Array.isArray(tracks)
         ? tracks
-              .filter((t) => t && typeof t.id === 'string' && typeof t.name === 'string' && typeof t.artist === 'string')
-              .slice(0, 500)
-              .map((t) => ({
-                  id: t.id,
-                  name: t.name,
-                  artist: t.artist,
-                  album: typeof t.album === 'string' ? t.album : '',
-                  image: typeof t.image === 'string' ? t.image : null,
-                  previewUrl: typeof t.previewUrl === 'string' ? t.previewUrl : null,
-              }))
+            .filter((t) => t && typeof t.id === 'string' && typeof t.name === 'string' && typeof t.artist === 'string')
+            // garde-fou anti-abus (payload malveillant), pas une limite
+            // fonctionnelle : largement au-dessus de ce qu'une vraie
+            // bibliothèque likée peut atteindre, pour ne jamais tronquer un
+            // vrai joueur (cf. app/modules/spotify|deezer/*.service.ts, qui
+            // ne plafonnent plus non plus le nombre de titres récupérés)
+            .slice(0, 5000)
+            .map((t) => ({
+                id: t.id,
+                name: t.name,
+                artist: t.artist,
+                album: typeof t.album === 'string' ? t.album : '',
+                image: typeof t.image === 'string' ? t.image : null,
+                previewUrl: typeof t.previewUrl === 'string' ? t.previewUrl : null,
+                // requis par resolveDeezerArtist (buildCatalog) pour savoir
+                // quels titres enrichir avec les artistes en feat. — sans ce
+                // champ ici, tous les titres soumis perdaient leur provider
+                // et l'enrichissement Deezer ne se déclenchait jamais
+                provider: typeof t.provider === 'string' ? t.provider : null,
+            }))
         : []
 
     game.submittedTracks.set(player.id, sanitized)
@@ -134,7 +159,14 @@ const buildPool = (game) => {
             const existing = merged.get(key)
             if (existing) {
                 existing.likedBy.add(playerId)
-                if (!existing.previewUrl && track.previewUrl) existing.previewUrl = track.previewUrl
+                // ne pioche plus le previewUrl d'une AUTRE soumission ici : deux
+                // titres qui dédupliquent sur le même nom+artiste peuvent être
+                // des éditions différentes (single vs album, remix...) — piocher
+                // l'extrait de l'un pour l'autre jouait parfois le mauvais
+                // extrait (un remix à la place de l'original). resolvePreviewUrl
+                // (appelé juste avant l'envoi de chaque manche, cf.
+                // startNextRound) résout toujours l'extrait à partir du titre
+                // canonique (existing) lui-même, jamais d'une soumission tierce.
             } else {
                 merged.set(key, { ...track, likedBy: new Set([playerId]) })
             }
@@ -203,7 +235,7 @@ const buildGuesstracksRounds = async (pool, requestedRounds, activePlayerIds) =>
         if (!result) continue
 
         used.add(track.id)
-        ;(result.previewUrl ? withPreview : withoutPreview).push(result.round)
+            ; (result.previewUrl ? withPreview : withoutPreview).push(result.round)
     }
 
     return [...fairnessRounds, ...withPreview, ...withoutPreview].slice(0, requestedRounds)
@@ -249,10 +281,29 @@ const buildBlindtestRounds = async (pool, requestedRounds, activePlayerIds) => {
     return [...fairnessRounds, ...rounds]
 }
 
+// nombre d'enrichissements Deezer (cf. resolveDeezerArtist) menés en
+// parallèle : assez pour rester rapide, assez peu pour ne pas dépasser la
+// limite de requêtes de l'API publique Deezer (non documentée précisément,
+// mais de l'ordre de 50 requêtes / 5s par IP)
+const DEEZER_ARTIST_BATCH_SIZE = 8
+
 // catalogue de recherche du blindtest : tous les titres likés par le lobby,
 // envoyé une seule fois (le joueur cherche dedans plutôt que de choisir parmi
-// des options imposées)
-const buildCatalog = (pool) => pool.map((t) => ({ id: t.id, name: t.name, artist: t.artist }))
+// des options imposées). L'artiste de chaque titre Deezer est enrichi avec
+// les featurings (cf. resolveDeezerArtist) pour que "je cherche Pharrell
+// Williams" retrouve un titre de Tyler, The Creator feat. Pharrell Williams —
+// par lots plutôt que tout en parallèle d'un coup, pour ménager l'API Deezer.
+const buildCatalog = async (pool) => {
+    const entries = []
+    for (let i = 0; i < pool.length; i += DEEZER_ARTIST_BATCH_SIZE) {
+        const batch = pool.slice(i, i + DEEZER_ARTIST_BATCH_SIZE)
+        const artists = await Promise.all(batch.map((t) => resolveDeezerArtist(t)))
+        batch.forEach((t, index) => {
+            entries.push({ id: t.id, name: t.name, artist: artists[index] })
+        })
+    }
+    return entries
+}
 
 const publicRound = (game, round) => {
     const hideIdentity = round.questionType === 'guess_track'
@@ -266,13 +317,13 @@ const publicRound = (game, round) => {
         track: hideIdentity
             ? { id: round.track.id, previewUrl: round.track.previewUrl, image: round.track.image }
             : {
-                  id: round.track.id,
-                  name: round.track.name,
-                  artist: round.track.artist,
-                  album: round.track.album,
-                  image: round.track.image,
-                  previewUrl: round.track.previewUrl,
-              },
+                id: round.track.id,
+                name: round.track.name,
+                artist: round.track.artist,
+                album: round.track.album,
+                image: round.track.image,
+                previewUrl: round.track.previewUrl,
+            },
     }
 }
 
@@ -382,16 +433,18 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     }))
     game.currentRoundIndex = -1
 
+    const catalog = questionType === 'guess_track' ? await buildCatalog(pool) : undefined
+
     io.to(room(code)).emit('game:started', {
         totalRounds: game.rounds.length,
         gameMode: game.gameMode,
-        catalog: questionType === 'guess_track' ? buildCatalog(pool) : undefined,
+        catalog,
     })
 
-    startNextRound(code, io)
+    await startNextRound(code, io)
 }
 
-const startNextRound = (code, io) => {
+const startNextRound = async (code, io) => {
     const game = games.get(code)
     if (!game) return
 
@@ -406,6 +459,16 @@ const startNextRound = (code, io) => {
     game.status = 'in_round'
     round.startedAt = Date.now()
     round.answers = new Map()
+
+    // ré-résout l'extrait juste avant l'envoi plutôt que de faire confiance à
+    // celui calculé au lancement de la partie : les extraits Deezer expirent
+    // environ 15 minutes après leur émission (cf. preview.service.js /
+    // deezer.service.js), et une manche tardive (parties longues, vitesse
+    // lente, beaucoup de manches) pouvait donc recevoir un lien déjà mort —
+    // "le son ne se met juste pas". Ne remplace que si une résolution fraîche
+    // aboutit : sinon on garde l'ancienne valeur plutôt que de perdre l'audio.
+    const freshPreviewUrl = await resolvePreviewUrl(round.track)
+    if (freshPreviewUrl) round.track.previewUrl = freshPreviewUrl
 
     io.to(room(code)).emit('game:round:start', publicRound(game, round))
 
@@ -521,7 +584,11 @@ const endRound = (code, io) => {
         leaderboard: buildLeaderboard(game),
     })
 
-    game.timer = setTimeout(() => startNextRound(code, io), ROUND_RESULTS_PAUSE_MS)
+    game.timer = setTimeout(() => {
+        startNextRound(code, io).catch((err) => {
+            console.error('❌ Erreur au démarrage de la manche suivante :', err)
+        })
+    }, ROUND_RESULTS_PAUSE_MS)
 }
 
 const finishGame = (code, io) => {
@@ -580,13 +647,22 @@ const handleReturnTimeout = async (code, io) => {
     const inactiveIds = [...game.pendingReturnPlayerIds]
     game.pendingReturnPlayerIds = new Set()
     game.returnTimer = null
+    game.activePlayerIds = game.activePlayerIds.filter((id) => !inactiveIds.includes(id))
 
-    for (const playerId of inactiveIds) {
-        game.activePlayerIds = game.activePlayerIds.filter((id) => id !== playerId)
-        const lobby = await lobbyService.removePlayer(code, playerId)
-        if (lobby) {
-            io.to(room(code)).emit('lobby:update', lobby)
+    // un seul retrait atomique pour tout le monde (cf. removePlayers) : soit
+    // tous les joueurs inactifs sont retirés, soit aucun — plus de risque
+    // qu'il en reste un coincé si un retrait individuel échouait en cours de
+    // boucle
+    try {
+        const result = await lobbyService.removePlayers(code, inactiveIds)
+        if (result.removed && result.closed) {
+            cleanupGame(code)
+            io.to(room(code)).emit('lobby:closed')
+        } else if (result.removed) {
+            io.to(room(code)).emit('lobby:update', result.lobby)
         }
+    } catch (err) {
+        console.error(`❌ Échec du retrait pour inactivité (lobby ${code}) :`, err)
     }
 
     broadcastReturnProgress(code, io, game)

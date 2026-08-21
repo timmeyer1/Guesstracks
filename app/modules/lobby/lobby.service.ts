@@ -1,7 +1,10 @@
+import { Alert } from "react-native"
 import { useAuthStore } from "../../stores/auth.store"
 import { useLobbyStore } from "../../stores/lobby.store"
 import { lobbyApiClient, extractLobbyErrorMessage } from "../../core/api/lobby.client"
 import { subscribeToLobby } from "../../core/socket"
+import { resetToHome } from "../../navigation/navigationRef"
+import { leaveGame } from "../game/game.service"
 import type { LobbyType, LobbyUserType } from "../../core/types"
 
 type ServerPlayer = {
@@ -63,10 +66,20 @@ const startWatchingLobby = (code: string) => {
     unsubscribeSocket?.()
     unsubscribeSocket = subscribeToLobby(code, {
         onUpdate: (serverLobby) => applyServerLobby(serverLobby as ServerLobby),
+        // ne se déclenche jamais pour un départ volontaire (leaveLobby se
+        // désabonne avant l'appel réseau, cf. plus bas) : ce n'est donc reçu
+        // que quand le lobby a été vidé par quelqu'un/quelque chose d'autre —
+        // en pratique, uniquement quand tout le monde a été expulsé pour
+        // inactivité (cf. handleReturnTimeout côté serveur). Sans redirection
+        // ici, l'utilisateur restait bloqué sur son écran courant (souvent les
+        // résultats de partie) avec un lobby devenu invalide sous ses pieds.
         onClosed: () => {
             useLobbyStore.getState().resetLobby()
+            leaveGame()
             unsubscribeSocket?.()
             unsubscribeSocket = null
+            Alert.alert("Lobby fermé", "Tout le monde a été expulsé du lobby pour inactivité.")
+            resetToHome()
         },
     })
 }

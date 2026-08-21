@@ -42,7 +42,17 @@ type GameStoreType = {
     toggleSelection: (id: string, multi: boolean) => void
     setHasAnswered: (hasAnswered: boolean) => void
     setError: (message: string | null) => void
+    // reset complet : à utiliser en ENTRANT ou en SORTANT d'un lobby (nouveau
+    // lobby, départ volontaire, expulsion, lobby fermé par le serveur) —
+    // remet TOUT l'état à zéro d'un coup (y compris submittedPlayerIds/
+    // pendingReturnPlayerIds, tous deux dans initialState), pour ne jamais
+    // hériter d'un résidu d'un lobby précédent.
     reset: () => void
+    // reset partiel : à utiliser uniquement pour "Rester dans le lobby" APRÈS
+    // une partie DANS LE MÊME lobby (cf. handleStayInLobby) — remplace tout
+    // sauf submittedPlayerIds/pendingReturnPlayerIds, qui doivent survivre le
+    // temps que le serveur confirme le retour de chacun avant de relancer
+    resetForRematch: () => void
 }
 
 const initialState = {
@@ -57,17 +67,28 @@ const initialState = {
     mySelection: [] as string[],
     hasAnswered: false,
     error: null as string | null,
+    submittedPlayerIds: [] as string[],
+    pendingReturnPlayerIds: [] as string[],
+}
+
+// sous-ensemble d'initialState pour resetForRematch (préserve
+// submittedPlayerIds/pendingReturnPlayerIds, cf. son commentaire ci-dessus)
+const rematchState = {
+    phase: initialState.phase,
+    gameMode: initialState.gameMode,
+    totalRounds: initialState.totalRounds,
+    round: initialState.round,
+    lastRoundEnd: initialState.lastRoundEnd,
+    leaderboard: initialState.leaderboard,
+    finalLeaderboard: initialState.finalLeaderboard,
+    catalog: initialState.catalog,
+    mySelection: initialState.mySelection,
+    hasAnswered: initialState.hasAnswered,
+    error: initialState.error,
 }
 
 export const useGameStore = create<GameStoreType>((set, get) => ({
     ...initialState,
-    // hors de initialState : ne doit pas être vidé par reset() (appelé au
-    // retour du lobby après une partie), sinon l'UI croirait à tort que tout
-    // le monde doit renvoyer ses musiques likées / revenir au lobby avant de
-    // pouvoir relancer — le serveur reste de toute façon la source de vérité
-    // et rediffuse un état à jour dès le prochain événement pertinent
-    submittedPlayerIds: [] as string[],
-    pendingReturnPlayerIds: [] as string[],
 
     setPhase: (phase) => set({ phase }),
     setGameMode: (gameMode) => set({ gameMode }),
@@ -115,5 +136,12 @@ export const useGameStore = create<GameStoreType>((set, get) => ({
     setHasAnswered: (hasAnswered) => set({ hasAnswered }),
     setError: (error) => set({ error }),
 
+    // set() fusionne avec l'état courant : ça ne pose problème que pour les
+    // clés ABSENTES de l'objet passé (qui restent alors inchangées). Contrai-
+    // rement à l'ancienne version, submittedPlayerIds/pendingReturnPlayerIds
+    // font maintenant partie d'initialState (cf. plus haut) et sont donc bien
+    // explicitement écrasés à [] ici — c'était l'oubli qui causait le message
+    // fantôme "En attente que 3 joueurs...".
     reset: () => set({ ...initialState }),
+    resetForRematch: () => set(rematchState),
 }))

@@ -10,10 +10,20 @@
 // authentification, explicitement prévu pour fournir des extraits de 30s —
 // donc pas de risque de dépasser les conditions d'usage de Spotify ou Deezer
 // dans les deux cas. Si rien n'est trouvé, la manche se joue sans audio.
+import { fetchFreshDeezerPreview } from './deezer.service.js'
+
 const DEEZER_SEARCH_URL = 'https://api.deezer.com/search'
 const ITUNES_SEARCH_URL = 'https://itunes.apple.com/search'
 
-const cache = new Map() // clé "titre::artiste" -> previewUrl | null
+// les extraits Deezer (renvoyés par searchDeezerPreview ci-dessous, y compris
+// depuis ce repli iTunes indirectement puisqu'un titre Deezer testé plus tôt
+// peut être re-résolu) sont des URLs signées valables ~15 minutes seulement
+// après leur émission (cf. deezer.service.js) : un cache sans expiration
+// finissait par ne renvoyer que des liens morts. 10 min de marge sous les ~15
+// observées.
+const CACHE_TTL_MS = 10 * 60 * 1000
+
+const cache = new Map() // clé "titre::artiste" -> { url, resolvedAt } | { url: null, resolvedAt }
 
 const cacheKey = (name, artist) => `${name}`.trim().toLowerCase() + '::' + `${artist}`.trim().toLowerCase()
 
@@ -102,15 +112,28 @@ const searchItunesPreview = async (name, artist) => {
     }
 }
 
-// track: { name, artist, previewUrl? }
+// track: { name, artist, previewUrl?, provider?, id? }
 export const resolvePreviewUrl = async (track) => {
+    // Un titre Deezer a toujours un id Deezer réel (track.id) : on peut donc
+    // toujours en récupérer un extrait tout frais directement, plutôt que de
+    // faire confiance à track.previewUrl (celui que le client a transmis à sa
+    // connexion, potentiellement déjà périmé, cf. deezer.service.js) ou à un
+    // extrait mis en cache par une résolution précédente.
+    if (track.provider === 'deezer' && track.id) {
+        const fresh = await fetchFreshDeezerPreview(track.id)
+        if (fresh) return fresh
+        // repli si le titre a disparu du catalogue Deezer entre-temps —
+        // continue vers previewUrl/le cache/la recherche ci-dessous
+    }
+
     if (track.previewUrl) return track.previewUrl
 
     const key = cacheKey(track.name, track.artist)
-    if (cache.has(key)) return cache.get(key)
+    const cached = cache.get(key)
+    if (cached && Date.now() - cached.resolvedAt < CACHE_TTL_MS) return cached.url
 
     const url =
         (await searchDeezerPreview(track.name, track.artist)) ?? (await searchItunesPreview(track.name, track.artist))
-    cache.set(key, url)
+    cache.set(key, { url, resolvedAt: Date.now() })
     return url
 }

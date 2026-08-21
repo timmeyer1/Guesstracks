@@ -144,19 +144,35 @@ export const kickPlayer = async (code, requesterId, targetId) => {
     return lobby.toPublic()
 }
 
-// retire un joueur sans vérification d'hôte : utilisé par le nettoyage
-// automatique pour inactivité (game.service.js), pas par une action d'un
-// joueur — renvoie null si le lobby ou le joueur n'existe plus
-export const removePlayer = async (code, targetId) => {
-    const lobby = await getLobby(code).catch(() => null)
-    if (!lobby) return null
+// retire plusieurs joueurs d'un coup, sans vérification d'hôte : utilisé par
+// le nettoyage automatique pour inactivité (game.service.js), pas par une
+// action d'un joueur. Une seule opération atomique ($pull avec $in) plutôt
+// qu'un retrait joueur par joueur en boucle : l'ancienne version lisait puis
+// sauvegardait le lobby séquentiellement pour chaque id, ce qui laissait une
+// fenêtre où un retrait pouvait échouer (ou être écrasé par une écriture
+// concurrente sur le même document) sans empêcher les précédents d'avoir déjà
+// été appliqués — un ou plusieurs joueurs pouvaient alors rester coincés dans
+// le lobby après les 30s. Ici soit tous les ids demandés sont retirés en une
+// fois, soit aucun (si le lobby n'existe déjà plus).
+// Renvoie { removed: false } si le lobby n'existe déjà plus, { removed: true,
+// closed: true } si le lobby est maintenant vide (supprimé, comme
+// leaveLobby), { removed: true, closed: false, lobby } sinon.
+export const removePlayers = async (code, targetIds) => {
+    if (!Array.isArray(targetIds) || targetIds.length === 0) return { removed: false }
 
-    const before = lobby.players.length
-    lobby.players = lobby.players.filter((p) => p.id !== targetId)
-    if (lobby.players.length === before) return null
+    const lobby = await LobbyModel.findOneAndUpdate(
+        { code },
+        { $pull: { players: { id: { $in: targetIds } } } },
+        { new: true }
+    )
+    if (!lobby) return { removed: false }
 
-    await lobby.save()
-    return lobby.toPublic()
+    if (lobby.players.length === 0) {
+        await lobby.deleteOne()
+        return { removed: true, closed: true }
+    }
+
+    return { removed: true, closed: false, lobby: lobby.toPublic() }
 }
 
 export const transferHost = async (code, requesterId, targetId) => {
