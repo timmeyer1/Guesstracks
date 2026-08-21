@@ -17,8 +17,6 @@ export const LoginScreen = () => {
             const data = await loginWithSpotify();
             if (!data?.access_token) return;
 
-            setToken(data.access_token);
-
             const userProfile = await getSpotifyUserProfile(data.access_token);
             const imageUrl = userProfile.images?.[0]?.url || null;
 
@@ -35,6 +33,12 @@ export const LoginScreen = () => {
 
             const totalTracks = await spotifyService.getTotalTracks();
             setTotalTracks(totalTracks);
+
+            // setToken() bascule isAuthenticated et déclenche donc la navigation
+            // vers Home : on ne l'appelle qu'une fois les titres likés en place,
+            // sinon un joueur rapide peut arriver au lobby et y soumettre 0 titre
+            // (submitMyTracks ne se relance jamais après coup)
+            setToken(data.access_token);
 
             console.log('✅ Connexion réussie');
         } catch (error) {

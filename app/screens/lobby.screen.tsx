@@ -1,7 +1,7 @@
 // app/screens/lobby.screen.tsx
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { View, Text, Alert, ScrollView, Share } from 'react-native'
-import { useNavigation } from "@react-navigation/native"
+import { useFocusEffect, useNavigation } from "@react-navigation/native"
 
 import { leaveLobby, updateLobbySettings, kickPlayer, transferHost } from '../modules/lobby/lobby.service'
 import { startWatchingGame, stopWatchingGame, leaveGame, submitMyTracks, startGame } from '../modules/game/game.service'
@@ -67,6 +67,16 @@ const LobbyScreen = () => {
         Alert.alert("Impossible de lancer la partie", gameError)
         useGameStore.getState().setError(null)
     }, [gameError])
+
+    // le stack navigator garde cet écran monté (goBack le réaffiche tel quel,
+    // ex: "Rester dans le lobby" depuis les résultats finaux) : sans ce reset,
+    // isStartingGame resterait bloqué à true après un lancement réussi et le
+    // bouton resterait grisé sur "Lancement..." indéfiniment
+    useFocusEffect(
+        useCallback(() => {
+            setIsStartingGame(false)
+        }, [])
+    )
 
     // détecte une expulsion par l'hôte : on n'apparaît plus dans la liste
     // diffusée par le serveur
