@@ -44,6 +44,12 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
             rendu. Les pochettes ne changent rien à ça : seules les lignes
             réellement affichées à l'écran montent une <Image>. */}
             <FlatList
+                // hauteur explicite (pas juste celle du parent) : sur Android, une
+                // FlatList sans borne de hauteur propre mesure son ScrollView interne
+                // à la taille de son contenu, qui devient alors égale à la zone
+                // visible et donc non scrollable, même si le parent la coupe en
+                // overflow: hidden (ce qui se produisait ici)
+                style={{ maxHeight: MENU_MAX_HEIGHT }}
                 data={suggestions}
                 keyExtractor={(track) => track.id}
                 keyboardShouldPersistTaps="handled"
