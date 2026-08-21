@@ -3,6 +3,7 @@ import { View, Alert } from 'react-native'
 import { useAuthStore } from '../stores/auth.store'
 import { TrackStore } from '../stores/tracks.store'
 import { spotifyService } from '../modules/spotify'
+import { deezerService } from '../modules/deezer'
 import { createLobby, joinLobby } from "../modules/lobby/lobby.service"
 import { useNavigation } from '@react-navigation/native'
 import { COLORS } from '../core/constants/colors.constants'
@@ -28,7 +29,19 @@ export const HomeScreen = () => {
     useEffect(() => {
         const loadTracks = async () => {
             try {
-                const total = await spotifyService.getTotalTracks()
+                const { user: currentUser, token } = useAuthStore.getState()
+                let total: number
+                if (currentUser?.provider === 'deezer') {
+                    // avec token : connexion OAuth ("me", cf. modules/auth/deezer.ts,
+                    // dormante). Sans token : lookup de profil public par id (chemin
+                    // actif tant que la création d'app Deezer est cassée, cf.
+                    // screens/login.screen.tsx)
+                    total = token
+                        ? await deezerService.getTotalTracks()
+                        : await deezerService.getPublicTotalTracks(currentUser.id)
+                } else {
+                    total = await spotifyService.getTotalTracks()
+                }
                 TrackStore.getState().setTotalTracks(total)
                 console.log(`✅ ${total} tracks récupérées`)
             } catch (error) {
@@ -100,6 +113,7 @@ export const HomeScreen = () => {
                         name={user?.display_name}
                         img={user?.img}
                         totalTracks={totalTracks}
+                        provider={user?.provider}
                     />
 
                     {/* Section principale */}

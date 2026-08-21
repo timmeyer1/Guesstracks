@@ -6,9 +6,15 @@ type UserProfileCardProps = {
     name?: string;
     img?: string | null;
     totalTracks: number;
+    provider?: 'spotify' | 'deezer';
 };
 
-export const UserProfileCard = ({ name, img, totalTracks }: UserProfileCardProps) => {
+const PROVIDER_LABELS: Record<'spotify' | 'deezer', string> = {
+    spotify: 'Spotify',
+    deezer: 'Deezer',
+};
+
+export const UserProfileCard = ({ name, img, totalTracks, provider }: UserProfileCardProps) => {
     const getSubtitleSize = (name: string | undefined): 'sm' | 'md' | 'lg' | 'xl' | 'xs' => {
         if (!name) return 'md';
         const length = name.length;
@@ -66,7 +72,7 @@ export const UserProfileCard = ({ name, img, totalTracks }: UserProfileCardProps
 
             <View className="flex-row justify-between items-center gap-3 mb-1">
                 <Text className="text-base text-darkgray bg-offwhite p-2 rounded-2xl">
-                    Connecté via Spotify
+                    Connecté via {provider ? PROVIDER_LABELS[provider] : 'Spotify'}
                 </Text>
                 <View className="w-1.5 h-1.5 rounded-full bg-gray-600" />
                 <Text className="text-base text-darkgray bg-offwhite p-2 rounded-2xl">

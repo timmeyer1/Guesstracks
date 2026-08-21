@@ -7,7 +7,7 @@ import {
     LOBBY_LIMITS,
     RETURN_TO_LOBBY_TIMEOUT_MS,
 } from '../constants.js'
-import { resolvePreviewUrl } from './preview.service.js'
+import { resolvePreviewUrl, normalizeTrackText } from './preview.service.js'
 import * as lobbyService from './lobby.service.js'
 
 export class GameError extends Error {
@@ -116,17 +116,27 @@ export const submitTracks = (code, player, tracks, io) => {
     return { accepted: true }
 }
 
+// un même morceau existe parfois sous plusieurs id différents chez un même
+// fournisseur (single vs édition album, remaster...) — ex. constaté chez
+// Deezer : "Fever" de Dua Lipa a un id pour le single et un autre pour
+// l'édition "Future Nostalgia (The Moonlight Edition)" de l'album. Regrouper
+// par id fournisseur laissait passer ces doublons jusque dans le catalogue de
+// recherche du blindtest (le même titre apparaissait deux fois) ; on
+// regroupe donc par identité normalisée (nom + artiste) plutôt que par id.
+const poolKey = (track) => `${normalizeTrackText(track.name)}::${normalizeTrackText(track.artist)}`
+
 const buildPool = (game) => {
-    const merged = new Map() // trackId -> track + Set<playerId>
+    const merged = new Map() // clé "nom::artiste" normalisée -> track + Set<playerId>
 
     for (const [playerId, tracks] of game.submittedTracks) {
         for (const track of tracks) {
-            const existing = merged.get(track.id)
+            const key = poolKey(track)
+            const existing = merged.get(key)
             if (existing) {
                 existing.likedBy.add(playerId)
                 if (!existing.previewUrl && track.previewUrl) existing.previewUrl = track.previewUrl
             } else {
-                merged.set(track.id, { ...track, likedBy: new Set([playerId]) })
+                merged.set(key, { ...track, likedBy: new Set([playerId]) })
             }
         }
     }

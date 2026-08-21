@@ -11,19 +11,21 @@ type AuthStore = {
     setToken: (token: string | null) => void;
     setAuthenticated: (value: boolean) => void;
     logout: () => void;
-    user: { 
-        display_name: string; 
-        id: string; 
+    user: {
+        display_name: string;
+        id: string;
         email: string;
         img: string | null;
         account_type: string;
+        provider: 'spotify' | 'deezer';
     } | null;
-    setUser: (user: { 
-        display_name: string; 
-        id: string; 
-        email: string; 
+    setUser: (user: {
+        display_name: string;
+        id: string;
+        email: string;
         img: string | null;
         account_type: string;
+        provider: 'spotify' | 'deezer';
     }) => void;
 };
 

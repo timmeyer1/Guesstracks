@@ -4,19 +4,44 @@ import { getSpotifyUserProfile, loginWithSpotify } from "../modules/auth/spotify
 import { useAuthStore } from "../stores/auth.store";
 import { TrackStore } from "../stores/tracks.store";
 import { spotifyService } from "../modules/spotify";
+import { deezerService, extractDeezerProfileId } from "../modules/deezer";
 import { CustomButton } from "../components/Button";
 import { ScreenLayout } from "../components/ScreenLayout";
 import { SectionTitle } from "../components/SectionTitle";
+import { DeezerProfileModal } from "../components/auth/DeezerProfileModal";
+import type { TrackType } from "../core/types";
+
+type Provider = 'spotify' | 'deezer';
 
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
     const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
     const { setLikedTracks, setTotalTracks } = TrackStore.getState();
-    const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
+    const [isDeezerModalVisible, setIsDeezerModalVisible] = useState(false);
+    const [deezerModalError, setDeezerModalError] = useState<string | undefined>(undefined);
 
-    const handleLogin = async () => {
-        if (isLoggingIn) return;
-        setIsLoggingIn(true);
+    // commun aux deux providers : pose le profil + les titres likés puis
+    // bascule isAuthenticated en dernier (une fois les titres likés en place)
+    // — c'est lui qui déclenche la navigation hors de cet écran (cf.
+    // Navigator.tsx), et un joueur qui atteindrait le lobby avant que
+    // TrackStore.likedTracks soit rempli y soumettrait 0 titre
+    // (submitMyTracks ne se relance jamais après coup)
+    const finalizeLogin = (
+        provider: Provider,
+        userProfile: { display_name: string; id: string; email: string; img: string | null; account_type: string },
+        tracks: TrackType[],
+        total: number
+    ) => {
+        useAuthStore.getState().setUser({ ...userProfile, provider });
+        setLikedTracks(tracks);
+        setTotalTracks(total);
+        setAuthenticated(true);
+    };
+
+    const handleSpotifyLogin = async () => {
+        if (loadingProvider) return;
+        setLoadingProvider('spotify');
 
         try {
             const data = await loginWithSpotify();
@@ -33,31 +58,84 @@ export const LoginScreen = () => {
                 getSpotifyUserProfile(data.access_token),
                 spotifyService.getMyLikedTracks(),
             ]);
-            const imageUrl = userProfile.images?.[0]?.url || null;
 
-            useAuthStore.getState().setUser({
-                display_name: userProfile.display_name,
-                id: userProfile.id,
-                email: userProfile.email,
-                img: imageUrl,
-                account_type: userProfile.product,
-            });
+            finalizeLogin(
+                'spotify',
+                {
+                    display_name: userProfile.display_name,
+                    id: userProfile.id,
+                    email: userProfile.email,
+                    img: userProfile.images?.[0]?.url || null,
+                    account_type: userProfile.product,
+                },
+                tracks,
+                total
+            );
 
-            setLikedTracks(tracks);
-            setTotalTracks(total);
-
-            // isAuthenticated ne bascule qu'ici (une fois les titres likés en
-            // place) : c'est lui qui déclenche la navigation hors de cet écran
-            // (cf. Navigator.tsx), et un joueur qui atteindrait le lobby avant
-            // que TrackStore.likedTracks soit rempli y soumettrait 0 titre
-            // (submitMyTracks ne se relance jamais après coup)
-            setAuthenticated(true);
-
-            console.log('✅ Connexion réussie');
+            console.log('✅ Connexion Spotify réussie');
         } catch (error) {
             console.error(error);
         } finally {
-            setIsLoggingIn(false);
+            setLoadingProvider(null);
+        }
+    };
+
+    // La connexion OAuth Deezer (app/modules/auth/deezer.ts +
+    // server/src/routes/auth.routes.js) est complète mais dormante : la
+    // création d'app sur developers.deezer.com est cassée depuis ~2 ans, donc
+    // impossible d'obtenir un app_id/secret pour l'instant. En attendant, on
+    // utilise le lookup de profil public Deezer (sans authentification, cf.
+    // deezerService.getPublicProfile / getPublicLikedTracks) : il suffit de
+    // l'ID ou du lien du profil, à condition que l'utilisateur ait laissé ses
+    // titres likés publics.
+    const handleDeezerProfileLogin = async (profileInput: string) => {
+        if (loadingProvider) return;
+        setDeezerModalError(undefined);
+
+        const userId = extractDeezerProfileId(profileInput);
+        if (!userId) {
+            setDeezerModalError('Lien ou ID de profil Deezer invalide');
+            return;
+        }
+
+        setLoadingProvider('deezer');
+        // pas de token pour ce mode : on s'assure qu'un éventuel token Spotify
+        // d'une session précédente ne traîne pas dans le store
+        setToken(null);
+
+        try {
+            const [userProfile, { tracks, total }] = await Promise.all([
+                deezerService.getPublicProfile(userId),
+                deezerService.getPublicLikedTracks(userId),
+            ]);
+
+            if (tracks.length === 0) {
+                setDeezerModalError('Aucun titre liké trouvé — le profil est peut-être privé');
+                return;
+            }
+
+            finalizeLogin(
+                'deezer',
+                {
+                    display_name: userProfile.name,
+                    id: String(userProfile.id),
+                    email: '',
+                    img: userProfile.picture_medium || userProfile.picture || null,
+                    account_type: 'deezer',
+                },
+                tracks,
+                total
+            );
+
+            setIsDeezerModalVisible(false);
+            console.log('✅ Connexion Deezer (profil public) réussie');
+        } catch (error) {
+            console.error(error);
+            setDeezerModalError(
+                error instanceof Error ? error.message : 'Impossible de récupérer ce profil Deezer'
+            );
+        } finally {
+            setLoadingProvider(null);
         }
     };
 
@@ -79,12 +157,12 @@ export const LoginScreen = () => {
                     />
 
                     <CustomButton
-                        name={isLoggingIn ? "Connexion..." : "Spotify"}
+                        name={loadingProvider === 'spotify' ? "Connexion..." : "Spotify"}
                         iconFA="spotify"
-                        onPress={handleLogin}
+                        onPress={handleSpotifyLogin}
                         variant="spotify"
-                        available={!isLoggingIn}
-                        loading={isLoggingIn}
+                        available={!loadingProvider}
+                        loading={loadingProvider === 'spotify'}
                     />
 
                     <CustomButton
@@ -98,9 +176,12 @@ export const LoginScreen = () => {
                     <CustomButton
                         name="Deezer"
                         iconFA="deezer"
-                        onPress={() => console.log("Deezer")}
+                        onPress={() => {
+                            setDeezerModalError(undefined);
+                            setIsDeezerModalVisible(true);
+                        }}
                         variant="deezer"
-                        available={false}
+                        available={!loadingProvider}
                     />
 
                     <CustomButton
@@ -131,6 +212,15 @@ export const LoginScreen = () => {
                 subtitle="En te connectant, tu acceptes de partager tes titres likés pour jouer avec tes amis"
                 align="center"
                 size="xs"
+            />
+
+            <DeezerProfileModal
+                visible={isDeezerModalVisible}
+                onClose={() => setIsDeezerModalVisible(false)}
+                onConfirm={handleDeezerProfileLogin}
+                error={deezerModalError}
+                onInputChange={() => setDeezerModalError(undefined)}
+                isSubmitting={loadingProvider === 'deezer'}
             />
 
         </ScreenLayout>

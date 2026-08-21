@@ -6,6 +6,7 @@ import { Server } from 'socket.io'
 
 import { connectDB } from './db.js'
 import { createLobbyRouter } from './routes/lobby.routes.js'
+import { createAuthRouter, AuthError } from './routes/auth.routes.js'
 import { registerLobbySockets } from './sockets/index.js'
 import { LobbyError } from './services/lobby.service.js'
 
@@ -24,6 +25,7 @@ const io = new Server(httpServer, {
 
 app.get('/health', (req, res) => res.json({ ok: true }))
 app.use('/api', createLobbyRouter(io))
+app.use('/api/auth', createAuthRouter())
 
 app.use((req, res) => {
     res.status(404).json({ error: 'Route introuvable' })
@@ -31,7 +33,7 @@ app.use((req, res) => {
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-    if (err instanceof LobbyError) {
+    if (err instanceof LobbyError || err instanceof AuthError) {
         return res.status(err.status).json({ error: err.message })
     }
     console.error('❌ Erreur serveur:', err)
