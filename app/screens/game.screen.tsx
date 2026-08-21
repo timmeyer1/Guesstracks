@@ -31,6 +31,11 @@ const truncateTitle = (name?: string) =>
         ? `${name.slice(0, GUESSTRACKS_TITLE_MAX_LENGTH).trimEnd()}...`
         : name
 
+// Tailles exprimées en % de la hauteur d'écran (plutôt qu'en pixels fixes)
+// pour s'adapter à tous les téléphones : ajuste ces deux valeurs si besoin.
+const ROUND_TOP_EXTRA_SPACING_PERCENT = 0.03 // espace sous la zone de sécurité (notch / caméra), en plus de l'inset
+const BLURRED_COVER_SIZE_PERCENT = 0.17 // taille de la pochette floutée en mode blindtest
+
 // mêmes formes sur les 3 écrans de la partie (question, résultat de manche, résultats finaux)
 // pour garder une identité visuelle cohérente du début à la fin du jeu
 const GAME_SHAPES = (
@@ -81,7 +86,8 @@ const GameScreen = () => {
     // la pochette floutée est mise à l'échelle de la hauteur d'écran
     // disponible plutôt qu'à une taille fixe, pour que la recherche reste
     // toujours accessible sans rien masquer.
-    const blurredCoverSize = Math.round(Math.max(90, Math.min(140, windowHeight * 0.17)))
+    const topExtraSpacing = windowHeight * ROUND_TOP_EXTRA_SPACING_PERCENT
+    const blurredCoverSize = Math.round(windowHeight * BLURRED_COVER_SIZE_PERCENT)
 
     if (phase === 'finished') {
         return (
@@ -120,7 +126,7 @@ const GameScreen = () => {
             >
                 <ScreenLayout noPadding shapes={!isSearchMode ? GAME_SHAPES : undefined}>
                     {!isSearchMode ? (
-                        <View className="flex-1 px-8 pb-10" style={{ paddingTop: insets.top + 24 }}>
+                        <View className="flex-1 px-8 pb-10" style={{ paddingTop: insets.top + topExtraSpacing }}>
                             <RoundHeader
                                 roundIndex={round.roundIndex}
                                 totalRounds={round.totalRounds}
@@ -165,7 +171,7 @@ const GameScreen = () => {
                         // réduit l'espace disponible et ce bloc du bas remonte au-dessus
                         <View
                             className="flex-1 px-8 pb-4 justify-between"
-                            style={{ paddingTop: insets.top + 24 }}
+                            style={{ paddingTop: insets.top + topExtraSpacing }}
                         >
                             <View>
                                 <RoundHeader
