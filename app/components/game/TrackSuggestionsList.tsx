@@ -6,7 +6,7 @@ import { Animated, View, Text, Image } from 'react-native'
 // menu non scrollable sur certains appareils comme les Xiaomi/MIUI, malgré
 // nestedScrollEnabled sur la FlatList native)
 import { FlatList, TouchableOpacity } from 'react-native-gesture-handler'
-import { Check, Music } from 'lucide-react-native'
+import { Music } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import type { CatalogEntry } from '../../core/types'
 
@@ -16,25 +16,32 @@ type TrackSuggestionsListProps = {
 }
 
 const MENU_MAX_HEIGHT = 288
-const OPEN_ANIMATION_MS = 180
 
 // Menu de suggestions du blindtest : remonté à chaque fois que la recherche
-// redevient assez longue (cf. SearchTrackQuestion), donc un simple fondu au
-// montage suffit à donner l'impression d'un menu qui s'ouvre plutôt que d'un
-// bloc qui apparaît d'un coup. Pas de glissement (transform) en plus du
-// fondu : combiné à un ancêtre en overflow: hidden, un transform sur un
-// ancêtre d'une FlatList est un bug Android connu qui la rend non
-// scrollable — exactement le problème rencontré ici.
+// redevient assez longue (cf. SearchTrackQuestion). Petit effet "bwong" à
+// l'ouverture (fondu + léger zoom avec rebond, ancré en bas puisque le menu
+// s'ouvre vers le haut) plutôt qu'un simple fondu, pour un rendu plus vivant.
+// Depuis le passage de la FlatList sur react-native-gesture-handler (cf.
+// import plus haut), son moteur de geste négocie le scroll indépendamment
+// des transforms des ancêtres, donc animer ce zoom ne recasse pas le
+// scroll — contrairement à l'ancienne FlatList native RN, sensible à un
+// transform sur un ancêtre combiné à un overflow: hidden (bug Android connu).
 export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ suggestions, onSelect }) => {
     const openAnim = useRef(new Animated.Value(0)).current
 
     useEffect(() => {
-        Animated.timing(openAnim, {
+        Animated.spring(openAnim, {
             toValue: 1,
-            duration: OPEN_ANIMATION_MS,
             useNativeDriver: true,
+            friction: 6,
+            tension: 200,
         }).start()
     }, [openAnim])
+
+    const scale = openAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.9, 1],
+    })
 
     return (
         // L'ombre (shadow-card / elevation) et le overflow-hidden qui rogne la
@@ -51,9 +58,14 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
                 maxHeight: MENU_MAX_HEIGHT,
                 elevation: 6,
                 opacity: openAnim,
+                transform: [{ scale }],
+                transformOrigin: 'bottom',
             }}
         >
-            <View className="bg-white rounded-2xl overflow-hidden" style={{ maxHeight: MENU_MAX_HEIGHT }}>
+            <View
+                className="bg-white rounded-2xl border border-offwhite overflow-hidden"
+                style={{ maxHeight: MENU_MAX_HEIGHT }}
+            >
                 {/* FlatList plutôt que ScrollView : ne rend que les lignes visibles à
                 l'écran au lieu de tout le catalogue filtré d'un coup — un artiste avec
                 beaucoup de titres, ou un catalogue volumineux, reste fluide en
@@ -88,32 +100,29 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
                     renderItem={({ item: track }) => (
                         <TouchableOpacity
                             onPress={() => onSelect(track.id)}
-                            className="flex-row items-center justify-between p-3 border-b border-offwhite"
+                            className="flex-row items-center p-3 border-b border-offwhite"
                         >
-                            <View className="flex-row items-center flex-1 pr-2">
-                                {track.image ? (
-                                    <Image
-                                        source={{ uri: track.image }}
-                                        style={{ width: 40, height: 40, borderRadius: 8 }}
-                                    />
-                                ) : (
-                                    <View
-                                        className="bg-offwhite items-center justify-center"
-                                        style={{ width: 40, height: 40, borderRadius: 8 }}
-                                    >
-                                        <Music size={16} color={COLORS.darkgray} />
-                                    </View>
-                                )}
-                                <View className="flex-1 ml-3">
-                                    <Text className="text-black font-semibold" numberOfLines={1}>
-                                        {track.name}
-                                    </Text>
-                                    <Text className="text-darkgray text-sm" numberOfLines={1}>
-                                        {track.artist}
-                                    </Text>
+                            {track.image ? (
+                                <Image
+                                    source={{ uri: track.image }}
+                                    style={{ width: 40, height: 40, borderRadius: 8 }}
+                                />
+                            ) : (
+                                <View
+                                    className="bg-offwhite items-center justify-center"
+                                    style={{ width: 40, height: 40, borderRadius: 8 }}
+                                >
+                                    <Music size={16} color={COLORS.darkgray} />
                                 </View>
+                            )}
+                            <View className="flex-1 ml-3">
+                                <Text className="text-black font-semibold" numberOfLines={1}>
+                                    {track.name}
+                                </Text>
+                                <Text className="text-darkgray text-sm" numberOfLines={1}>
+                                    {track.artist}
+                                </Text>
                             </View>
-                            <Check size={18} color={COLORS.blindtest} />
                         </TouchableOpacity>
                     )}
                     ListEmptyComponent={
