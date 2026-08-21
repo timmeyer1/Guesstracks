@@ -46,6 +46,10 @@ export type GameSocketHandlers = {
     onEnd: (payload: GameEnd) => void
     onError: (payload: { message: string }) => void
     onState: (payload: GameStatePayload) => void
+    // diffusé à chaque fois qu'un joueur envoie ses musiques likées, pour que
+    // le lobby puisse afficher/bloquer "Lancer la partie" tant que tout le
+    // monde n'a pas encore envoyé les siennes
+    onTracksProgress: (payload: { submittedPlayerIds: string[] }) => void
 }
 
 export const subscribeToGame = (handlers: GameSocketHandlers) => {
@@ -56,6 +60,7 @@ export const subscribeToGame = (handlers: GameSocketHandlers) => {
     s.on('game:end', handlers.onEnd)
     s.on('game:error', handlers.onError)
     s.on('game:state', handlers.onState)
+    s.on('game:tracksProgress', handlers.onTracksProgress)
 
     return () => {
         s.off('game:started', handlers.onStarted)
@@ -64,6 +69,7 @@ export const subscribeToGame = (handlers: GameSocketHandlers) => {
         s.off('game:end', handlers.onEnd)
         s.off('game:error', handlers.onError)
         s.off('game:state', handlers.onState)
+        s.off('game:tracksProgress', handlers.onTracksProgress)
     }
 }
 

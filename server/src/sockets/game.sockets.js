@@ -15,7 +15,7 @@ export const registerGameSockets = (io) => {
             const { code, player, tracks } = payload
             if (!isValidCode(code)) return
             try {
-                gameService.submitTracks(code.toUpperCase(), player, tracks)
+                gameService.submitTracks(code.toUpperCase(), player, tracks, io)
             } catch (err) {
                 socket.emit('game:error', { message: errorMessage(err) })
             }

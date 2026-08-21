@@ -21,11 +21,16 @@ type GameStoreType = {
     mySelection: string[]
     hasAnswered: boolean
     error: string | null
+    // ids des joueurs ayant déjà envoyé leurs musiques likées pour la partie
+    // en préparation (cf. lobby.screen.tsx, bloque "Lancer la partie" tant
+    // que ce n'est pas le cas pour tout le monde)
+    submittedPlayerIds: string[]
 
     setPhase: (phase: GamePhase) => void
     setGameMode: (gameMode: GameMode) => void
     setTotalRounds: (totalRounds: number) => void
     setCatalog: (catalog: CatalogEntry[]) => void
+    setSubmittedPlayerIds: (ids: string[]) => void
     startRound: (round: GameRoundStart) => void
     endRound: (payload: GameRoundEnd) => void
     setLeaderboard: (leaderboard: LeaderboardEntry[]) => void
@@ -52,11 +57,16 @@ const initialState = {
 
 export const useGameStore = create<GameStoreType>((set, get) => ({
     ...initialState,
+    // hors de initialState : ne doit pas être vidé par reset() (appelé au
+    // retour du lobby après une partie), sinon l'UI croirait à tort que tout
+    // le monde doit renvoyer ses musiques likées avant de pouvoir relancer
+    submittedPlayerIds: [] as string[],
 
     setPhase: (phase) => set({ phase }),
     setGameMode: (gameMode) => set({ gameMode }),
     setTotalRounds: (totalRounds) => set({ totalRounds }),
     setCatalog: (catalog) => set({ catalog }),
+    setSubmittedPlayerIds: (submittedPlayerIds) => set({ submittedPlayerIds }),
 
     startRound: (round) =>
         set({

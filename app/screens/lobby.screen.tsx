@@ -28,6 +28,7 @@ const LobbyScreen = () => {
     const { user } = useAuthStore()
     const gamePhase = useGameStore((s) => s.phase)
     const gameError = useGameStore((s) => s.error)
+    const submittedPlayerIds = useGameStore((s) => s.submittedPlayerIds)
     const navigation = useNavigation()
 
     const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false)
@@ -39,7 +40,12 @@ const LobbyScreen = () => {
     // les joueurs voient la même chose, y compris ceux qui rejoignent après
     // que l'hôte a déjà choisi les réglages
     const isGameModeSelected = lobby?.settingsConfirmed ?? false
-    const canStartGame = users.length >= LOBBY_LIMITS.MIN_PLAYERS_TO_START && isGameModeSelected
+    const hasEnoughPlayers = users.length >= LOBBY_LIMITS.MIN_PLAYERS_TO_START
+    // le serveur refuse de toute façon de lancer tant que tout le monde n'a
+    // pas envoyé ses musiques likées (cf. game.service.js) : on reflète cette
+    // même contrainte ici pour ne pas laisser l'hôte cliquer dans le vide
+    const missingTrackSubmissions = users.filter((u) => !submittedPlayerIds.includes(u.id)).length
+    const canStartGame = hasEnoughPlayers && isGameModeSelected && missingTrackSubmissions === 0
 
     // écoute les événements de partie dès l'entrée dans le lobby, et envoie ses
     // titres likés pour que le pool soit prêt quand l'hôte lancera la partie
@@ -249,7 +255,15 @@ const LobbyScreen = () => {
                                     loading={isStartingGame}
                                 />
                             ) : (
-                                <StatusPill text="En attente de joueurs" />
+                                <StatusPill
+                                    text={
+                                        !hasEnoughPlayers
+                                            ? "En attente de joueurs"
+                                            : missingTrackSubmissions === 1
+                                                ? "En attente des musiques d'un joueur"
+                                                : `En attente des musiques de ${missingTrackSubmissions} joueurs`
+                                    }
+                                />
                             )
                         )}
 

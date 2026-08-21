@@ -76,6 +76,9 @@ export const startWatchingGame = () => {
             useGameStore.getState().setError(payload.message)
         },
         onState: applySnapshot,
+        onTracksProgress: (payload) => {
+            useGameStore.getState().setSubmittedPlayerIds(payload.submittedPlayerIds)
+        },
     })
 }
 

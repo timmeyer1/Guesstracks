@@ -63,7 +63,7 @@ const shuffle = (items) => {
     return copy
 }
 
-export const submitTracks = (code, player, tracks) => {
+export const submitTracks = (code, player, tracks, io) => {
     if (!player || typeof player.id !== 'string' || !player.id.trim()) {
         throw new GameError('Joueur invalide')
     }
@@ -95,6 +95,16 @@ export const submitTracks = (code, player, tracks) => {
 
     game.submittedTracks.set(player.id, sanitized)
     if (!game.scores.has(player.id)) game.scores.set(player.id, emptyScore())
+
+    // permet au lobby d'afficher qui a déjà envoyé ses musiques (et de bloquer
+    // "Lancer la partie" tant que ce n'est pas le cas pour tout le monde,
+    // cf. startGame) : sans ça, un lancement trop rapide après qu'un joueur
+    // vient de rejoindre pouvait démarrer avec un pool incomplet — c'était la
+    // cause la plus probable des musiques "toutes du même joueur" ou des
+    // manches où un seul des vrais likers apparaissait comme bonne réponse
+    io?.to(room(code)).emit('game:tracksProgress', {
+        submittedPlayerIds: [...game.submittedTracks.keys()],
+    })
 
     return { accepted: true }
 }
@@ -289,6 +299,20 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     }
 
     const activePlayerIds = lobby.players.map((p) => p.id)
+
+    // évite de démarrer avec un pool incomplet (ex: un joueur vient tout
+    // juste de rejoindre et son envoi de musiques likées n'est pas encore
+    // arrivé) : sans cette garde, le pool ne reflétait parfois qu'une partie
+    // des joueurs, silencieusement
+    const missingSubmissions = activePlayerIds.filter((id) => !game.submittedTracks.has(id))
+    if (missingSubmissions.length > 0) {
+        throw new GameError(
+            missingSubmissions.length === 1
+                ? "En attente des musiques likées d'un joueur avant de lancer la partie"
+                : `En attente des musiques likées de ${missingSubmissions.length} joueurs avant de lancer la partie`
+        )
+    }
+
     for (const p of lobby.players) {
         game.playersInfo.set(p.id, { id: p.id, name: p.name, img: p.img ?? null })
         if (!game.scores.has(p.id)) game.scores.set(p.id, emptyScore())
