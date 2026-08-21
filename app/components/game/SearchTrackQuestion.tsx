@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Keyboard, View, Text, TextInput } from 'react-native'
-import { Search } from 'lucide-react-native'
+import { Keyboard, View, Text, TextInput, TouchableOpacity, FlatList } from 'react-native'
+import { Search, Check } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { useCountdown } from '../../core/hooks/useCountdown'
 import { StatusPill } from '../StatusPill'
 import { AudioPlayer } from './AudioPlayer'
-import { TrackSuggestionsList } from './TrackSuggestionsList'
 import type { CatalogEntry } from '../../core/types'
 
 type SearchTrackQuestionProps = {
@@ -189,7 +188,47 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
                     />
                 </View>
 
-                {showDropdown && <TrackSuggestionsList suggestions={suggestions} onSelect={handleSelect} />}
+                {/* TEMPORAIRE : ancienne version (pré-TrackSuggestionsList, avant
+                90fd6dcb) restaurée telle quelle pour tester si le scroll Android
+                fonctionne avec cette implémentation plus simple (pas d'Animated.View,
+                pas de useNativeDriver, overflow-hidden + shadow sur la même View) —
+                cf. discussion sur le scroll cassé sur Poco X3 malgré nestedScrollEnabled */}
+                {showDropdown && (
+                    <View
+                        className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl shadow-card overflow-hidden"
+                        style={{ maxHeight: 240, elevation: 6 }}
+                    >
+                        <FlatList
+                            data={suggestions}
+                            keyExtractor={(track) => track.id}
+                            keyboardShouldPersistTaps="handled"
+                            showsVerticalScrollIndicator={false}
+                            initialNumToRender={8}
+                            windowSize={5}
+                            renderItem={({ item: track }) => (
+                                <TouchableOpacity
+                                    onPress={() => handleSelect(track.id)}
+                                    className="flex-row items-center justify-between p-3 border-b border-offwhite"
+                                >
+                                    <View className="flex-1 pr-2">
+                                        <Text className="text-black font-semibold" numberOfLines={1}>
+                                            {track.name}
+                                        </Text>
+                                        <Text className="text-darkgray text-sm" numberOfLines={1}>
+                                            {track.artist}
+                                        </Text>
+                                    </View>
+                                    <Check size={18} color={COLORS.blindtest} />
+                                </TouchableOpacity>
+                            )}
+                            ListEmptyComponent={
+                                <Text className="text-darkgray text-sm text-center p-3">
+                                    Aucun titre trouvé
+                                </Text>
+                            }
+                        />
+                    </View>
+                )}
             </View>
         </View>
     )
