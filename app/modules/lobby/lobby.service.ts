@@ -119,13 +119,18 @@ export const leaveLobby = async (): Promise<{ shouldNavigate: boolean }> => {
         return { shouldNavigate: false }
     }
 
+    // se désabonner avant l'appel réseau : sinon le lobby:update que le
+    // serveur diffuse suite à notre propre départ peut être reçu ici avant la
+    // réponse de la requête, ce qui fait croire à tort à une expulsion (cf.
+    // lobby.screen.tsx, qui affiche "Expulsé" dès qu'on disparaît de `users`)
+    stopWatchingLobby()
+
     try {
         await lobbyApiClient.post(`/lobbies/${lobby.code}/leave`, { playerId: user.id })
     } catch (error) {
         console.warn('⚠️ Erreur en quittant le lobby:', extractLobbyErrorMessage(error))
     }
 
-    stopWatchingLobby()
     resetLobby()
     return { shouldNavigate: true }
 }
