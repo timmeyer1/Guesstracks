@@ -42,6 +42,7 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
         <Animated.View
             className="absolute left-0 right-0 bottom-full mb-2 rounded-2xl shadow-card"
             style={{
+                maxHeight: MENU_MAX_HEIGHT,
                 elevation: 6,
                 opacity: openAnim,
             }}
@@ -65,6 +66,13 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
                     // absolute + overflow: hidden comme ici, ce qui la rendait non
                     // scrollable sur Android (bug connu de React Native)
                     removeClippedSubviews={false}
+                    // Android uniquement : sans ça, le conteneur natif de l'écran
+                    // (react-native-screens) peut intercepter le geste de glissement
+                    // vertical avant que la FlatList n'ait la chance de le récupérer,
+                    // même sans ScrollView parent visible côté JS — la liste reste
+                    // affichée mais ne réagit à aucun glissement (rien à voir avec le
+                    // rendu, donc invisible en lisant juste le JSX)
+                    nestedScrollEnabled
                     data={suggestions}
                     keyExtractor={(track) => track.id}
                     keyboardShouldPersistTaps="handled"
