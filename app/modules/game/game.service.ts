@@ -8,6 +8,7 @@ import {
     emitStartGame,
     emitAnswer,
     emitGameSync,
+    emitConfirmReturn,
     type GameStatePayload,
 } from '../../core/socket'
 import type { GameRoundStart, GameRoundEnd, GameEnd, GameStarted } from '../../core/types'
@@ -79,6 +80,9 @@ export const startWatchingGame = () => {
         onTracksProgress: (payload) => {
             useGameStore.getState().setSubmittedPlayerIds(payload.submittedPlayerIds)
         },
+        onReturnProgress: (payload) => {
+            useGameStore.getState().setPendingReturnPlayerIds(payload.pendingPlayerIds)
+        },
     })
 }
 
@@ -126,4 +130,14 @@ export const syncGame = () => {
     const { lobby } = useLobbyStore.getState()
     if (!lobby) return
     emitGameSync(lobby.code)
+}
+
+// à appeler à chaque fois que l'écran de lobby regagne le focus : signale au
+// serveur que ce joueur est bien de retour, ce qui débloque "Lancer la
+// partie" côté hôte une fois que tout le monde l'a fait (cf. lobby.screen.tsx)
+export const confirmReturnedToLobby = () => {
+    const { lobby } = useLobbyStore.getState()
+    const { user } = useAuthStore.getState()
+    if (!lobby || !user) return
+    emitConfirmReturn(lobby.code, user.id)
 }

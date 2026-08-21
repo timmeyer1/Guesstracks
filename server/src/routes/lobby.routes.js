@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import * as lobbyService from '../services/lobby.service.js'
-import { cleanupGame } from '../services/game.service.js'
+import { cleanupGame, clearPendingReturn } from '../services/game.service.js'
 
 export const createLobbyRouter = (io) => {
     const router = Router()
@@ -47,6 +47,8 @@ export const createLobbyRouter = (io) => {
                 io.to(`lobby:${code}`).emit('lobby:closed')
             } else {
                 broadcast(code, result.lobby)
+                // un joueur qui quitte n'a plus besoin d'être attendu pour relancer
+                clearPendingReturn(code, req.body.playerId, io)
             }
             res.json(result)
         } catch (err) {
@@ -71,6 +73,8 @@ export const createLobbyRouter = (io) => {
             const code = req.params.code.toUpperCase()
             const lobby = await lobbyService.kickPlayer(code, req.body.requesterId, req.body.targetId)
             broadcast(code, lobby)
+            // un joueur expulsé n'a plus besoin d'être attendu pour relancer
+            clearPendingReturn(code, req.body.targetId, io)
             res.json({ lobby })
         } catch (err) {
             next(err)

@@ -144,6 +144,21 @@ export const kickPlayer = async (code, requesterId, targetId) => {
     return lobby.toPublic()
 }
 
+// retire un joueur sans vérification d'hôte : utilisé par le nettoyage
+// automatique pour inactivité (game.service.js), pas par une action d'un
+// joueur — renvoie null si le lobby ou le joueur n'existe plus
+export const removePlayer = async (code, targetId) => {
+    const lobby = await getLobby(code).catch(() => null)
+    if (!lobby) return null
+
+    const before = lobby.players.length
+    lobby.players = lobby.players.filter((p) => p.id !== targetId)
+    if (lobby.players.length === before) return null
+
+    await lobby.save()
+    return lobby.toPublic()
+}
+
 export const transferHost = async (code, requesterId, targetId) => {
     const lobby = await getLobby(code)
 

@@ -42,4 +42,9 @@ export const SCORING = {
 export const ROUND_RESULTS_PAUSE_MS = 5000 // temps d'affichage des résultats entre deux manches
 export const TRACK_SUBMIT_TIMEOUT_MS = 15000 // délai laissé aux joueurs pour envoyer leurs titres likés avant de démarrer avec ceux déjà reçus
 
+// délai laissé aux joueurs pour revenir au lobby (ou le quitter) après la fin
+// d'une partie, avant de relancer : passé ce délai, les joueurs qui n'ont
+// toujours pas donné signe de vie sont expulsés pour inactivité
+export const RETURN_TO_LOBBY_TIMEOUT_MS = 30000
+
 export const MIN_ROUNDS_PLAYABLE = 3 // en dessous, la partie ne peut pas démarrer même si le pool est trop petit

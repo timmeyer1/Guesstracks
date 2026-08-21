@@ -5,8 +5,10 @@ import {
     ROUND_RESULTS_PAUSE_MS,
     MIN_ROUNDS_PLAYABLE,
     LOBBY_LIMITS,
+    RETURN_TO_LOBBY_TIMEOUT_MS,
 } from '../constants.js'
 import { resolvePreviewUrl } from './preview.service.js'
+import * as lobbyService from './lobby.service.js'
 
 export class GameError extends Error {
     constructor(message, status = 400) {
@@ -48,6 +50,11 @@ const getOrCreate = (code) => {
             rounds: [],
             currentRoundIndex: -1,
             timer: null,
+            // ids des joueurs de la partie qui vient de se terminer, encore
+            // attendus au lobby avant de pouvoir relancer (cf. finishGame /
+            // clearPendingReturn) ; vide/absent hors de cette fenêtre d'attente
+            pendingReturnPlayerIds: null,
+            returnTimer: null,
         }
         games.set(code, game)
     }
@@ -293,6 +300,19 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     if (lobby.players.length < LOBBY_LIMITS.MIN_PLAYERS_TO_START) {
         throw new GameError('Il faut au moins 2 joueurs pour lancer la partie')
     }
+    // relancer trop vite après la fin d'une partie pouvait laisser des joueurs
+    // coincés sur l'écran de résultats précédent, hors sync avec la nouvelle
+    // partie : on attend que chacun ait explicitement donné signe de vie (soit
+    // revenu au lobby, soit quitté) — cf. finishGame / clearPendingReturn
+    if (game.pendingReturnPlayerIds && game.pendingReturnPlayerIds.size > 0) {
+        throw new GameError(
+            game.pendingReturnPlayerIds.size === 1
+                ? "En attente qu'un joueur revienne au lobby avant de relancer"
+                : `En attente que ${game.pendingReturnPlayerIds.size} joueurs reviennent au lobby avant de relancer`
+        )
+    }
+    clearTimeout(game.returnTimer)
+    game.returnTimer = null
 
     if (game.status === 'finished') {
         game.scores = new Map()
@@ -512,6 +532,72 @@ const finishGame = (code, io) => {
     })
 
     io.to(room(code)).emit('game:end', { leaderboard, totalRounds })
+
+    startReturnWaiting(code, io)
+}
+
+const broadcastReturnProgress = (code, io, game) => {
+    io.to(room(code)).emit('game:returnProgress', {
+        pendingPlayerIds: [...(game.pendingReturnPlayerIds ?? [])],
+    })
+}
+
+// ouvre la fenêtre d'attente de RETURN_TO_LOBBY_TIMEOUT_MS après la fin d'une
+// partie : chaque joueur doit soit revenir au lobby (clearPendingReturn),
+// soit le quitter (ce qui le retire de activePlayerIds côté lobby ailleurs) ;
+// passé ce délai, ceux qui n'ont toujours pas donné signe de vie sont expulsés
+const startReturnWaiting = (code, io) => {
+    const game = games.get(code)
+    if (!game) return
+
+    game.pendingReturnPlayerIds = new Set(game.activePlayerIds)
+    clearTimeout(game.returnTimer)
+    broadcastReturnProgress(code, io, game)
+
+    if (game.pendingReturnPlayerIds.size === 0) return
+
+    game.returnTimer = setTimeout(() => {
+        handleReturnTimeout(code, io).catch((err) => {
+            console.error('Erreur lors du nettoyage des joueurs inactifs :', err)
+        })
+    }, RETURN_TO_LOBBY_TIMEOUT_MS)
+}
+
+const handleReturnTimeout = async (code, io) => {
+    const game = games.get(code)
+    if (!game || !game.pendingReturnPlayerIds || game.pendingReturnPlayerIds.size === 0) return
+
+    const inactiveIds = [...game.pendingReturnPlayerIds]
+    game.pendingReturnPlayerIds = new Set()
+    game.returnTimer = null
+
+    for (const playerId of inactiveIds) {
+        game.activePlayerIds = game.activePlayerIds.filter((id) => id !== playerId)
+        const lobby = await lobbyService.removePlayer(code, playerId)
+        if (lobby) {
+            io.to(room(code)).emit('lobby:update', lobby)
+        }
+    }
+
+    broadcastReturnProgress(code, io, game)
+}
+
+// sort un joueur de la liste d'attente de retour (cf. startReturnWaiting) —
+// appelé soit quand il (re)arrive sur l'écran de lobby, soit quand il quitte
+// le lobby ou en est expulsé entre-temps (lobby.routes.js) : dans les deux
+// cas il n'y a plus lieu de l'attendre. Débloque "Lancer la partie" côté
+// hôte une fois tout le monde revenu ou parti.
+export const clearPendingReturn = (code, playerId, io) => {
+    const game = games.get(code)
+    if (!game || !game.pendingReturnPlayerIds || !game.pendingReturnPlayerIds.has(playerId)) return
+
+    game.pendingReturnPlayerIds.delete(playerId)
+    broadcastReturnProgress(code, io, game)
+
+    if (game.pendingReturnPlayerIds.size === 0) {
+        clearTimeout(game.returnTimer)
+        game.returnTimer = null
+    }
 }
 
 // snapshot envoyé à un client qui (re)rejoint la room en cours de partie

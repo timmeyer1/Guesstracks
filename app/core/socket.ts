@@ -50,6 +50,9 @@ export type GameSocketHandlers = {
     // le lobby puisse afficher/bloquer "Lancer la partie" tant que tout le
     // monde n'a pas encore envoyé les siennes
     onTracksProgress: (payload: { submittedPlayerIds: string[] }) => void
+    // diffusé à la fin d'une partie puis à chaque joueur qui revient au lobby
+    // (ou le quitte) : liste de ceux encore attendus avant de pouvoir relancer
+    onReturnProgress: (payload: { pendingPlayerIds: string[] }) => void
 }
 
 export const subscribeToGame = (handlers: GameSocketHandlers) => {
@@ -61,6 +64,7 @@ export const subscribeToGame = (handlers: GameSocketHandlers) => {
     s.on('game:error', handlers.onError)
     s.on('game:state', handlers.onState)
     s.on('game:tracksProgress', handlers.onTracksProgress)
+    s.on('game:returnProgress', handlers.onReturnProgress)
 
     return () => {
         s.off('game:started', handlers.onStarted)
@@ -70,6 +74,7 @@ export const subscribeToGame = (handlers: GameSocketHandlers) => {
         s.off('game:error', handlers.onError)
         s.off('game:state', handlers.onState)
         s.off('game:tracksProgress', handlers.onTracksProgress)
+        s.off('game:returnProgress', handlers.onReturnProgress)
     }
 }
 
@@ -89,4 +94,8 @@ export const emitAnswer = (code: string, playerId: string, roundIndex: number, s
 
 export const emitGameSync = (code: string) => {
     getSocket().emit('game:sync', code)
+}
+
+export const emitConfirmReturn = (code: string, playerId: string) => {
+    getSocket().emit('game:confirmReturn', { code, playerId })
 }

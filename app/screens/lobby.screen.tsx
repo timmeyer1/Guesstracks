@@ -4,7 +4,14 @@ import { View, Text, Alert, ScrollView, Share } from 'react-native'
 import { useFocusEffect, useNavigation } from "@react-navigation/native"
 
 import { leaveLobby, updateLobbySettings, kickPlayer, transferHost } from '../modules/lobby/lobby.service'
-import { startWatchingGame, stopWatchingGame, leaveGame, submitMyTracks, startGame } from '../modules/game/game.service'
+import {
+    startWatchingGame,
+    stopWatchingGame,
+    leaveGame,
+    submitMyTracks,
+    startGame,
+    confirmReturnedToLobby,
+} from '../modules/game/game.service'
 import { useLobbyStore } from "../stores/lobby.store"
 import { useGameStore } from "../stores/game.store"
 import { LOBBY_LIMITS } from '../core/constants/lobby.constants'
@@ -29,6 +36,7 @@ const LobbyScreen = () => {
     const gamePhase = useGameStore((s) => s.phase)
     const gameError = useGameStore((s) => s.error)
     const submittedPlayerIds = useGameStore((s) => s.submittedPlayerIds)
+    const pendingReturnPlayerIds = useGameStore((s) => s.pendingReturnPlayerIds)
     const navigation = useNavigation()
 
     const [isSettingsModalVisible, setIsSettingsModalVisible] = useState(false)
@@ -45,7 +53,12 @@ const LobbyScreen = () => {
     // pas envoyé ses musiques likées (cf. game.service.js) : on reflète cette
     // même contrainte ici pour ne pas laisser l'hôte cliquer dans le vide
     const missingTrackSubmissions = users.filter((u) => !submittedPlayerIds.includes(u.id)).length
-    const canStartGame = hasEnoughPlayers && isGameModeSelected && missingTrackSubmissions === 0
+    // après une partie, bloque le relancement tant que tout le monde n'est
+    // pas explicitement revenu au lobby (ou ne l'a pas quitté) — cf.
+    // game.service.js, qui expulse pour inactivité au bout de 30s
+    const missingReturns = users.filter((u) => pendingReturnPlayerIds.includes(u.id)).length
+    const canStartGame =
+        hasEnoughPlayers && isGameModeSelected && missingTrackSubmissions === 0 && missingReturns === 0
 
     // écoute les événements de partie dès l'entrée dans le lobby, et envoie ses
     // titres likés pour que le pool soit prêt quand l'hôte lancera la partie
@@ -77,10 +90,14 @@ const LobbyScreen = () => {
     // le stack navigator garde cet écran monté (goBack le réaffiche tel quel,
     // ex: "Rester dans le lobby" depuis les résultats finaux) : sans ce reset,
     // isStartingGame resterait bloqué à true après un lancement réussi et le
-    // bouton resterait grisé sur "Lancement..." indéfiniment
+    // bouton resterait grisé sur "Lancement..." indéfiniment. On en profite
+    // pour signaler au serveur que ce joueur est bien de retour au lobby (cf.
+    // missingReturns ci-dessus) : couvre aussi bien "Rester dans le lobby"
+    // que tout autre chemin de retour à cet écran.
     useFocusEffect(
         useCallback(() => {
             setIsStartingGame(false)
+            confirmReturnedToLobby()
         }, [])
     )
 
@@ -259,9 +276,13 @@ const LobbyScreen = () => {
                                     text={
                                         !hasEnoughPlayers
                                             ? "En attente de joueurs"
-                                            : missingTrackSubmissions === 1
-                                                ? "En attente des musiques d'un joueur"
-                                                : `En attente des musiques de ${missingTrackSubmissions} joueurs`
+                                            : missingReturns > 0
+                                                ? missingReturns === 1
+                                                    ? "En attente qu'un joueur revienne au lobby"
+                                                    : `En attente que ${missingReturns} joueurs reviennent au lobby`
+                                                : missingTrackSubmissions === 1
+                                                    ? "En attente des musiques d'un joueur"
+                                                    : `En attente des musiques de ${missingTrackSubmissions} joueurs`
                                     }
                                 />
                             )

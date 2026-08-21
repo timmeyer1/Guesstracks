@@ -46,5 +46,14 @@ export const registerGameSockets = (io) => {
             if (!isValidCode(code)) return
             socket.emit('game:state', gameService.getSnapshot(code.toUpperCase()))
         })
+
+        // envoyé quand l'écran de lobby regagne le focus (retour depuis les
+        // résultats finaux, ou simple arrivée dans le lobby) : sort le joueur
+        // de la liste d'attente ouverte par la fin d'une partie précédente
+        socket.on('game:confirmReturn', (payload = {}) => {
+            const { code, playerId } = payload
+            if (!isValidCode(code) || typeof playerId !== 'string') return
+            gameService.clearPendingReturn(code.toUpperCase(), playerId, io)
+        })
     })
 }
