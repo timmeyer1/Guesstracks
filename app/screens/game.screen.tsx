@@ -1,6 +1,6 @@
 // app/screens/game.screen.tsx
-import React from 'react'
-import { View, Text, Image, KeyboardAvoidingView, Platform } from 'react-native'
+import React, { useEffect, useState } from 'react'
+import { View, Text, Image, Keyboard, KeyboardAvoidingView, Platform } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -73,6 +73,25 @@ const GameScreen = () => {
         useGameStore.getState().resetForRematch()
         navigation.goBack()
     }
+
+    // en mode blindtest, le clavier s'ouvre dès le début de la manche (cf.
+    // SearchTrackQuestion) : sur les écrans plus petits, la pochette floutée
+    // et le titre au-dessus de la barre de recherche laissaient trop peu de
+    // place à celle-ci une fois le clavier affiché, la poussant sous le
+    // clavier. On réduit ce bloc du haut pendant que le clavier est visible
+    // pour garder la recherche toujours accessible.
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
+
+    useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+        const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true))
+        const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false))
+        return () => {
+            showSub.remove()
+            hideSub.remove()
+        }
+    }, [])
 
     if (phase === 'finished') {
         return (
@@ -168,17 +187,22 @@ const GameScreen = () => {
                                     compact
                                 />
 
-                                <View className="items-center mt-4 mb-3">
-                                    <BlurredCover imageUri={round.track.image} size={140} />
+                                <View
+                                    className="items-center"
+                                    style={{ marginTop: isKeyboardVisible ? 8 : 16, marginBottom: isKeyboardVisible ? 8 : 12 }}
+                                >
+                                    <BlurredCover imageUri={round.track.image} size={isKeyboardVisible ? 90 : 140} />
                                 </View>
 
                                 <View className="mb-4">
                                     <AudioPlayer previewUrl={round.track.previewUrl} compact />
                                 </View>
 
-                                <Text className="text-black text-lg font-bold text-center">
-                                    Quelle est cette musique ?
-                                </Text>
+                                {!isKeyboardVisible && (
+                                    <Text className="text-black text-lg font-bold text-center">
+                                        Quelle est cette musique ?
+                                    </Text>
+                                )}
                             </View>
 
                             <SearchTrackQuestion
