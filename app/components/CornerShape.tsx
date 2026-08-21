@@ -3,21 +3,29 @@ import React from 'react';
 import { Image, View, StyleProp, ImageStyle, DimensionValue } from 'react-native';
 
 // Ratio largeur/hauteur du visuel source (app/images/shapes-purple.png).
-// On s'en sert pour calculer la hauteur automatiquement à partir de la largeur.
-const SHAPE_RATIO = 1110 / 877;
+// RN calcule la hauteur tout seul à partir de la largeur (voir aspectRatio ci-dessous),
+// donc ça marche aussi bien avec une largeur en points qu'en pourcentage.
+const SHAPE_ASPECT_RATIO = 877 / 1110;
 
 export type CornerShapeProps = {
-    /** Largeur du visuel, en points. La hauteur suit automatiquement le ratio de l'image. */
-    size?: number;
+    /**
+     * Largeur du visuel. Un pourcentage ("45%") se recalcule automatiquement selon la
+     * taille de l'écran (recommandé pour un rendu cohérent sur tous les appareils) ;
+     * un nombre (220) donne une taille fixe en points, identique sur tous les écrans.
+     */
+    size?: DimensionValue;
     /** Rotation en degrés (peut être négatif). */
     rotate?: number;
-    /** Distance depuis le haut du conteneur : en points, ou en pourcentage ("45%") — peut être négative pour faire déborder la forme hors de l'écran. */
+    /**
+     * Distance depuis le haut du conteneur : pourcentage ("−8%") ou points (−65).
+     * Une valeur négative fait déborder la forme hors de l'écran (comme sur la maquette).
+     */
     top?: DimensionValue;
-    /** Distance depuis le bas du conteneur (points ou pourcentage). */
+    /** Distance depuis le bas du conteneur (pourcentage ou points). */
     bottom?: DimensionValue;
-    /** Distance depuis la gauche du conteneur (points ou pourcentage). */
+    /** Distance depuis la gauche du conteneur (pourcentage ou points). */
     left?: DimensionValue;
-    /** Distance depuis la droite du conteneur (points ou pourcentage). */
+    /** Distance depuis la droite du conteneur (pourcentage ou points). */
     right?: DimensionValue;
     /** Miroir horizontal (utile pour varier l'aspect du même visuel). */
     flipHorizontal?: boolean;
@@ -31,13 +39,16 @@ export type CornerShapeProps = {
  * Une des formes violettes décoratives (voir app/images/shapes-purple.png),
  * à placer dans les coins des écrans via `ScreenLayout`'s `shapes` prop.
  *
- * Pour l'agrandir : augmente `size`.
+ * Pour l'agrandir : augmente `size` (ex: "45%" → "55%").
  * Pour la déplacer : ajuste `top`/`bottom`/`left`/`right` (des valeurs négatives
  * la font déborder hors de l'écran, comme dans la maquette).
  * Pour la faire pivoter : change `rotate` (en degrés).
+ *
+ * Utilise des pourcentages (plutôt que des points fixes) pour que la forme garde
+ * la même taille et position relatives sur un petit téléphone comme sur une tablette.
  */
 export const CornerShape: React.FC<CornerShapeProps> = ({
-    size = 220,
+    size = '45%',
     rotate = 0,
     top,
     bottom,
@@ -57,7 +68,7 @@ export const CornerShape: React.FC<CornerShapeProps> = ({
             style={{
                 position: 'absolute',
                 width: size,
-                height: size * SHAPE_RATIO,
+                aspectRatio: SHAPE_ASPECT_RATIO,
                 top,
                 bottom,
                 left,

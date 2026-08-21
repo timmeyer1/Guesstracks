@@ -176,9 +176,9 @@ const LobbyScreen = () => {
         <ScreenLayout
             shapes={
                 <>
-                    <CornerShape size={190} rotate={18} top={-60} right={-65} />
-                    <CornerShape size={140} rotate={-22} top="52%" left={-70} />
-                    <CornerShape size={220} rotate={-12} bottom={-75} right={-75} />
+                    <CornerShape size="48%" rotate={18} top="-7%" right="-17%" />
+                    <CornerShape size="36%" rotate={-22} top="52%" left="-18%" />
+                    <CornerShape size="55%" rotate={-12} bottom="-9%" right="-19%" />
                 </>
             }
         >

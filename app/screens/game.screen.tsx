@@ -84,9 +84,9 @@ const GameScreen = () => {
                     shapes={
                         !isSearchMode ? (
                             <>
-                                <CornerShape size={180} rotate={-22} top={-60} left={-65} />
-                                <CornerShape size={150} rotate={16} top="42%" right={-80} />
-                                <CornerShape size={200} rotate={6} bottom={-90} left="35%" />
+                                <CornerShape size="46%" rotate={-22} top="-7%" left="-17%" />
+                                <CornerShape size="38%" rotate={16} top="42%" right="-21%" />
+                                <CornerShape size="50%" rotate={6} bottom="-11%" left="35%" />
                             </>
                         ) : undefined
                     }
