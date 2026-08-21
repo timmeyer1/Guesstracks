@@ -87,9 +87,9 @@ export const HomeScreen = () => {
         <ScreenLayout
             shapes={
                 <>
-                    <CornerShape size="70%" rotate={90} top="-17%" left={-65} />
-                    <CornerShape size="40%" rotate={20} top="45%" right="-22%" />
-                    <CornerShape size="64%" rotate={12} bottom="-8%" left="-23%" />
+                    <CornerShape size="50%" rotate={90} top="-20%" left={-65} />
+                    <CornerShape size="50%" rotate={20} top="45%" right="-40%" />
+                    <CornerShape size="50%" rotate={-40} bottom="-18%" left="-20%" />
                 </>
             }
         >

@@ -16,6 +16,7 @@ import { CustomButton } from "../components/Button"
 import { IconButton } from "../components/IconButton"
 import { ScreenLayout } from "../components/ScreenLayout"
 import { CornerShape } from "../components/CornerShape"
+import { StatusPill } from "../components/StatusPill"
 import { LobbySettingsModal } from '../components/lobby/LobbySettingsModal'
 import { GameModeCard } from '../components/lobby/GameModeCard'
 import { PlayersGrid } from '../components/lobby/PlayersGrid'
@@ -176,9 +177,9 @@ const LobbyScreen = () => {
         <ScreenLayout
             shapes={
                 <>
-                    <CornerShape size="48%" rotate={18} top="-7%" right="-17%" />
-                    <CornerShape size="36%" rotate={-22} top="52%" left="-18%" />
-                    <CornerShape size="55%" rotate={-12} bottom="-9%" right="-19%" />
+                    <CornerShape size="50%" rotate={-70} top="-17%" right="-15%" />
+                    <CornerShape size="50%" rotate={168} top="52%" left="-43%" />
+                    <CornerShape size="50%" rotate={50} bottom="-20%" right="-19%" />
                 </>
             }
         >
@@ -224,14 +225,20 @@ const LobbyScreen = () => {
                         )}
 
                         {isHost && isGameModeSelected && (
-                            <CustomButton
-                                name={canStartGame ? "Lancer la partie" : "En attente de joueurs..."}
-                                onPress={handleStartGame}
-                                icon="Play"
-                                available={canStartGame}
-                                loading={!canStartGame}
-                                variant={canStartGame ? "white" : "dark"}
-                            />
+                            canStartGame ? (
+                                <CustomButton
+                                    name="Lancer la partie"
+                                    onPress={handleStartGame}
+                                    icon="Play"
+                                    variant="white"
+                                />
+                            ) : (
+                                <StatusPill text="En attente de joueurs" />
+                            )
+                        )}
+
+                        {!isHost && isGameModeSelected && (
+                            <StatusPill text="En attente de l'hôte" />
                         )}
                     </View>
 

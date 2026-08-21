@@ -1,15 +1,18 @@
 import React from 'react'
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native'
 import { Check } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
-import { PlayerAvatar } from '../lobby/PlayerAvatar'
+import { useCountdown } from '../../core/hooks/useCountdown'
 import { CustomButton } from '../Button'
+import { StatusPill } from '../StatusPill'
 import type { WhoLikedOption } from '../../core/types'
 
 type WhoLikedQuestionProps = {
     options: WhoLikedOption[]
     selected: string[]
     hasAnswered: boolean
+    startedAt: number
+    duration: number
     onToggle: (id: string) => void
     onSubmit: () => void
 }
@@ -18,9 +21,13 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
     options,
     selected,
     hasAnswered,
+    startedAt,
+    duration,
     onToggle,
     onSubmit,
 }) => {
+    const { remaining } = useCountdown(startedAt, duration)
+
     return (
         <View className="flex-1">
             <Text className="text-black text-lg font-bold text-center mb-4">
@@ -28,38 +35,53 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
             </Text>
 
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
-                <View className="flex-row flex-wrap justify-center gap-4">
+                <View className="flex-row flex-wrap justify-between gap-y-3">
                     {options.map((option) => {
                         const isSelected = selected.includes(option.id)
+                        const isDimmed = hasAnswered && !isSelected
+
                         return (
                             <TouchableOpacity
                                 key={option.id}
                                 onPress={() => !hasAnswered && onToggle(option.id)}
                                 disabled={hasAnswered}
-                                className="items-center"
-                                style={{ width: 80, opacity: hasAnswered && !isSelected ? 0.4 : 1 }}
+                                className="flex-row items-center gap-2 rounded-2xl px-3 py-2.5"
+                                style={{
+                                    width: '48%',
+                                    opacity: isDimmed ? 0.4 : 1,
+                                    backgroundColor: isSelected ? COLORS.primary + '15' : COLORS.offwhite,
+                                    borderWidth: 1.5,
+                                    borderColor: isSelected ? COLORS.primary : 'transparent',
+                                }}
                             >
                                 <View className="relative">
-                                    <PlayerAvatar
-                                        name={option.name}
-                                        img={option.img ?? undefined}
-                                        isHost={false}
-                                        size="md"
+                                    <Image
+                                        source={{ uri: option.img || 'https://i.pravatar.cc/100' }}
+                                        style={{ width: 36, height: 36, borderRadius: 18 }}
                                     />
                                     {isSelected && (
                                         <View
-                                            className="absolute -top-1 -right-1 rounded-full p-1"
+                                            className="absolute -top-1 -right-1 rounded-full p-0.5"
                                             style={{ backgroundColor: COLORS.guesstracks }}
                                         >
-                                            <Check size={14} color={COLORS.white} />
+                                            <Check size={10} color={COLORS.white} />
                                         </View>
                                     )}
                                 </View>
+                                <Text className="text-black font-semibold flex-1" numberOfLines={1}>
+                                    {option.name}
+                                </Text>
                             </TouchableOpacity>
                         )
                     })}
                 </View>
             </ScrollView>
+
+            <View className="items-center mt-4 mb-3">
+                <StatusPill
+                    text={hasAnswered ? 'En attente des autres joueurs' : `Temps restant : ${remaining}s`}
+                />
+            </View>
 
             <CustomButton
                 name={hasAnswered ? 'Réponse envoyée' : 'Valider'}

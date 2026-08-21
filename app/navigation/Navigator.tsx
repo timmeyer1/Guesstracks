@@ -33,6 +33,9 @@ export const AuthNavigator = () => {
             <Stack.Navigator
                 screenOptions={{
                     headerShown: false,
+                    // transition native (accélérée matériellement) au lieu du fondu
+                    // par défaut d'Android, pour un enchaînement plus fluide entre les écrans
+                    animation: 'slide_from_right',
                 }}
             >
                 {!isAuthenticated ? (

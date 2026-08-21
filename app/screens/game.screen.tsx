@@ -21,6 +21,16 @@ import { BlurredCover } from '../components/game/BlurredCover'
 import { RoundResult } from '../components/game/RoundResult'
 import { FinalResults } from '../components/game/FinalResults'
 
+// mêmes formes sur les 3 écrans de la partie (question, résultat de manche, résultats finaux)
+// pour garder une identité visuelle cohérente du début à la fin du jeu
+const GAME_SHAPES = (
+    <>
+        <CornerShape size="50%" rotate={-90} top="-20%" left="-17%" />
+        <CornerShape size="50%" rotate={16} top="42%" right="-37%" />
+        <CornerShape size="50%" rotate={110} bottom="-21%" left="35%" />
+    </>
+)
+
 const GameScreen = () => {
     const navigation = useNavigation()
     const user = useAuthStore((s) => s.user)
@@ -52,7 +62,7 @@ const GameScreen = () => {
 
     if (phase === 'finished') {
         return (
-            <ScreenLayout>
+            <ScreenLayout shapes={GAME_SHAPES}>
                 <FinalResults
                     leaderboard={finalLeaderboard}
                     totalRounds={totalRounds}
@@ -65,7 +75,7 @@ const GameScreen = () => {
 
     if (phase === 'round_result' && lastRoundEnd && round && user) {
         return (
-            <ScreenLayout>
+            <ScreenLayout shapes={GAME_SHAPES}>
                 <RoundResult result={lastRoundEnd} questionType={round.questionType} myPlayerId={user.id} />
             </ScreenLayout>
         )
@@ -79,18 +89,7 @@ const GameScreen = () => {
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
-                <ScreenLayout
-                    noPadding
-                    shapes={
-                        !isSearchMode ? (
-                            <>
-                                <CornerShape size="46%" rotate={-22} top="-7%" left="-17%" />
-                                <CornerShape size="38%" rotate={16} top="42%" right="-21%" />
-                                <CornerShape size="50%" rotate={6} bottom="-11%" left="35%" />
-                            </>
-                        ) : undefined
-                    }
-                >
+                <ScreenLayout noPadding shapes={!isSearchMode ? GAME_SHAPES : undefined}>
                     {/* padding vertical réduit par rapport au reste de l'app : en mode
                     blindtest, chaque pixel compte pour garder la recherche visible
                     au-dessus du clavier */}
@@ -101,6 +100,7 @@ const GameScreen = () => {
                             startedAt={round.startedAt}
                             duration={round.duration}
                             gameMode={gameMode}
+                            compact={!isSearchMode}
                         />
 
                         {!isSearchMode ? (
@@ -125,6 +125,8 @@ const GameScreen = () => {
                                     options={round.options}
                                     selected={mySelection}
                                     hasAnswered={hasAnswered}
+                                    startedAt={round.startedAt}
+                                    duration={round.duration}
                                     onToggle={(id) => toggleSelection(id, true)}
                                     onSubmit={() => submitAnswer(mySelection)}
                                 />

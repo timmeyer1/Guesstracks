@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { View, Text } from 'react-native'
 import { COLORS } from '../../core/constants/colors.constants'
+import { useCountdown } from '../../core/hooks/useCountdown'
 import type { GameMode } from '../../core/types'
 
 type RoundHeaderProps = {
@@ -9,6 +10,8 @@ type RoundHeaderProps = {
     startedAt: number
     duration: number // secondes
     gameMode: GameMode | null
+    /** N'affiche que "Manche X/Y" : utilisé quand le décompte est déjà affiché ailleurs (ex: StatusPill "Temps restant"). */
+    compact?: boolean
 }
 
 export const RoundHeader: React.FC<RoundHeaderProps> = ({
@@ -17,20 +20,18 @@ export const RoundHeader: React.FC<RoundHeaderProps> = ({
     startedAt,
     duration,
     gameMode,
+    compact = false,
 }) => {
-    const [now, setNow] = useState(Date.now())
-
-    useEffect(() => {
-        setNow(Date.now())
-        const interval = setInterval(() => setNow(Date.now()), 100)
-        return () => clearInterval(interval)
-    }, [startedAt])
-
-    const durationMs = duration * 1000
-    const elapsed = Math.min(durationMs, Math.max(0, now - startedAt))
-    const remaining = Math.max(0, Math.ceil((durationMs - elapsed) / 1000))
-    const progress = Math.max(0, 1 - elapsed / durationMs)
+    const { remaining, progress } = useCountdown(startedAt, duration)
     const accentColor = gameMode === 'blindtest' ? COLORS.blindtest : COLORS.guesstracks
+
+    if (compact) {
+        return (
+            <Text className="text-black font-bold text-base text-center mb-4">
+                Manche {roundIndex + 1}/{totalRounds}
+            </Text>
+        )
+    }
 
     return (
         <View className="mb-4">
