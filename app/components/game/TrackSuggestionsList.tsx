@@ -6,7 +6,7 @@ import { Animated, View, Text, Image } from 'react-native'
 // menu non scrollable sur certains appareils comme les Xiaomi/MIUI, malgré
 // nestedScrollEnabled sur la FlatList native)
 import { FlatList, TouchableOpacity } from 'react-native-gesture-handler'
-import { Music } from 'lucide-react-native'
+import { Check, Music } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import type { CatalogEntry } from '../../core/types'
 
@@ -88,29 +88,32 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
                     renderItem={({ item: track }) => (
                         <TouchableOpacity
                             onPress={() => onSelect(track.id)}
-                            className="flex-row items-center p-3 border-b border-offwhite"
+                            className="flex-row items-center justify-between p-3 border-b border-offwhite"
                         >
-                            {track.image ? (
-                                <Image
-                                    source={{ uri: track.image }}
-                                    style={{ width: 40, height: 40, borderRadius: 8 }}
-                                />
-                            ) : (
-                                <View
-                                    className="bg-offwhite items-center justify-center"
-                                    style={{ width: 40, height: 40, borderRadius: 8 }}
-                                >
-                                    <Music size={16} color={COLORS.darkgray} />
+                            <View className="flex-row items-center flex-1 pr-2">
+                                {track.image ? (
+                                    <Image
+                                        source={{ uri: track.image }}
+                                        style={{ width: 40, height: 40, borderRadius: 8 }}
+                                    />
+                                ) : (
+                                    <View
+                                        className="bg-offwhite items-center justify-center"
+                                        style={{ width: 40, height: 40, borderRadius: 8 }}
+                                    >
+                                        <Music size={16} color={COLORS.darkgray} />
+                                    </View>
+                                )}
+                                <View className="flex-1 ml-3">
+                                    <Text className="text-black font-semibold" numberOfLines={1}>
+                                        {track.name}
+                                    </Text>
+                                    <Text className="text-darkgray text-sm" numberOfLines={1}>
+                                        {track.artist}
+                                    </Text>
                                 </View>
-                            )}
-                            <View className="flex-1 ml-3">
-                                <Text className="text-black font-semibold" numberOfLines={1}>
-                                    {track.name}
-                                </Text>
-                                <Text className="text-darkgray text-sm" numberOfLines={1}>
-                                    {track.artist}
-                                </Text>
                             </View>
+                            <Check size={18} color={COLORS.blindtest} />
                         </TouchableOpacity>
                     )}
                     ListEmptyComponent={
