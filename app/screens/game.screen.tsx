@@ -2,6 +2,7 @@
 import React from 'react'
 import { View, Text, Image, KeyboardAvoidingView, Platform } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useGameStore } from '../stores/game.store'
 import { useAuthStore } from '../stores/auth.store'
@@ -42,6 +43,7 @@ const GAME_SHAPES = (
 
 const GameScreen = () => {
     const navigation = useNavigation()
+    const insets = useSafeAreaInsets()
     const user = useAuthStore((s) => s.user)
     const {
         phase,
@@ -109,7 +111,7 @@ const GameScreen = () => {
             >
                 <ScreenLayout noPadding shapes={!isSearchMode ? GAME_SHAPES : undefined}>
                     {!isSearchMode ? (
-                        <View className="flex-1 px-8 py-10">
+                        <View className="flex-1 px-8 pb-10" style={{ paddingTop: insets.top + 24 }}>
                             <RoundHeader
                                 roundIndex={round.roundIndex}
                                 totalRounds={round.totalRounds}
@@ -152,7 +154,10 @@ const GameScreen = () => {
                         // haut, tandis que le décompte et la recherche restent groupés en
                         // bas de l'écran : quand le clavier s'ouvre, KeyboardAvoidingView
                         // réduit l'espace disponible et ce bloc du bas remonte au-dessus
-                        <View className="flex-1 px-8 pt-6 pb-4 justify-between">
+                        <View
+                            className="flex-1 px-8 pb-4 justify-between"
+                            style={{ paddingTop: insets.top + 24 }}
+                        >
                             <View>
                                 <RoundHeader
                                     roundIndex={round.roundIndex}
