@@ -1,6 +1,6 @@
 // app/screens/lobby.screen.tsx
 import React, { useCallback, useEffect, useState } from 'react'
-import { View, Text, Alert, ScrollView, Share } from 'react-native'
+import { View, Alert, ScrollView, Share } from 'react-native'
 import { useFocusEffect, useNavigation } from "@react-navigation/native"
 
 import { leaveLobby, updateLobbySettings, kickPlayer, transferHost } from '../modules/lobby/lobby.service'
@@ -197,17 +197,11 @@ const LobbyScreen = () => {
         }
     }
 
+    // ne devrait s'afficher que le temps d'une frame pendant la transition de
+    // navigation qui suit un départ/une expulsion du lobby (cf. handleLeaveLobby
+    // et la détection d'expulsion ci-dessus, qui redirigent vers Home juste après)
     if (!lobby) {
-        return (
-            <ScreenLayout centered>
-                <Text className="text-2xl text-white font-bold mb-4">
-                    Aucun lobby actif 😕
-                </Text>
-                <Text className="text-base text-gray-400 text-center">
-                    Crée un lobby depuis l'accueil pour commencer.
-                </Text>
-            </ScreenLayout>
-        )
+        return null
     }
 
     return (

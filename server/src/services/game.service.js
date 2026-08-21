@@ -587,14 +587,19 @@ const handleReturnTimeout = async (code, io) => {
 // le lobby ou en est expulsé entre-temps (lobby.routes.js) : dans les deux
 // cas il n'y a plus lieu de l'attendre. Débloque "Lancer la partie" côté
 // hôte une fois tout le monde revenu ou parti.
+// Rediffuse systématiquement l'état courant (même quand playerId n'y était
+// déjà plus, ex: expulsé pour inactivité) : c'est ce qui permet à un client
+// dont l'état local est périmé (ex: un joueur qui a été expulsé puis revenu,
+// et redevenu hôte) de se resynchroniser — sinon "En attente qu'un joueur
+// revienne au lobby" pouvait rester bloqué indéfiniment.
 export const clearPendingReturn = (code, playerId, io) => {
     const game = games.get(code)
-    if (!game || !game.pendingReturnPlayerIds || !game.pendingReturnPlayerIds.has(playerId)) return
+    if (!game || !game.pendingReturnPlayerIds) return
 
-    game.pendingReturnPlayerIds.delete(playerId)
+    const wasPending = game.pendingReturnPlayerIds.delete(playerId)
     broadcastReturnProgress(code, io, game)
 
-    if (game.pendingReturnPlayerIds.size === 0) {
+    if (wasPending && game.pendingReturnPlayerIds.size === 0) {
         clearTimeout(game.returnTimer)
         game.returnTimer = null
     }
