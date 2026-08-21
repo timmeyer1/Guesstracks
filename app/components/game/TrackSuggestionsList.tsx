@@ -13,9 +13,12 @@ const MENU_MAX_HEIGHT = 288
 const OPEN_ANIMATION_MS = 180
 
 // Menu de suggestions du blindtest : remonté à chaque fois que la recherche
-// redevient assez longue (cf. SearchTrackQuestion), donc un simple fondu +
-// léger glissement au montage suffit à donner l'impression d'un menu qui
-// s'ouvre plutôt que d'un bloc qui apparaît d'un coup.
+// redevient assez longue (cf. SearchTrackQuestion), donc un simple fondu au
+// montage suffit à donner l'impression d'un menu qui s'ouvre plutôt que d'un
+// bloc qui apparaît d'un coup. Pas de glissement (transform) en plus du
+// fondu : combiné à un ancêtre en overflow: hidden, un transform sur un
+// ancêtre d'une FlatList est un bug Android connu qui la rend non
+// scrollable — exactement le problème rencontré ici.
 export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ suggestions, onSelect }) => {
     const openAnim = useRef(new Animated.Value(0)).current
 
@@ -29,12 +32,11 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
 
     return (
         <Animated.View
-            className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl shadow-card overflow-hidden"
+            className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-2xl shadow-card-up overflow-hidden"
             style={{
                 maxHeight: MENU_MAX_HEIGHT,
                 elevation: 6,
                 opacity: openAnim,
-                transform: [{ translateY: openAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
             }}
         >
             {/* FlatList plutôt que ScrollView : ne rend que les lignes visibles à
@@ -48,8 +50,13 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
                 // FlatList sans borne de hauteur propre mesure son ScrollView interne
                 // à la taille de son contenu, qui devient alors égale à la zone
                 // visible et donc non scrollable, même si le parent la coupe en
-                // overflow: hidden (ce qui se produisait ici)
+                // overflow: hidden
                 style={{ maxHeight: MENU_MAX_HEIGHT }}
+                // removeClippedSubviews (activé par défaut sur Android) mesure mal
+                // les lignes d'une FlatList logée dans un conteneur positionné en
+                // absolute + overflow: hidden comme ici, ce qui la rendait non
+                // scrollable sur Android (bug connu de React Native)
+                removeClippedSubviews={false}
                 data={suggestions}
                 keyExtractor={(track) => track.id}
                 keyboardShouldPersistTaps="handled"

@@ -9,6 +9,10 @@ module.exports = {
     extend: {
       boxShadow: {
         card: '0 4px 12px rgba(0,0,0,0.06)',
+        // même carte, ombre orientée vers le haut : pour un élément flottant
+        // au-dessus d'un autre (ex: menu de suggestions au-dessus de la barre
+        // de recherche du blindtest)
+        'card-up': '0 -4px 12px rgba(0,0,0,0.06)',
       },
       fontSize: {
         'xl': '48px',
