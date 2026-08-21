@@ -117,42 +117,109 @@ const buildPool = (game) => {
     return [...merged.values()]
 }
 
+// trie une liste de titres mélangée par nombre décroissant de joueurs actifs
+// qui les ont likés : un titre partagé par plusieurs joueurs couvre plusieurs
+// joueurs d'un coup, donc l'essayer en premier évite de gaspiller le budget de
+// manches sur des titres qui n'en couvrent qu'un seul (le mélange en amont
+// sert de départage aléatoire entre titres à égalité de couverture)
+const byCoverageDesc = (shuffledPool, activePlayerIds) =>
+    [...shuffledPool].sort((a, b) => {
+        const countA = [...a.likedBy].filter((id) => activePlayerIds.includes(id)).length
+        const countB = [...b.likedBy].filter((id) => activePlayerIds.includes(id)).length
+        return countB - countA
+    })
+
 // mode guesstracks : le titre est toujours affiché (ce n'est pas ce qu'on
 // devine), on privilégie juste les musiques qui ont un extrait sans que ce
-// soit bloquant
+// soit bloquant.
+//
+// Équité : une première passe (triée par couverture, cf. byCoverageDesc)
+// réserve un titre par joueur pas encore représenté ; ces manches "d'équité"
+// sont ensuite toujours conservées telles quelles. Une seconde passe complète
+// les manches restantes avec le reste du pool mélangé, en privilégiant les
+// titres avec extrait comme avant — donc plus il y a de manches, plus les
+// joueurs ont de chances de voir plusieurs de leurs titres tirés.
 const buildGuesstracksRounds = async (pool, requestedRounds, activePlayerIds) => {
-    const candidates = shuffle(pool)
+    const shuffledPool = shuffle(pool)
+    const used = new Set()
+    const fairnessRounds = []
+    const uncovered = new Set(activePlayerIds)
+
+    const buildRound = async (track) => {
+        const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
+        if (likedBy.length === 0) return null
+        const previewUrl = await resolvePreviewUrl(track)
+        return { round: { track: { ...track, previewUrl }, likedBy }, previewUrl, likedBy }
+    }
+
+    for (const track of byCoverageDesc(shuffledPool, activePlayerIds)) {
+        if (fairnessRounds.length >= requestedRounds || uncovered.size === 0) break
+        if (![...track.likedBy].some((id) => uncovered.has(id))) continue
+
+        const result = await buildRound(track)
+        if (!result) continue
+
+        used.add(track.id)
+        fairnessRounds.push(result.round)
+        for (const id of result.likedBy) uncovered.delete(id)
+    }
+
+    const remainingSlots = requestedRounds - fairnessRounds.length
     const withPreview = []
     const withoutPreview = []
 
-    for (const track of candidates) {
-        const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
-        if (likedBy.length === 0) continue
+    for (const track of shuffledPool) {
+        if (withPreview.length >= remainingSlots) break
+        if (used.has(track.id)) continue
 
-        const previewUrl = await resolvePreviewUrl(track)
-        const round = { track: { ...track, previewUrl }, likedBy }
-        if (previewUrl) withPreview.push(round)
-        else withoutPreview.push(round)
+        const result = await buildRound(track)
+        if (!result) continue
 
-        if (withPreview.length >= requestedRounds) break
+        used.add(track.id)
+        ;(result.previewUrl ? withPreview : withoutPreview).push(result.round)
     }
 
-    return [...withPreview, ...withoutPreview].slice(0, requestedRounds)
+    return [...fairnessRounds, ...withPreview, ...withoutPreview].slice(0, requestedRounds)
 }
 
-// mode blindtest : on devine le titre, donc un extrait est indispensable
-const buildBlindtestRounds = async (pool, requestedRounds) => {
-    const candidates = shuffle(pool)
-    const rounds = []
+// mode blindtest : on devine le titre, donc un extrait est indispensable.
+// Même logique d'équité que buildGuesstracksRounds (une passe d'équité dont
+// les manches sont toujours conservées, puis une passe de remplissage), mais
+// l'extrait est requis dès la première passe (pas de repli "sans extrait" ici).
+const buildBlindtestRounds = async (pool, requestedRounds, activePlayerIds) => {
+    const shuffledPool = shuffle(pool)
+    const used = new Set()
+    const fairnessRounds = []
+    const uncovered = new Set(activePlayerIds)
 
-    for (const track of candidates) {
-        if (rounds.length >= requestedRounds) break
+    for (const track of byCoverageDesc(shuffledPool, activePlayerIds)) {
+        if (fairnessRounds.length >= requestedRounds || uncovered.size === 0) break
+        const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
+        if (!likedBy.some((id) => uncovered.has(id))) continue
+
         const previewUrl = await resolvePreviewUrl(track)
         if (!previewUrl) continue
+
+        used.add(track.id)
+        fairnessRounds.push({ track: { ...track, previewUrl } })
+        for (const id of likedBy) uncovered.delete(id)
+    }
+
+    const remainingSlots = requestedRounds - fairnessRounds.length
+    const rounds = []
+
+    for (const track of shuffledPool) {
+        if (rounds.length >= remainingSlots) break
+        if (used.has(track.id)) continue
+
+        const previewUrl = await resolvePreviewUrl(track)
+        if (!previewUrl) continue
+
+        used.add(track.id)
         rounds.push({ track: { ...track, previewUrl } })
     }
 
-    return rounds
+    return [...fairnessRounds, ...rounds]
 }
 
 // catalogue de recherche du blindtest : tous les titres likés par le lobby,
@@ -239,7 +306,7 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     const built =
         questionType === 'who_liked'
             ? await buildGuesstracksRounds(pool, lobby.rounds, activePlayerIds)
-            : await buildBlindtestRounds(pool, lobby.rounds)
+            : await buildBlindtestRounds(pool, lobby.rounds, activePlayerIds)
 
     if (built.length < MIN_ROUNDS_PLAYABLE) {
         throw new GameError(
