@@ -4,6 +4,7 @@ import { Search, Check } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { useCountdown } from '../../core/hooks/useCountdown'
 import { StatusPill } from '../StatusPill'
+import { AudioPlayer } from './AudioPlayer'
 import type { CatalogEntry } from '../../core/types'
 
 type SearchTrackQuestionProps = {
@@ -12,6 +13,9 @@ type SearchTrackQuestionProps = {
     selectedId: string | null
     startedAt: number
     duration: number
+    // affiché à gauche de la pastille "Temps restant" (au lieu d'une ligne à
+    // part au-dessus) pour gagner de la place verticale au-dessus du clavier
+    previewUrl?: string | null
     onAnswer: (id: string) => void
 }
 
@@ -37,6 +41,7 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
     selectedId,
     startedAt,
     duration,
+    previewUrl,
     onAnswer,
 }) => {
     const [query, setQuery] = useState('')
@@ -158,7 +163,8 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
 
     return (
         <View>
-            <View className="items-center mb-3">
+            <View className="flex-row items-center justify-center gap-3 mb-3">
+                <AudioPlayer previewUrl={previewUrl} compact />
                 <StatusPill text={`Temps restant : ${remaining}s`} />
             </View>
 

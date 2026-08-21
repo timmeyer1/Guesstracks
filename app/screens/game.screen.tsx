@@ -33,7 +33,7 @@ const truncateTitle = (name?: string) =>
 
 // Tailles exprimées en % de la hauteur d'écran (plutôt qu'en pixels fixes)
 // pour s'adapter à tous les téléphones : ajuste ces deux valeurs si besoin.
-const ROUND_TOP_EXTRA_SPACING_PERCENT = 0.03 // espace sous la zone de sécurité (notch / caméra), en plus de l'inset
+const ROUND_TOP_EXTRA_SPACING_PERCENT = 0 // espace sous la zone de sécurité (notch / caméra), en plus de l'inset
 const BLURRED_COVER_SIZE_PERCENT = 0.17 // taille de la pochette floutée en mode blindtest
 
 // mêmes formes sur les 3 écrans de la partie (question, résultat de manche, résultats finaux)
@@ -187,10 +187,6 @@ const GameScreen = () => {
                                     <BlurredCover imageUri={round.track.image} size={blurredCoverSize} />
                                 </View>
 
-                                <View className="mb-4">
-                                    <AudioPlayer previewUrl={round.track.previewUrl} compact />
-                                </View>
-
                                 <Text className="text-black text-lg font-bold text-center">
                                     Quelle est cette musique ?
                                 </Text>
@@ -202,6 +198,7 @@ const GameScreen = () => {
                                 selectedId={mySelection[0] ?? null}
                                 startedAt={round.startedAt}
                                 duration={round.duration}
+                                previewUrl={round.track.previewUrl}
                                 onAnswer={(id) => {
                                     toggleSelection(id, false)
                                     submitAnswer([id])

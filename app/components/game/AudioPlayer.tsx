@@ -58,8 +58,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         else player.play()
     }
 
-    const buttonSizeClass = compact ? 'w-10 h-10' : 'w-16 h-16'
-    const iconSize = compact ? 18 : 28
+    // w-11 h-11 (44px) en compact : même hauteur que la pastille StatusPill
+    // "Temps restant" à côté de laquelle ce bouton est affiché (cf.
+    // SearchTrackQuestion), pour que les deux forment un ensemble cohérent
+    const buttonSizeClass = compact ? 'w-11 h-11' : 'w-16 h-16'
+    const iconSize = compact ? 20 : 28
 
     return (
         <View className="items-center">
