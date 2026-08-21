@@ -12,11 +12,6 @@ type SearchTrackQuestionProps = {
     onAnswer: (id: string) => void
 }
 
-// px-8 du conteneur parent (cf. game.screen.tsx) : la barre de recherche
-// s'aligne dessus, mais le menu de suggestions déborde de cette marge pour
-// occuper toute la largeur de l'écran (cf. plus bas)
-const SCREEN_HORIZONTAL_PADDING = 32
-
 const MIN_QUERY_LENGTH = 2
 // laisse le champ réagir instantanément à la frappe, mais ne relance la
 // recherche qu'une fois la frappe stabilisée : sur un gros catalogue, refaire
@@ -157,18 +152,11 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
 
     return (
         // zIndex élevé pour que le dropdown flotte au-dessus du reste du
-        // contenu au lieu de pousser la mise en page (sinon gros vide tant que
-        // rien n'est tapé). Marge horizontale négative : ce conteneur déborde
-        // du px-8 du parent (cf. game.screen.tsx) pour que le menu de
-        // suggestions (qui s'aligne sur ses bords via left-0/right-0) occupe
-        // toute la largeur de l'écran plutôt que de rester cantonné à la zone
-        // de contenu — seule la barre de recherche elle-même récupère cette
-        // marge pour rester visuellement à sa place.
-        <View style={{ zIndex: 10, marginHorizontal: -SCREEN_HORIZONTAL_PADDING }}>
-            <View
-                className="flex-row items-center bg-offwhite rounded-2xl px-4 py-3"
-                style={{ marginHorizontal: SCREEN_HORIZONTAL_PADDING }}
-            >
+        // contenu au lieu de pousser la mise en page (sinon gros vide tant
+        // que rien n'est tapé). Il s'ouvre vers le haut (bottom-full) car la
+        // barre de recherche est en bas de l'écran, juste au-dessus du clavier.
+        <View style={{ zIndex: 10 }}>
+            <View className="flex-row items-center bg-offwhite rounded-2xl px-4 py-3">
                 <Search size={18} color={COLORS.darkgray} />
                 <TextInput
                     ref={inputRef}
@@ -183,8 +171,6 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
                 />
             </View>
 
-            {/* Il s'ouvre vers le haut (bottom-full) car la barre de recherche
-            est en bas de l'écran, juste au-dessus du clavier. */}
             {showDropdown && <TrackSuggestionsList suggestions={suggestions} onSelect={handleSelect} />}
         </View>
     )
