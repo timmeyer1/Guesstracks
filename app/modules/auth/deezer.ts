@@ -20,8 +20,10 @@ const AUTHORIZE_URL = 'https://connect.deezer.com/oauth/auth.php';
 // serveur, seul dépositaire du secret d'app Deezer (cf.
 // server/src/routes/auth.routes.js)
 export const loginWithDeezer = async () => {
-    console.log('--------------------------------------------------------------------------');
-    console.log('redirect URI (à whitelister dans le dashboard Deezer) :', REDIRECT_URI);
+    if (__DEV__) {
+        console.log('--------------------------------------------------------------------------');
+        console.log('redirect URI (à whitelister dans le dashboard Deezer) :', REDIRECT_URI);
+    }
 
     const authUrl =
         `${AUTHORIZE_URL}?app_id=${encodeURIComponent(APP_ID)}` +
@@ -43,7 +45,9 @@ export const loginWithDeezer = async () => {
         return null;
     }
 
-    console.log('code reçu ? :', code.substring(0, 30) + '...');
+    if (__DEV__) {
+        console.log('code Deezer reçu :', code.length, 'caractères');
+    }
 
     const tokenResponse = await fetch(`${LOBBY_SERVER_URL}/api/auth/deezer/token`, {
         method: 'POST',
@@ -52,8 +56,8 @@ export const loginWithDeezer = async () => {
     });
 
     const data = await tokenResponse.json();
-    console.log(' reponse token:', data);
-
+    // jamais logger data ici : contient access_token en clair. En cas
+    // d'erreur, ne remonter que le message d'erreur métier.
     if (!tokenResponse.ok) {
         throw new Error(data?.error || 'Échec de connexion Deezer');
     }

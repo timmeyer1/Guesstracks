@@ -15,8 +15,10 @@ const discovery = {
 };
 
 export const loginWithSpotify = async () => {
-    console.log('--------------------------------------------------------------------------');
-    console.log('redirect URI (à whitelister dans le dashboard Spotify) :', REDIRECT_URI);
+    if (__DEV__) {
+        console.log('--------------------------------------------------------------------------');
+        console.log('redirect URI (à whitelister dans le dashboard Spotify) :', REDIRECT_URI);
+    }
 
     const request = await AuthSession.loadAsync(
         {
@@ -30,14 +32,14 @@ export const loginWithSpotify = async () => {
 
     const result = await request.promptAsync(discovery);
 
-    console.log(result);
-
     if (result.type !== 'success') {
         console.log('connexion annulée');
         return null;
     }
 
-    console.log(' code reçu ? :', result.params.code.substring(0, 30) + '...');
+    if (__DEV__) {
+        console.log('code Spotify reçu :', result.params.code.length, 'caractères');
+    }
 
     const tokenResponse = await fetch(discovery.tokenEndpoint, {
         method: 'POST',
@@ -52,7 +54,12 @@ export const loginWithSpotify = async () => {
     });
 
     const data = await tokenResponse.json();
-    console.log(' reponse token:', data);
+    // jamais logger data ici : contient access_token en clair. En cas
+    // d'erreur, ne remonter que le message d'erreur métier (même pattern que
+    // deezer.ts, qui avait déjà ce garde-fou).
+    if (!tokenResponse.ok) {
+        throw new Error(data?.error_description || data?.error || 'Échec de connexion Spotify');
+    }
 
     return data;
 };
