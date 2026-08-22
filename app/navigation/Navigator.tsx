@@ -38,7 +38,7 @@ export const AuthNavigator = () => {
                     animation: 'slide_from_right',
                     // durée par défaut ~350ms, ramenée à 200ms pour des transitions
                     // (fondu comme glissement) plus rapides entre les écrans
-                    animationDuration: 200,
+                    animationDuration: 100,
                 }}
             >
                 {!isAuthenticated ? (
