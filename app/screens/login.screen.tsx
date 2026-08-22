@@ -200,9 +200,9 @@ export const LoginScreen = () => {
 
                     <CustomButton
                         name="Se connecter en tant qu'invité"
-                        onPress={() => console.log("Youtube Music")}
+                        onPress={() => {}}
                         variant="dark"
-                        available={true}
+                        available={false}
                     />
 
                 </View>

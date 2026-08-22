@@ -26,7 +26,8 @@
       "permissions": [
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "com.anonymous.guesstracks"
+      "package": "com.anonymous.guesstracks",
+      "enableProguardInReleaseBuilds": true
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -3,9 +3,9 @@ import { View, Text, TouchableOpacity, ScrollView } from 'react-native'
 import { Image } from 'expo-image'
 import { Check } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
-import { useCountdown } from '../../core/hooks/useCountdown'
 import { CustomButton } from '../Button'
 import { StatusPill } from '../StatusPill'
+import { CountdownLabel } from './CountdownLabel'
 import type { WhoLikedOption } from '../../core/types'
 
 type WhoLikedQuestionProps = {
@@ -27,8 +27,6 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
     onToggle,
     onSubmit,
 }) => {
-    const { remaining } = useCountdown(startedAt, duration)
-
     return (
         <View className="flex-1">
             <Text className="text-black text-lg font-bold text-center">
@@ -85,7 +83,13 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
 
             <View className="items-center mt-4 mb-3">
                 <StatusPill
-                    text={hasAnswered ? 'En attente des autres joueurs' : `Temps restant : ${remaining}s`}
+                    text={
+                        hasAnswered ? (
+                            'En attente des autres joueurs'
+                        ) : (
+                            <CountdownLabel startedAt={startedAt} duration={duration} />
+                        )
+                    }
                 />
             </View>
 

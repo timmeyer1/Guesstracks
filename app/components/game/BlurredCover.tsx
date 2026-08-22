@@ -1,5 +1,6 @@
 import React from 'react'
-import { View, Image } from 'react-native'
+import { View } from 'react-native'
+import { Image } from 'expo-image'
 import { Music } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 
@@ -32,6 +33,8 @@ export const BlurredCover: React.FC<BlurredCoverProps> = ({ imageUri, size = 160
                 source={{ uri: imageUri }}
                 style={{ width: '100%', height: '100%' }}
                 blurRadius={35}
+                cachePolicy="memory-disk"
+                transition={100}
             />
             <View
                 className="absolute inset-0 items-center justify-center"

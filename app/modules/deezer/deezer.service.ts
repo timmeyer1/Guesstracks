@@ -1,4 +1,5 @@
 import {deezerApi} from "./deezer.api";
+import type {DeezerErrorPayload, DeezerTrackItem, DeezerTracksResponse} from "./deezer.api";
 import type {TrackType} from "../../core/types";
 import type {AxiosResponse} from "axios";
 
@@ -8,10 +9,10 @@ const PAGE_SIZE = 100;
 // par lots, ça reste rapide sans jamais rien tronquer
 const FETCH_BATCH_SIZE = 5;
 
-const deezerError = (data: any) =>
+const deezerError = (data: DeezerErrorPayload | undefined) =>
     data?.error ? new Error(data.error.message || 'Erreur Deezer') : null;
 
-const mapItem = (item: any): TrackType => ({
+const mapItem = (item: DeezerTrackItem): TrackType => ({
     id: String(item.id),
     name: item.title,
     artist: item.artist?.name ?? 'Unknown',
@@ -31,7 +32,7 @@ const mapItem = (item: any): TrackType => ({
 // chargement sans dépasser la limite de débit de l'API Deezer. Toutes les
 // pages sont récupérées, sans plafond sur le nombre de titres.
 const collectLikedTracks = async (
-    fetchPage: (limit: number, index: number) => Promise<AxiosResponse<any>>
+    fetchPage: (limit: number, index: number) => Promise<AxiosResponse<DeezerTracksResponse>>
 ): Promise<{ tracks: TrackType[]; total: number }> => {
     const first = await fetchPage(PAGE_SIZE, 0);
     const firstError = deezerError(first.data);

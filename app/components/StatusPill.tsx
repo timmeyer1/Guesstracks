@@ -5,7 +5,10 @@ import { COLORS } from '../core/constants/colors.constants'
 import { LoadingSpinner } from './LoadingSpinner'
 
 type StatusPillProps = {
-    text: string
+    // string pour un texte statique, ou un ReactNode (ex: <CountdownLabel/>)
+    // quand le contenu doit re-rendre seul (cf. audit perf, findings I1/I2) :
+    // ce composant ne doit alors pas re-rendre à chaque tick.
+    text: string | React.ReactNode
     className?: string
     style?: StyleProp<ViewStyle>
 }
@@ -20,6 +23,6 @@ export const StatusPill: React.FC<StatusPillProps> = ({ text, className = '', st
         style={style}
     >
         <LoadingSpinner size={18} color={COLORS.darkgray} />
-        <Text className="text-black font-semibold text-sm">{text}</Text>
+        {typeof text === 'string' ? <Text className="text-black font-semibold text-sm">{text}</Text> : text}
     </View>
 )

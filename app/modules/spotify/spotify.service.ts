@@ -1,4 +1,5 @@
 import {spotifyApi} from "./spotify.api";
+import type {SpotifyLikedTrackItem} from "./spotify.api";
 import type {TrackType} from "../../core/types";
 
 const PAGE_SIZE = 50;
@@ -19,7 +20,7 @@ const formatArtists = (artists: { name?: string }[] | undefined): string => {
     return `${names[0]} feat. ${names.slice(1).join(', ')}`;
 };
 
-const mapItem = (item: any): TrackType => ({
+const mapItem = (item: SpotifyLikedTrackItem): TrackType => ({
     id: item.track.id,
     name: item.track.name,
     artist: formatArtists(item.track.artists),
@@ -80,7 +81,7 @@ export const spotifyService = {
 
     async getTotalTracks() {
         const { data } = await spotifyApi.getUserLikedTracks(1, 0);
-        return data.total;
+        return data.total ?? 0;
     }
 
 };

@@ -1,6 +1,7 @@
 // app/screens/game.screen.tsx
 import React from 'react'
-import { View, Text, Image, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native'
+import { View, Text, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native'
+import { Image } from 'expo-image'
 import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useShallow } from 'zustand/react/shallow'
@@ -9,7 +10,6 @@ import { useGameStore } from '../stores/game.store'
 import { useAuthStore } from '../stores/auth.store'
 import { leaveGame, submitAnswer } from '../modules/game/game.service'
 import { leaveLobby } from '../modules/lobby/lobby.service'
-import { useCountdown } from '../core/hooks/useCountdown'
 
 import { ScreenLayout } from '../components/ScreenLayout'
 import { SectionTitle } from '../components/SectionTitle'
@@ -24,6 +24,7 @@ import { SearchTrackQuestion } from '../components/game/SearchTrackQuestion'
 import { BlurredCover } from '../components/game/BlurredCover'
 import { RoundResult } from '../components/game/RoundResult'
 import { FinalResults } from '../components/game/FinalResults'
+import { CountdownLabel } from '../components/game/CountdownLabel'
 
 const GUESSTRACKS_TITLE_MAX_LENGTH = 40
 // en mode guesstracks le titre est toujours affiché en entier pendant la
@@ -81,11 +82,6 @@ const GameScreen = () => {
     )
     // action stable (référence figée par Zustand) : pas besoin d'être dans le sélecteur ci-dessus
     const toggleSelection = useGameStore((s) => s.toggleSelection)
-
-    // affiché au-dessus de la pochette floutée en mode blindtest (cf. plus
-    // bas) : appelé sans condition (règle des hooks), round peut être vide
-    // hors phase "in_round"
-    const { remaining } = useCountdown(round?.startedAt ?? 0, round?.duration ?? 0)
 
     const handleBackToHome = async () => {
         await leaveLobby()
@@ -169,6 +165,8 @@ const GameScreen = () => {
                                     source={{ uri: round.track.image }}
                                     style={{ width: 80, height: 80, borderRadius: 16 }}
                                     className="mb-2"
+                                    cachePolicy="memory-disk"
+                                    transition={100}
                                 />
                             )}
                             <Text className="text-black text-lg font-bold text-center">
@@ -218,7 +216,7 @@ const GameScreen = () => {
 
                                 <View className="flex-row items-center justify-center gap-3 mt-4 mb-3">
                                     <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} compact />
-                                    <StatusPill text={`Temps restant : ${remaining}s`} />
+                                    <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
                                 </View>
 
                                 <View className="items-center mb-3">

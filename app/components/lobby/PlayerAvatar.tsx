@@ -1,6 +1,7 @@
 // app/components/PlayerAvatar.tsx
 import React from 'react'
-import { View, Text, Image } from 'react-native'
+import { View, Text } from 'react-native'
+import { Image } from 'expo-image'
 import { Crown } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 
@@ -44,6 +45,8 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
                     <Image
                         source={{ uri: img || 'https://i.pravatar.cc/100' }}
                         style={{ width: px, height: px, borderRadius: px / 2 }}
+                        cachePolicy="memory-disk"
+                        transition={100}
                     />
                 </View>
             </View>
