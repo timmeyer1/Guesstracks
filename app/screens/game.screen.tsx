@@ -85,8 +85,10 @@ const GameScreen = () => {
     // chaque render de cet écran leur ferait perdre ce bénéfice
     const handleToggleWhoLiked = useCallback((id: string) => toggleSelection(id, true), [toggleSelection])
 
-    const handleBackToHome = async () => {
-        await leaveLobby()
+    // EXPÉRIMENTAL — navigation optimiste, même principe que
+    // lobby.screen.tsx:handleLeaveLobby (cf. discussion audit perf)
+    const handleBackToHome = () => {
+        leaveLobby()
         leaveGame()
         navigation.reset({ index: 0, routes: [{ name: 'Home' }] })
     }

@@ -149,15 +149,19 @@ const LobbyScreen = () => {
                 { text: "Rester", style: "cancel" },
                 {
                     text: "Quitter",
-                    onPress: async () => {
-                        const result = await leaveLobby()
+                    // EXPÉRIMENTAL — navigation optimiste (cf. discussion audit
+                    // perf) : leaveLobby() avale déjà ses propres erreurs réseau
+                    // (log + continue, cf. lobby.service.ts) sans jamais annuler
+                    // le départ, donc attendre sa réponse avant de naviguer ne
+                    // protégeait contre rien — juste un aller-retour réseau
+                    // masqué derrière la transition au lieu d'être devant.
+                    onPress: () => {
+                        leaveLobby()
                         leaveGame()
-                        if (result.shouldNavigate) {
-                            navigation.reset({
-                                index: 0,
-                                routes: [{ name: 'Home' }],
-                            })
-                        }
+                        navigation.reset({
+                            index: 0,
+                            routes: [{ name: 'Home' }],
+                        })
                     },
                     style: "destructive"
                 }
