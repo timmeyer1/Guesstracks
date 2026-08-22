@@ -47,7 +47,7 @@ export const ROUND_RESULTS_PAUSE_MS = 5000 // temps d'affichage des résultats e
 // la vitesse réseau de chacun et désynchronise le son perçu d'un joueur à
 // l'autre. Ce délai laisse à tous les appareils le temps de charger l'extrait
 // avant l'instant de lecture commun (cf. AudioPlayer.tsx côté client).
-export const AUDIO_SYNC_LEAD_MS = 700
+export const AUDIO_SYNC_LEAD_MS = 1000
 
 export const TRACK_SUBMIT_TIMEOUT_MS = 15000 // délai laissé aux joueurs pour envoyer leurs titres likés avant de démarrer avec ceux déjà reçus
 
