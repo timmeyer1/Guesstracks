@@ -71,7 +71,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     if (!previewUrl) {
         if (compact) {
             return (
-                <View className="bg-offwhite rounded-2xl px-4 py-3 flex-row items-center">
+                <View className="bg-offwhite rounded-2xl px-4 py-3 flex-row items-center flex-1">
                     <Music size={18} color={COLORS.darkgray} />
                     <Text className="text-darkgray text-xs ml-2 flex-1" numberOfLines={2}>
                         Pas d'extrait disponible, fie-toi à tes souvenirs !
