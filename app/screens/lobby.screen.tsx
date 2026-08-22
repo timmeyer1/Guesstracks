@@ -35,8 +35,9 @@ import type { GamePhase } from '../core/types'
 const GAME_IN_PROGRESS_PHASES: GamePhase[] = ['collecting', 'in_round', 'round_result']
 
 const LobbyScreen = () => {
-    const { lobby, users } = useLobbyStore()
-    const { user } = useAuthStore()
+    const lobby = useLobbyStore((s) => s.lobby)
+    const users = useLobbyStore((s) => s.users)
+    const user = useAuthStore((s) => s.user)
     const gamePhase = useGameStore((s) => s.phase)
     const gameError = useGameStore((s) => s.error)
     const submittedPlayerIds = useGameStore((s) => s.submittedPlayerIds)

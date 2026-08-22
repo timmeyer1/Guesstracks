@@ -3,6 +3,7 @@ import React from 'react'
 import { View, Text, Image, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useShallow } from 'zustand/react/shallow'
 
 import { useGameStore } from '../stores/game.store'
 import { useAuthStore } from '../stores/auth.store'
@@ -63,8 +64,21 @@ const GameScreen = () => {
         catalog,
         mySelection,
         hasAnswered,
-        toggleSelection,
-    } = useGameStore()
+    } = useGameStore(
+        useShallow((s) => ({
+            phase: s.phase,
+            gameMode: s.gameMode,
+            round: s.round,
+            lastRoundEnd: s.lastRoundEnd,
+            finalLeaderboard: s.finalLeaderboard,
+            totalRounds: s.totalRounds,
+            catalog: s.catalog,
+            mySelection: s.mySelection,
+            hasAnswered: s.hasAnswered,
+        }))
+    )
+    // action stable (référence figée par Zustand) : pas besoin d'être dans le sélecteur ci-dessus
+    const toggleSelection = useGameStore((s) => s.toggleSelection)
 
     // affiché au-dessus de la pochette floutée en mode blindtest (cf. plus
     // bas) : appelé sans condition (règle des hooks), round peut être vide

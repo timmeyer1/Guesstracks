@@ -1,5 +1,6 @@
 import React from 'react'
-import { View, Text, Image, ScrollView } from 'react-native'
+import { View, Text, ScrollView } from 'react-native'
+import { Image } from 'expo-image'
 import { Trophy } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
@@ -53,6 +54,8 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
                                 source={{ uri: entry.img || 'https://i.pravatar.cc/100' }}
                                 style={{ width: 56, height: 56, borderRadius: 28 }}
                                 className="mb-2"
+                                cachePolicy="memory-disk"
+                                transition={100}
                             />
                             <Text className="text-black font-bold text-sm mb-1" numberOfLines={1}>
                                 {entry.name}
@@ -97,6 +100,8 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
                             <Image
                                 source={{ uri: entry.img || 'https://i.pravatar.cc/100' }}
                                 style={{ width: 32, height: 32, borderRadius: 16 }}
+                                cachePolicy="memory-disk"
+                                transition={100}
                             />
                             <View>
                                 <Text className="text-black font-semibold">{entry.name}</Text>

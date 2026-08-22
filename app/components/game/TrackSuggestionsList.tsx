@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
-import { Animated, View, Text, Image } from 'react-native'
+import { Animated, View, Text } from 'react-native'
+import { Image } from 'expo-image'
 import { cssInterop } from 'nativewind'
 // FlatList/TouchableOpacity de gesture-handler (pas de react-native) : moteur
 // de geste différent du ScrollView natif, qui négocie mieux la prise du
@@ -102,6 +103,8 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
                                 <Image
                                     source={{ uri: track.image }}
                                     style={{ width: 40, height: 40, borderRadius: 8 }}
+                                    cachePolicy="memory-disk"
+                                    transition={100}
                                 />
                             ) : (
                                 <View

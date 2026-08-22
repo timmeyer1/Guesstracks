@@ -1,5 +1,6 @@
 import React from 'react'
-import { View, Text, Image, ScrollView } from 'react-native'
+import { View, Text, ScrollView } from 'react-native'
+import { Image } from 'expo-image'
 import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
 import { AudioPlayer } from './AudioPlayer'
@@ -29,6 +30,8 @@ export const RoundResult: React.FC<RoundResultProps> = ({ result, questionType, 
                         source={{ uri: result.track.image }}
                         style={{ width: 96, height: 96, borderRadius: 16 }}
                         className="mb-3"
+                        cachePolicy="memory-disk"
+                        transition={100}
                     />
                 )}
                 <SectionTitle
@@ -114,6 +117,8 @@ export const RoundResult: React.FC<RoundResultProps> = ({ result, questionType, 
                         <Image
                             source={{ uri: entry.img || 'https://i.pravatar.cc/100' }}
                             style={{ width: 32, height: 32, borderRadius: 16 }}
+                            cachePolicy="memory-disk"
+                            transition={100}
                         />
                         <Text className="text-black font-semibold">{entry.name}</Text>
                     </View>

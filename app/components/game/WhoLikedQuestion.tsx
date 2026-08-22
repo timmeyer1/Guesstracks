@@ -1,5 +1,6 @@
 import React from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native'
+import { Image } from 'expo-image'
 import { Check } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { useCountdown } from '../../core/hooks/useCountdown'
@@ -61,6 +62,8 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
                                     <Image
                                         source={{ uri: option.img || 'https://i.pravatar.cc/100' }}
                                         style={{ width: 36, height: 36, borderRadius: 18 }}
+                                        cachePolicy="memory-disk"
+                                        transition={100}
                                     />
                                     {isSelected && (
                                         <View
