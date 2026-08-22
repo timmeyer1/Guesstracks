@@ -18,7 +18,6 @@ export type RootStackParamList = {
 // permet à useNavigation() d'être correctement typé partout dans l'app sans
 // avoir à répéter le générique à chaque appel
 declare global {
-    // eslint-disable-next-line @typescript-eslint/no-namespace
     namespace ReactNavigation {
         interface RootParamList extends RootStackParamList {}
     }
