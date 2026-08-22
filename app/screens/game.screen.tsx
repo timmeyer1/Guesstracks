@@ -172,7 +172,7 @@ const GameScreen = () => {
                             </View>
 
                             <View className="mb-6">
-                                <AudioPlayer previewUrl={round.track.previewUrl} />
+                                <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} />
                             </View>
 
                             <WhoLikedQuestion
@@ -205,7 +205,7 @@ const GameScreen = () => {
                                 />
 
                                 <View className="flex-row items-center justify-center gap-3 mt-4 mb-3">
-                                    <AudioPlayer previewUrl={round.track.previewUrl} compact />
+                                    <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} compact />
                                     <StatusPill text={`Temps restant : ${remaining}s`} />
                                 </View>
 

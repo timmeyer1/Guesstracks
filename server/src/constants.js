@@ -40,6 +40,14 @@ export const SCORING = {
 }
 
 export const ROUND_RESULTS_PAUSE_MS = 5000 // temps d'affichage des résultats entre deux manches
+
+// startedAt (envoyé dans game:round:start) est fixé à Date.now() + ce délai
+// plutôt qu'à l'instant présent : sans cette marge, chaque appareil lance la
+// lecture de l'extrait dès que son propre buffer est prêt, ce qui varie selon
+// la vitesse réseau de chacun et désynchronise le son perçu d'un joueur à
+// l'autre. Ce délai laisse à tous les appareils le temps de charger l'extrait
+// avant l'instant de lecture commun (cf. AudioPlayer.tsx côté client).
+export const AUDIO_SYNC_LEAD_MS = 1500
 export const TRACK_SUBMIT_TIMEOUT_MS = 15000 // délai laissé aux joueurs pour envoyer leurs titres likés avant de démarrer avec ceux déjà reçus
 
 // délai laissé aux joueurs pour revenir au lobby (ou le quitter) après la fin

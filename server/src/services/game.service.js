@@ -6,6 +6,7 @@ import {
     MIN_ROUNDS_PLAYABLE,
     LOBBY_LIMITS,
     RETURN_TO_LOBBY_TIMEOUT_MS,
+    AUDIO_SYNC_LEAD_MS,
 } from '../constants.js'
 import { resolvePreviewUrl, normalizeTrackText } from './preview.service.js'
 import { resolveDeezerArtist } from './deezer.service.js'
@@ -457,7 +458,6 @@ const startNextRound = async (code, io) => {
     }
 
     game.status = 'in_round'
-    round.startedAt = Date.now()
     round.answers = new Map()
 
     // ré-résout l'extrait juste avant l'envoi plutôt que de faire confiance à
@@ -470,10 +470,18 @@ const startNextRound = async (code, io) => {
     const freshPreviewUrl = await resolvePreviewUrl(round.track)
     if (freshPreviewUrl) round.track.previewUrl = freshPreviewUrl
 
+    // fixé ici (juste avant la diffusion, pas avant la résolution d'extrait
+    // ci-dessus qui peut prendre du temps) + AUDIO_SYNC_LEAD_MS de marge :
+    // chaque appareil reçoit ce timestamp et programme le lancement de
+    // l'extrait pile à cet instant plutôt que dès que son propre buffer est
+    // prêt (cf. AudioPlayer.tsx), pour que tout le monde entende la musique
+    // démarrer en même temps.
+    round.startedAt = Date.now() + AUDIO_SYNC_LEAD_MS
+
     io.to(room(code)).emit('game:round:start', publicRound(game, round))
 
     clearTimeout(game.timer)
-    game.timer = setTimeout(() => endRound(code, io), round.duration * 1000)
+    game.timer = setTimeout(() => endRound(code, io), AUDIO_SYNC_LEAD_MS + round.duration * 1000)
 }
 
 export const submitAnswer = ({ code, playerId, roundIndex, selected, io }) => {
