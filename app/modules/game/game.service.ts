@@ -132,7 +132,7 @@ export const startGame = () => {
     const { lobby } = useLobbyStore.getState()
     const { user } = useAuthStore.getState()
     if (!lobby || !user) return
-    emitStartGame(lobby.code, user.id)
+    emitStartGame(lobby.code)
 }
 
 export const submitAnswer = (selected: string[]) => {
@@ -142,7 +142,7 @@ export const submitAnswer = (selected: string[]) => {
     if (!lobby || !user || !round || hasAnswered) return
 
     useGameStore.getState().setHasAnswered(true)
-    emitAnswer(lobby.code, user.id, round.roundIndex, selected)
+    emitAnswer(lobby.code, round.roundIndex, selected)
 }
 
 // à appeler après une reconnexion pour rattraper l'état de partie en cours
@@ -159,5 +159,5 @@ export const confirmReturnedToLobby = () => {
     const { lobby } = useLobbyStore.getState()
     const { user } = useAuthStore.getState()
     if (!lobby || !user) return
-    emitConfirmReturn(lobby.code, user.id)
+    emitConfirmReturn(lobby.code)
 }

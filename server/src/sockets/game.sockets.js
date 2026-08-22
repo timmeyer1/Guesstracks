@@ -11,49 +11,68 @@ const errorMessage = (err) => (err instanceof Error ? err.message : 'Erreur inco
 // REST n'apporterait rien.
 export const registerGameSockets = (io) => {
     io.on('connection', (socket) => {
+        // l'identité du joueur ne vient jamais du payload (falsifiable par le
+        // client) mais de socket.data, fixé par lobby:subscribe après
+        // vérification du jeton de lobby (cf. sockets/index.js) — renvoie null
+        // si ce socket ne s'est jamais authentifié pour ce code précis, ce qui
+        // ignore silencieusement l'événement (même comportement que les gardes
+        // de validation déjà présentes plus bas)
+        const identityFor = (code) => {
+            if (!isValidCode(code)) return null
+            const upperCode = code.toUpperCase()
+            if (typeof socket.data.playerId !== 'string' || socket.data.lobbyCode !== upperCode) return null
+            return { code: upperCode, playerId: socket.data.playerId }
+        }
+
         socket.on('game:submitTracks', (payload = {}) => {
             const { code, player, tracks } = payload
-            if (!isValidCode(code)) return
+            const identity = identityFor(code)
+            if (!identity) return
             try {
-                gameService.submitTracks(code.toUpperCase(), player, tracks, io)
+                // le nom/avatar affichés viennent du payload (non sensibles),
+                // mais l'id du joueur est toujours celui du jeton vérifié
+                gameService.submitTracks(identity.code, { ...player, id: identity.playerId }, tracks, io)
             } catch (err) {
                 socket.emit('game:error', { message: errorMessage(err) })
             }
         })
 
         socket.on('game:start', async (payload = {}) => {
-            const { code, playerId } = payload
-            if (!isValidCode(code) || typeof playerId !== 'string') return
-            const upperCode = code.toUpperCase()
+            const { code } = payload
+            const identity = identityFor(code)
+            if (!identity) return
 
             try {
-                const lobby = await lobbyService.getLobby(upperCode)
-                await gameService.startGame({ code: upperCode, playerId, lobby: lobby.toPublic(), io })
+                const lobby = await lobbyService.getLobby(identity.code)
+                await gameService.startGame({ code: identity.code, playerId: identity.playerId, lobby: lobby.toPublic(), io })
             } catch (err) {
                 socket.emit('game:error', { message: errorMessage(err) })
             }
         })
 
         socket.on('game:answer', (payload = {}) => {
-            const { code, playerId, roundIndex, selected } = payload
-            if (!isValidCode(code) || typeof playerId !== 'string' || typeof roundIndex !== 'number') return
-            gameService.submitAnswer({ code: code.toUpperCase(), playerId, roundIndex, selected, io })
+            const { code, roundIndex, selected } = payload
+            const identity = identityFor(code)
+            if (!identity || typeof roundIndex !== 'number') return
+            gameService.submitAnswer({ code: identity.code, playerId: identity.playerId, roundIndex, selected, io })
         })
 
         // permet à un client qui vient de (re)rejoindre la room de resynchroniser
         // son affichage sur l'état de partie en cours (reconnexion réseau, etc.)
         socket.on('game:sync', (code) => {
-            if (!isValidCode(code)) return
-            socket.emit('game:state', gameService.getSnapshot(code.toUpperCase()))
+            const identity = identityFor(code)
+            if (!identity) return
+            socket.emit('game:state', gameService.getSnapshot(identity.code))
         })
 
         // envoyé quand l'écran de lobby regagne le focus (retour depuis les
         // résultats finaux, ou simple arrivée dans le lobby) : sort le joueur
         // de la liste d'attente ouverte par la fin d'une partie précédente
         socket.on('game:confirmReturn', (payload = {}) => {
-            const { code, playerId } = payload
-            if (!isValidCode(code) || typeof playerId !== 'string') return
-            gameService.clearPendingReturn(code.toUpperCase(), playerId, io)
+            const { code } = payload
+            const identity = identityFor(code)
+            if (!identity) return
+            gameService.clearPendingReturn(identity.code, identity.playerId, io)
         })
     })
 }

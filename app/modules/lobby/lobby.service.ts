@@ -62,9 +62,9 @@ const buildPlayerPayload = () => {
     }
 }
 
-const startWatchingLobby = (code: string) => {
+const startWatchingLobby = (code: string, token: string) => {
     unsubscribeSocket?.()
-    unsubscribeSocket = subscribeToLobby(code, {
+    unsubscribeSocket = subscribeToLobby(code, token, {
         onUpdate: (serverLobby) => applyServerLobby(serverLobby as ServerLobby),
         // ne se déclenche jamais pour un départ volontaire (leaveLobby se
         // désabonne avant l'appel réseau, cf. plus bas) : ce n'est donc reçu
@@ -96,9 +96,10 @@ export const createLobby = async (): Promise<LobbyResult> => {
     }
 
     try {
-        const { data } = await lobbyApiClient.post<{ lobby: ServerLobby }>('/lobbies', { player })
+        const { data } = await lobbyApiClient.post<{ lobby: ServerLobby; token: string }>('/lobbies', { player })
+        useLobbyStore.getState().setLobbyToken(data.token)
         applyServerLobby(data.lobby)
-        startWatchingLobby(data.lobby.code)
+        startWatchingLobby(data.lobby.code, data.token)
         return { ok: true }
     } catch (error) {
         return { ok: false, error: extractLobbyErrorMessage(error) }
@@ -112,12 +113,13 @@ export const joinLobby = async (code: string): Promise<LobbyResult> => {
     }
 
     try {
-        const { data } = await lobbyApiClient.post<{ lobby: ServerLobby }>(
+        const { data } = await lobbyApiClient.post<{ lobby: ServerLobby; token: string }>(
             `/lobbies/${code.toUpperCase()}/join`,
             { player }
         )
+        useLobbyStore.getState().setLobbyToken(data.token)
         applyServerLobby(data.lobby)
-        startWatchingLobby(data.lobby.code)
+        startWatchingLobby(data.lobby.code, data.token)
         return { ok: true }
     } catch (error) {
         return { ok: false, error: extractLobbyErrorMessage(error) }
@@ -139,7 +141,10 @@ export const leaveLobby = async (): Promise<{ shouldNavigate: boolean }> => {
     stopWatchingLobby()
 
     try {
-        await lobbyApiClient.post(`/lobbies/${lobby.code}/leave`, { playerId: user.id })
+        // l'identité (playerId) est portée par le jeton de lobby, ajouté en
+        // header par l'intercepteur (cf. app/core/api/lobby.client.ts) — plus
+        // besoin de l'envoyer dans le corps de la requête
+        await lobbyApiClient.post(`/lobbies/${lobby.code}/leave`)
     } catch (error) {
         console.warn('⚠️ Erreur en quittant le lobby:', extractLobbyErrorMessage(error))
     }
@@ -156,8 +161,10 @@ export const kickPlayer = async (targetId: string): Promise<LobbyResult> => {
     }
 
     try {
+        // requesterId n'est plus envoyé : le serveur l'établit lui-même à
+        // partir du jeton de lobby (header Authorization), seule preuve
+        // acceptée de "qui appelle cette route"
         const { data } = await lobbyApiClient.post<{ lobby: ServerLobby }>(`/lobbies/${lobby.code}/kick`, {
-            requesterId: user.id,
             targetId,
         })
         applyServerLobby(data.lobby)
@@ -176,7 +183,6 @@ export const transferHost = async (targetId: string): Promise<LobbyResult> => {
 
     try {
         const { data } = await lobbyApiClient.post<{ lobby: ServerLobby }>(`/lobbies/${lobby.code}/transfer-host`, {
-            requesterId: user.id,
             targetId,
         })
         applyServerLobby(data.lobby)
@@ -201,7 +207,7 @@ export const updateLobbySettings = async (settings: {
     try {
         const { data } = await lobbyApiClient.patch<{ lobby: ServerLobby }>(
             `/lobbies/${lobby.code}/settings`,
-            { playerId: user.id, ...settings }
+            settings
         )
         applyServerLobby(data.lobby)
         return { ok: true }

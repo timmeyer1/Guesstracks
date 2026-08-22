@@ -10,16 +10,28 @@ const getSocket = (): Socket => {
             transports: ['websocket'],
             autoConnect: true,
         })
+        // émis par le serveur si lobby:subscribe reçoit un jeton de lobby
+        // absent/invalide/expiré (cf. server/src/sockets/index.js) : le socket
+        // n'est alors rattaché à aucune identité, toutes les actions de partie
+        // suivantes sont silencieusement ignorées côté serveur
+        socket.on('lobby:error', (payload: { message: string }) => {
+            console.warn('⚠️ Session de lobby invalide :', payload.message)
+        })
     }
     return socket
 }
 
+// token : jeton de session de lobby (cf. app/stores/lobby.store.ts), vérifié
+// côté serveur avant de rattacher ce socket au lobby — c'est cette identité
+// vérifiée, jamais un playerId envoyé en clair, que game.sockets.js utilise
+// ensuite pour toutes les actions de partie (cf. server/src/sockets/index.js)
 export const subscribeToLobby = (
     code: string,
+    token: string,
     handlers: { onUpdate: (lobby: unknown) => void; onClosed: () => void }
 ) => {
     const s = getSocket()
-    s.emit('lobby:subscribe', code)
+    s.emit('lobby:subscribe', { code, token })
     s.on('lobby:update', handlers.onUpdate)
     s.on('lobby:closed', handlers.onClosed)
 
@@ -80,22 +92,26 @@ export const subscribeToGame = (handlers: GameSocketHandlers) => {
 
 type GamePlayerPayload = { id: string; name: string; img: string | null; accountType: string | null }
 
+// aucune de ces fonctions n'envoie plus de playerId : le serveur dérive
+// désormais l'identité du joueur de socket.data, fixé par lobby:subscribe
+// après vérification du jeton (cf. server/src/sockets/game.sockets.js) — un
+// playerId dans le payload serait de toute façon ignoré côté serveur.
 export const emitSubmitTracks = (code: string, player: GamePlayerPayload, tracks: TrackType[]) => {
     getSocket().emit('game:submitTracks', { code, player, tracks })
 }
 
-export const emitStartGame = (code: string, playerId: string) => {
-    getSocket().emit('game:start', { code, playerId })
+export const emitStartGame = (code: string) => {
+    getSocket().emit('game:start', { code })
 }
 
-export const emitAnswer = (code: string, playerId: string, roundIndex: number, selected: string[]) => {
-    getSocket().emit('game:answer', { code, playerId, roundIndex, selected })
+export const emitAnswer = (code: string, roundIndex: number, selected: string[]) => {
+    getSocket().emit('game:answer', { code, roundIndex, selected })
 }
 
 export const emitGameSync = (code: string) => {
     getSocket().emit('game:sync', code)
 }
 
-export const emitConfirmReturn = (code: string, playerId: string) => {
-    getSocket().emit('game:confirmReturn', { code, playerId })
+export const emitConfirmReturn = (code: string) => {
+    getSocket().emit('game:confirmReturn', { code })
 }
