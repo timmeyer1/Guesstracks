@@ -1,0 +1,176 @@
+import React, { useState, useEffect } from "react"
+import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView } from "react-native"
+import Slider from "@react-native-community/slider"
+import { GAME_MODES, PHASE_SPEEDS, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
+import { COLORS } from "../../core/constants/colors.constants"
+import { GameMode, PhaseSpeed } from "../../core/types"
+import { SectionTitle } from "../SectionTitle"
+import { CustomButton } from "../Button"
+
+export type LobbySettings = {
+    gameMode: GameMode
+    rounds: number
+    phaseSpeed: PhaseSpeed
+}
+
+type LobbySettingsModalProps = {
+    visible: boolean
+    mode: "create" | "edit"
+    onClose: () => void
+    onConfirm: (settings: LobbySettings) => void
+    initialSettings?: LobbySettings
+}
+
+export const LobbySettingsModal = ({
+    visible,
+    mode,
+    onClose,
+    onConfirm,
+    initialSettings,
+}: LobbySettingsModalProps) => {
+    const [gameMode, setGameMode] = useState<GameMode>(
+        initialSettings?.gameMode ?? DEFAULT_LOBBY_SETTINGS.gameMode
+    )
+    const [rounds, setRounds] = useState(
+        initialSettings?.rounds ?? DEFAULT_LOBBY_SETTINGS.rounds
+    )
+    const [phaseSpeed, setPhaseSpeed] = useState<PhaseSpeed>(
+        initialSettings?.phaseSpeed ?? DEFAULT_LOBBY_SETTINGS.phaseSpeed
+    )
+
+    // synchro avec les paramètres initiaux quand la modal s'ouvre
+    useEffect(() => {
+        if (visible && initialSettings) {
+            setGameMode(initialSettings.gameMode)
+            setRounds(initialSettings.rounds)
+            setPhaseSpeed(initialSettings.phaseSpeed)
+        }
+    }, [visible, initialSettings])
+
+    const handleConfirm = () => {
+        onConfirm({ gameMode, rounds, phaseSpeed })
+        onClose()
+    }
+
+    const handleClose = () => {
+        // reset aux valeurs initiales ou par défaut
+        if (initialSettings) {
+            setGameMode(initialSettings.gameMode)
+            setRounds(initialSettings.rounds)
+            setPhaseSpeed(initialSettings.phaseSpeed)
+        } else {
+            setGameMode(DEFAULT_LOBBY_SETTINGS.gameMode)
+            setRounds(DEFAULT_LOBBY_SETTINGS.rounds)
+            setPhaseSpeed(DEFAULT_LOBBY_SETTINGS.phaseSpeed)
+        }
+        onClose()
+    }
+
+    return (
+        <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
+            <Pressable
+                className="flex-1 bg-black/60 justify-center items-center px-8"
+                onPress={handleClose}
+            >
+                <Pressable className="bg-white w-full rounded-3xl p-6" style={{ maxHeight: '85%' }}>
+                    <SectionTitle
+                        title={mode === "create" ? "Créer une partie" : "Paramètres"}
+                        subtitle={mode === "create" ? "Configure ta partie !" : "Modifie les règles"}
+                        align="center"
+                        titleSize="md"
+                        subtitleSize="sm"
+                        className="mb-6"
+                    />
+
+                    <ScrollView className="mb-6" showsVerticalScrollIndicator={false}>
+                        <View className="mb-6">
+                            <SectionTitle title="Mode de jeu" align="center" titleSize="sm" className="mb-3" />
+                            <View className="flex-row gap-2">
+                                {(Object.keys(GAME_MODES) as GameMode[]).map((mode) => {
+                                    const selected = gameMode === mode
+                                    return (
+                                        <TouchableOpacity
+                                            key={mode}
+                                            className={`flex-1 py-3 rounded-2xl items-center ${selected ? "bg-primary" : "bg-offwhite"
+                                                }`}
+                                            onPress={() => setGameMode(mode)}
+                                        >
+                                            <Text className="text-2xl mb-1">{GAME_MODES[mode].icon}</Text>
+                                            <Text className={`font-bold ${selected ? "text-white" : "text-black"}`}>
+                                                {GAME_MODES[mode].label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )
+                                })}
+                            </View>
+                        </View>
+
+                        <View className="mb-6">
+                            <SectionTitle
+                                title={`Nombre de manches : ${rounds}`}
+                                align="center"
+                                titleSize="sm"
+                                className="mb-3"
+                            />
+                            <View className="bg-offwhite rounded-full p-1">
+                                <Slider
+                                    style={{ width: "100%", height: 40 }}
+                                    minimumValue={LOBBY_LIMITS.MIN_ROUNDS}
+                                    maximumValue={LOBBY_LIMITS.MAX_ROUNDS}
+                                    step={1}
+                                    value={rounds}
+                                    onValueChange={setRounds}
+                                    minimumTrackTintColor={COLORS.primary}
+                                    maximumTrackTintColor="transparent"
+                                    thumbTintColor={COLORS.primary}
+                                />
+                            </View>
+                            <View className="flex-row justify-between mt-2">
+                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MIN_ROUNDS}</Text>
+                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MAX_ROUNDS}</Text>
+                            </View>
+                        </View>
+
+                        <View className="mb-4">
+                            <SectionTitle title="Vitesse des phases" align="center" titleSize="sm" className="mb-3" />
+                            <View className="flex-row gap-2">
+                                {(Object.keys(PHASE_SPEEDS) as PhaseSpeed[]).map((speed) => {
+                                    const selected = phaseSpeed === speed
+                                    return (
+                                        <TouchableOpacity
+                                            key={speed}
+                                            className={`flex-1 py-3 rounded-2xl items-center ${selected ? "bg-primary" : "bg-offwhite"
+                                                }`}
+                                            onPress={() => setPhaseSpeed(speed)}
+                                        >
+                                            <Text className={`font-bold ${selected ? "text-white" : "text-black"}`}>
+                                                {PHASE_SPEEDS[speed].label}
+                                            </Text>
+                                            <Text className={`text-xs mt-1 ${selected ? "text-white" : "text-darkgray"}`}>
+                                                {PHASE_SPEEDS[speed].durationLabel}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )
+                                })}
+                            </View>
+                        </View>
+                    </ScrollView>
+
+                    <View className="flex-row gap-2.5 w-full">
+                        <View className="flex-1">
+                            <CustomButton name="Annuler" onPress={handleClose} variant="dark" />
+                        </View>
+
+                        <View className="flex-1">
+                            <CustomButton
+                                name={mode === "create" ? "Créer" : "Sauvegarder"}
+                                onPress={handleConfirm}
+                                variant="white"
+                            />
+                        </View>
+                    </View>
+                </Pressable>
+            </Pressable>
+        </Modal>
+    )
+}
