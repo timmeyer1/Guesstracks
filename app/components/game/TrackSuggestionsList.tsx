@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react'
-import { Animated, View, Text } from 'react-native'
+import React, { useCallback, useEffect } from 'react'
+import { View, Text } from 'react-native'
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 import { Image } from 'expo-image'
 import { cssInterop } from 'nativewind'
 // FlatList/TouchableOpacity de gesture-handler (pas de react-native) : moteur
@@ -27,6 +28,44 @@ type TrackSuggestionsListProps = {
 const MENU_MAX_HEIGHT = 288
 const OPEN_ANIMATION_MS = 180
 
+// Ligne mémoïsée : ne re-rend que si son propre `track` change (référence
+// stable tant que `suggestions` ne change pas, cf. useMemo dans
+// SearchTrackQuestion.tsx) ou si `onSelect` change — d'où le useCallback côté
+// appelant (cf. audit qualité, finding N4).
+type SuggestionRowProps = { track: CatalogEntry; onSelect: (id: string) => void }
+const SuggestionRow: React.FC<SuggestionRowProps> = React.memo(function SuggestionRow({ track, onSelect }) {
+    return (
+        <TouchableOpacity
+            onPress={() => onSelect(track.id)}
+            className="flex-row items-center p-3 border-b border-offwhite"
+        >
+            {track.image ? (
+                <Image
+                    source={{ uri: track.image }}
+                    style={{ width: 40, height: 40, borderRadius: 8 }}
+                    cachePolicy="memory-disk"
+                    transition={100}
+                />
+            ) : (
+                <View
+                    className="bg-offwhite items-center justify-center"
+                    style={{ width: 40, height: 40, borderRadius: 8 }}
+                >
+                    <Music size={16} color={COLORS.darkgray} />
+                </View>
+            )}
+            <View className="flex-1 ml-3">
+                <Text className="text-black font-semibold" numberOfLines={1}>
+                    {track.name}
+                </Text>
+                <Text className="text-darkgray text-sm" numberOfLines={1}>
+                    {track.artist}
+                </Text>
+            </View>
+        </TouchableOpacity>
+    )
+})
+
 // Menu de suggestions du blindtest : remonté à chaque fois que la recherche
 // redevient assez longue (cf. SearchTrackQuestion), donc un simple fondu au
 // montage suffit à donner l'impression d'un menu qui s'ouvre plutôt que d'un
@@ -34,16 +73,24 @@ const OPEN_ANIMATION_MS = 180
 // fondu : combiné à un ancêtre en overflow: hidden, un transform sur un
 // ancêtre d'une FlatList est un bug Android connu qui la rend non
 // scrollable — exactement le problème rencontré ici.
-export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ suggestions, onSelect }) => {
-    const openAnim = useRef(new Animated.Value(0)).current
+export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = React.memo(function TrackSuggestionsList({
+    suggestions,
+    onSelect,
+}) {
+    const openAnim = useSharedValue(0)
 
     useEffect(() => {
-        Animated.timing(openAnim, {
-            toValue: 1,
-            duration: OPEN_ANIMATION_MS,
-            useNativeDriver: true,
-        }).start()
+        openAnim.value = withTiming(1, { duration: OPEN_ANIMATION_MS })
     }, [openAnim])
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: openAnim.value,
+    }))
+
+    const renderItem = useCallback(
+        ({ item: track }: { item: CatalogEntry }) => <SuggestionRow track={track} onSelect={onSelect} />,
+        [onSelect]
+    )
 
     return (
         // L'ombre (shadow-card / elevation) et le overflow-hidden qui rogne la
@@ -56,11 +103,7 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
         // suppression du transform).
         <Animated.View
             className="absolute left-0 right-0 bottom-full mb-2 rounded-2xl shadow-card"
-            style={{
-                maxHeight: MENU_MAX_HEIGHT,
-                elevation: 6,
-                opacity: openAnim,
-            }}
+            style={[{ maxHeight: MENU_MAX_HEIGHT, elevation: 6 }, animatedStyle]}
         >
             <View className="bg-white rounded-2xl overflow-hidden" style={{ maxHeight: MENU_MAX_HEIGHT }}>
                 {/* FlatList plutôt que ScrollView : ne rend que les lignes visibles à
@@ -94,36 +137,7 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
                     showsVerticalScrollIndicator={false}
                     initialNumToRender={8}
                     windowSize={5}
-                    renderItem={({ item: track }) => (
-                        <TouchableOpacity
-                            onPress={() => onSelect(track.id)}
-                            className="flex-row items-center p-3 border-b border-offwhite"
-                        >
-                            {track.image ? (
-                                <Image
-                                    source={{ uri: track.image }}
-                                    style={{ width: 40, height: 40, borderRadius: 8 }}
-                                    cachePolicy="memory-disk"
-                                    transition={100}
-                                />
-                            ) : (
-                                <View
-                                    className="bg-offwhite items-center justify-center"
-                                    style={{ width: 40, height: 40, borderRadius: 8 }}
-                                >
-                                    <Music size={16} color={COLORS.darkgray} />
-                                </View>
-                            )}
-                            <View className="flex-1 ml-3">
-                                <Text className="text-black font-semibold" numberOfLines={1}>
-                                    {track.name}
-                                </Text>
-                                <Text className="text-darkgray text-sm" numberOfLines={1}>
-                                    {track.artist}
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
-                    )}
+                    renderItem={renderItem}
                     ListEmptyComponent={
                         <Text className="text-darkgray text-sm text-center p-4">
                             Aucun titre trouvé
@@ -133,4 +147,4 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = ({ sugg
             </View>
         </Animated.View>
     )
-}
+})

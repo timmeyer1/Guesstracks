@@ -33,7 +33,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     color = COLORS.offwhite,
     compact = false,
 }) => {
-    const player = useAudioPlayer(previewUrl ?? null)
+    // updateInterval par défaut (500ms) : ce composant n'affiche ni position
+    // ni durée, seulement isLoaded/playing (qui remontent immédiatement via
+    // leurs propres listeners natifs, indépendamment de cet intervalle — cf.
+    // audit qualité, finding N6) — 1s suffit largement et divise par 2 la
+    // fréquence de re-render pendant la lecture.
+    const player = useAudioPlayer(previewUrl ?? null, { updateInterval: 1000 })
     const status = useAudioPlayerStatus(player)
 
     useEffect(() => {

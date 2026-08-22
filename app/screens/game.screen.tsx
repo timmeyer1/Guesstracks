@@ -1,5 +1,5 @@
 // app/screens/game.screen.tsx
-import React from 'react'
+import React, { useCallback } from 'react'
 import { View, Text, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native'
 import { Image } from 'expo-image'
 import { useNavigation } from '@react-navigation/native'
@@ -57,7 +57,6 @@ const GameScreen = () => {
     const user = useAuthStore((s) => s.user)
     const {
         phase,
-        gameMode,
         round,
         lastRoundEnd,
         finalLeaderboard,
@@ -69,7 +68,6 @@ const GameScreen = () => {
     } = useGameStore(
         useShallow((s) => ({
             phase: s.phase,
-            gameMode: s.gameMode,
             round: s.round,
             lastRoundEnd: s.lastRoundEnd,
             finalLeaderboard: s.finalLeaderboard,
@@ -82,6 +80,10 @@ const GameScreen = () => {
     )
     // action stable (référence figée par Zustand) : pas besoin d'être dans le sélecteur ci-dessus
     const toggleSelection = useGameStore((s) => s.toggleSelection)
+    // référence stable : passée à WhoLikedQuestion, dont les options sont
+    // mémoïsées (cf. audit qualité, finding N4) — une closure recréée à
+    // chaque render de cet écran leur ferait perdre ce bénéfice
+    const handleToggleWhoLiked = useCallback((id: string) => toggleSelection(id, true), [toggleSelection])
 
     const handleBackToHome = async () => {
         await leaveLobby()
@@ -150,14 +152,7 @@ const GameScreen = () => {
             <ScreenLayout noPadding shapes={GAME_SHAPES}>
                 {!isSearchMode ? (
                     <View className="flex-1 px-8 pb-10" style={{ paddingTop: insets.top + topExtraSpacing }}>
-                        <RoundHeader
-                            roundIndex={round.roundIndex}
-                            totalRounds={round.totalRounds}
-                            startedAt={round.startedAt}
-                            duration={round.duration}
-                            gameMode={gameMode}
-                            compact
-                        />
+                        <RoundHeader roundIndex={round.roundIndex} totalRounds={round.totalRounds} />
 
                         <View className="items-center mb-4">
                             {round.track.image && (
@@ -185,7 +180,7 @@ const GameScreen = () => {
                             hasAnswered={hasAnswered}
                             startedAt={round.startedAt}
                             duration={round.duration}
-                            onToggle={(id) => toggleSelection(id, true)}
+                            onToggle={handleToggleWhoLiked}
                             onSubmit={() => submitAnswer(mySelection)}
                         />
                     </View>
@@ -205,14 +200,7 @@ const GameScreen = () => {
                             style={{ paddingTop: insets.top + topExtraSpacing }}
                         >
                             <View>
-                                <RoundHeader
-                                    roundIndex={round.roundIndex}
-                                    totalRounds={round.totalRounds}
-                                    startedAt={round.startedAt}
-                                    duration={round.duration}
-                                    gameMode={gameMode}
-                                    compact
-                                />
+                                <RoundHeader roundIndex={round.roundIndex} totalRounds={round.totalRounds} />
 
                                 <View className="flex-row items-center justify-center gap-3 mt-4 mb-3">
                                     <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} compact />

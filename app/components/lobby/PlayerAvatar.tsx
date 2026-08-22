@@ -20,12 +20,15 @@ interface PlayerAvatarProps {
     size?: AvatarSize
 }
 
-export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
+// mémoïsé : affiché pour chaque joueur de PlayersGrid, ne doit pas re-rendre
+// (et re-décoder son Image) quand un autre joueur de la grille change (cf.
+// audit qualité, finding N4)
+export const PlayerAvatar: React.FC<PlayerAvatarProps> = React.memo(function PlayerAvatar({
     name,
     img,
     isHost,
     size = 'md'
-}) => {
+}) {
     const px = AVATAR_SIZES[size]
     // cut le nom si trop long
     const displayName = name.length > 6 ? `${name.slice(0, 6)}...` : name
@@ -56,4 +59,4 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({
             </Text>
         </View>
     )
-}
+})

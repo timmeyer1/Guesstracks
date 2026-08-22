@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Keyboard, View, Text, TextInput } from 'react-native'
 import { Search } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
@@ -132,10 +132,17 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
 
     const selectedTrack = selectedId ? catalog.find((t) => t.id === selectedId) : null
 
-    const handleSelect = (id: string) => {
-        if (hasAnswered) return
-        onAnswer(id)
-    }
+    // référence stable : passé à TrackSuggestionsList (mémoïsé, cf. audit
+    // qualité finding N4), une fonction recréée à chaque render de ce
+    // composant (ex: à chaque frappe) lui ferait perdre tout le bénéfice de
+    // React.memo sur ses lignes
+    const handleSelect = useCallback(
+        (id: string) => {
+            if (hasAnswered) return
+            onAnswer(id)
+        },
+        [hasAnswered, onAnswer]
+    )
 
     if (hasAnswered) {
         return (

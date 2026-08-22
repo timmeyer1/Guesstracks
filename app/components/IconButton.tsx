@@ -1,5 +1,6 @@
-import React, { useRef } from 'react'
-import { Pressable, Animated } from 'react-native'
+import React from 'react'
+import { Pressable } from 'react-native'
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated'
 import * as LucideIcons from 'lucide-react-native'
 import { COLORS, type ButtonVariant } from '../core/constants/colors.constants'
 
@@ -27,29 +28,25 @@ export const IconButton = ({
     className = '',
     color,
 }: IconButtonProps) => {
-    const scale = useRef(new Animated.Value(1)).current
+    const scale = useSharedValue(1)
 
     const handlePressIn = () => {
-        Animated.spring(scale, {
-            toValue: 0.96,
-            useNativeDriver: true,
-            speed: 50,
-        }).start()
+        scale.value = withSpring(0.96, { damping: 15, stiffness: 300 })
     }
 
     const handlePressOut = () => {
-        Animated.spring(scale, {
-            toValue: 1,
-            useNativeDriver: true,
-            speed: 20,
-        }).start()
+        scale.value = withSpring(1, { damping: 12, stiffness: 180 })
     }
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }))
 
     const { iconColor, bgClass } = VARIANTS[variant]
     const IconComponent = LucideIcons[icon] as React.ComponentType<any>
 
     return (
-        <Animated.View style={{ transform: [{ scale }] }}>
+        <Animated.View style={animatedStyle}>
             <Pressable
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}

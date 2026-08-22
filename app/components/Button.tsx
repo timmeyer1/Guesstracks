@@ -1,5 +1,6 @@
-import React, { useRef } from "react"
-import { Animated, Pressable, Text } from "react-native"
+import React from "react"
+import { Pressable, Text } from "react-native"
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated"
 import * as LucideIcons from 'lucide-react-native'
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6'
 import { COLORS, type ButtonVariant } from "../core/constants/colors.constants"
@@ -36,32 +37,28 @@ export const CustomButton = ({
     variant = 'white',
     loading = false,
 }: ButtonProps) => {
-    const scale = useRef(new Animated.Value(1)).current
+    const scale = useSharedValue(1)
     const isAvailable = available && !loading
 
     const handlePressIn = () => {
         if (!isAvailable) return
-        Animated.spring(scale, {
-            toValue: 0.96,
-            useNativeDriver: true,
-            speed: 50,
-        }).start()
+        scale.value = withSpring(0.96, { damping: 15, stiffness: 300 })
     }
 
     const handlePressOut = () => {
         if (!isAvailable) return
-        Animated.spring(scale, {
-            toValue: 1,
-            useNativeDriver: true,
-            speed: 20,
-        }).start()
+        scale.value = withSpring(1, { damping: 12, stiffness: 180 })
     }
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }))
 
     const { textClass, iconColor, bgClass } = VARIANTS[variant]
     const IconComponent = icon ? (LucideIcons[icon] as React.ComponentType<any>) : null
 
     return (
-        <Animated.View style={{ transform: [{ scale }] }} className="w-full">
+        <Animated.View style={animatedStyle} className="w-full">
             <Pressable
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
