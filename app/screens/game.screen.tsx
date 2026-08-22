@@ -154,7 +154,7 @@ const GameScreen = () => {
                     <View className="flex-1 px-8 pb-10" style={{ paddingTop: insets.top + topExtraSpacing }}>
                         <RoundHeader roundIndex={round.roundIndex} totalRounds={round.totalRounds} />
 
-                        <View className="items-center mb-4">
+                        <View className="items-center mb-3">
                             {round.track.image && (
                                 <Image
                                     source={{ uri: round.track.image }}
@@ -170,16 +170,15 @@ const GameScreen = () => {
                             <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
                         </View>
 
-                        <View className="mb-6">
-                            <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} />
+                        <View className="flex-row items-center justify-center gap-3 mb-6">
+                            <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} compact />
+                            <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
                         </View>
 
                         <WhoLikedQuestion
                             options={round.options}
                             selected={mySelection}
                             hasAnswered={hasAnswered}
-                            startedAt={round.startedAt}
-                            duration={round.duration}
                             onToggle={handleToggleWhoLiked}
                             onSubmit={() => submitAnswer(mySelection)}
                         />
@@ -202,13 +201,13 @@ const GameScreen = () => {
                             <View>
                                 <RoundHeader roundIndex={round.roundIndex} totalRounds={round.totalRounds} />
 
-                                <View className="flex-row items-center justify-center gap-3 mt-4 mb-3">
-                                    <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} compact />
-                                    <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
-                                </View>
-
                                 <View className="items-center mb-3">
                                     <BlurredCover imageUri={round.track.image} size={blurredCoverSize} />
+                                </View>
+
+                                <View className="flex-row items-center justify-center gap-3 mb-3">
+                                    <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} compact />
+                                    <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
                                 </View>
 
                                 <Text className="text-black text-lg font-bold text-center">

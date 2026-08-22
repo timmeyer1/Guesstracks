@@ -4,16 +4,12 @@ import { Image } from 'expo-image'
 import { Check } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { CustomButton } from '../Button'
-import { StatusPill } from '../StatusPill'
-import { CountdownLabel } from './CountdownLabel'
 import type { WhoLikedOption } from '../../core/types'
 
 type WhoLikedQuestionProps = {
     options: WhoLikedOption[]
     selected: string[]
     hasAnswered: boolean
-    startedAt: number
-    duration: number
     onToggle: (id: string) => void
     onSubmit: () => void
 }
@@ -76,8 +72,6 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
     options,
     selected,
     hasAnswered,
-    startedAt,
-    duration,
     onToggle,
     onSubmit,
 }) => {
@@ -105,24 +99,14 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
                 </View>
             </ScrollView>
 
-            <View className="items-center mt-4 mb-3">
-                <StatusPill
-                    text={
-                        hasAnswered ? (
-                            'En attente des autres joueurs'
-                        ) : (
-                            <CountdownLabel startedAt={startedAt} duration={duration} />
-                        )
-                    }
+            <View className="mt-4">
+                <CustomButton
+                    name={hasAnswered ? 'Réponse envoyée' : 'Valider'}
+                    onPress={onSubmit}
+                    available={!hasAnswered && selected.length > 0}
+                    variant="dark"
                 />
             </View>
-
-            <CustomButton
-                name={hasAnswered ? 'Réponse envoyée' : 'Valider'}
-                onPress={onSubmit}
-                available={!hasAnswered && selected.length > 0}
-                variant="dark"
-            />
         </View>
     )
 }
