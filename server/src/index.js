@@ -13,7 +13,24 @@ import { LobbyError } from './services/lobby.service.js'
 
 const PORT = process.env.PORT || 4000
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/guesstracks'
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*'
+
+const isProd = process.env.NODE_ENV === 'production'
+// '*' ouvre l'API/le socket à n'importe quel site (cf. audit sécurité,
+// finding I4) : acceptable en dev, jamais en prod — le serveur refuse de
+// démarrer sans une valeur explicite plutôt que de retomber sur '*' en
+// silence.
+if (isProd && !process.env.CORS_ORIGIN) {
+    throw new Error('CORS_ORIGIN doit être défini en production (voir server/.env.example)')
+}
+// une seule origine passée telle quelle au module `cors` est traitée comme
+// une valeur fixe unique, jamais comparée à l'origine de la requête (cf.
+// node_modules/cors/lib/index.js, configureOrigin) : une liste séparée par
+// des virgules (documentée dans .env.example) doit donc être éclatée en
+// tableau pour que chaque origine soit réellement vérifiée.
+const corsOrigins = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean)
+const CORS_ORIGIN = corsOrigins && corsOrigins.length > 0
+    ? (corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins)
+    : '*'
 
 const app = express()
 app.use(cors({ origin: CORS_ORIGIN }))
