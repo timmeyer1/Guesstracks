@@ -8,7 +8,7 @@ type TrackStoreType = {
     totalTracks: number;
 };
 
-export const TrackStore = create<TrackStoreType>((set) => ({
+export const useTrackStore = create<TrackStoreType>((set) => ({
     likedTracks: [],
     setLikedTracks: (tracks) => set({ likedTracks: tracks }),
     setTotalTracks: (totalTracks) => set({ totalTracks: totalTracks }),

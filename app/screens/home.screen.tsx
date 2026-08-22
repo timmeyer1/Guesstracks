@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { View, Alert } from 'react-native'
 import { useAuthStore } from '../stores/auth.store'
-import { TrackStore } from '../stores/tracks.store'
+import { useTrackStore } from '../stores/tracks.store'
 import { spotifyService } from '../modules/spotify'
 import { deezerService } from '../modules/deezer'
 import { createLobby, joinLobby } from "../modules/lobby/lobby.service"
@@ -16,7 +16,7 @@ import { CustomButton } from '../components/Button'
 import { CornerShape } from '../components/CornerShape'
 
 export const HomeScreen = () => {
-    const totalTracks = TrackStore((s) => s.totalTracks)
+    const totalTracks = useTrackStore((s) => s.totalTracks)
     const logoutFn = useAuthStore((s) => s.logout)
     const user = useAuthStore((s) => s.user)
     const navigation = useNavigation()
@@ -42,7 +42,7 @@ export const HomeScreen = () => {
                 } else {
                     total = await spotifyService.getTotalTracks()
                 }
-                TrackStore.getState().setTotalTracks(total)
+                useTrackStore.getState().setTotalTracks(total)
                 console.log(`✅ ${total} tracks récupérées`)
             } catch (error) {
                 console.error('Erreur chargement tracks :', error)

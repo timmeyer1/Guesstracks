@@ -1,7 +1,7 @@
 import { useAuthStore } from '../../stores/auth.store'
 import { useLobbyStore } from '../../stores/lobby.store'
 import { useGameStore } from '../../stores/game.store'
-import { TrackStore } from '../../stores/tracks.store'
+import { useTrackStore } from '../../stores/tracks.store'
 import {
     subscribeToGame,
     emitSubmitTracks,
@@ -103,7 +103,7 @@ const SUBMIT_TRACKS_RETRY_MS = 1500
 const SUBMIT_TRACKS_MAX_ATTEMPTS = 4
 
 // envoie ses titres likés au serveur dès l'entrée dans le lobby, pour que le
-// pool soit prêt quand l'hôte lance la partie. Si TrackStore n'est pas encore
+// pool soit prêt quand l'hôte lance la partie. Si useTrackStore n'est pas encore
 // rempli au moment de l'appel (course possible juste après une connexion),
 // réessaie quelques fois plutôt que d'abandonner silencieusement et
 // définitivement — un abandon silencieux ici laissait "En attente des
@@ -112,7 +112,7 @@ const SUBMIT_TRACKS_MAX_ATTEMPTS = 4
 export const submitMyTracks = (attempt = 1) => {
     const { lobby } = useLobbyStore.getState()
     const player = buildPlayerPayload()
-    const tracks = TrackStore.getState().likedTracks
+    const tracks = useTrackStore.getState().likedTracks
 
     if (!lobby || !player) return
 

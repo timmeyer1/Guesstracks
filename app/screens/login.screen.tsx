@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Text, View, Image } from "react-native";
 import { getSpotifyUserProfile, loginWithSpotify } from "../modules/auth/spotify";
 import { useAuthStore } from "../stores/auth.store";
-import { TrackStore } from "../stores/tracks.store";
+import { useTrackStore } from "../stores/tracks.store";
 import { spotifyService } from "../modules/spotify";
 import { deezerService, extractDeezerProfileId } from "../modules/deezer";
 import { CustomButton } from "../components/Button";
@@ -16,7 +16,7 @@ type Provider = 'spotify' | 'deezer';
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
     const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
-    const { setLikedTracks, setTotalTracks } = TrackStore.getState();
+    const { setLikedTracks, setTotalTracks } = useTrackStore.getState();
     const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
     const [isDeezerModalVisible, setIsDeezerModalVisible] = useState(false);
     const [deezerModalError, setDeezerModalError] = useState<string | undefined>(undefined);
@@ -25,7 +25,7 @@ export const LoginScreen = () => {
     // bascule isAuthenticated en dernier (une fois les titres likés en place)
     // — c'est lui qui déclenche la navigation hors de cet écran (cf.
     // Navigator.tsx), et un joueur qui atteindrait le lobby avant que
-    // TrackStore.likedTracks soit rempli y soumettrait 0 titre
+    // useTrackStore.likedTracks soit rempli y soumettrait 0 titre
     // (submitMyTracks ne se relance jamais après coup)
     const finalizeLogin = (
         provider: Provider,
