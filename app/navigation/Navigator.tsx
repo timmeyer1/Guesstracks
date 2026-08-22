@@ -36,6 +36,9 @@ export const AuthNavigator = () => {
                     // transition native (accélérée matériellement) au lieu du fondu
                     // par défaut d'Android, pour un enchaînement plus fluide entre les écrans
                     animation: 'slide_from_right',
+                    // durée par défaut ~350ms, ramenée à 200ms pour des transitions
+                    // (fondu comme glissement) plus rapides entre les écrans
+                    animationDuration: 200,
                 }}
             >
                 {!isAuthenticated ? (
