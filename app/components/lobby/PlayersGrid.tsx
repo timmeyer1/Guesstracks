@@ -12,6 +12,11 @@ interface User {
 
 type AvatarSize = keyof typeof AVATAR_SIZES
 
+// item de grille : soit un joueur, soit le bouton "Inviter" ajouté quand le
+// lobby n'est pas complet — isAddButton sert de discriminant pour que
+// TypeScript retrouve les bons champs (name/img/id) après le if plus bas
+type GridItem = (User & { isAddButton?: false }) | { id: 'add-button'; isAddButton: true }
+
 interface PlayersGridProps {
     users: User[]
     maxPlayers: number
@@ -32,12 +37,12 @@ export const PlayersGrid: React.FC<PlayersGridProps> = ({
 }) => {
     const px = AVATAR_SIZES[size]
 
-    const items = [...users]
+    const items: GridItem[] = [...users]
     if (users.length < maxPlayers) {
-        items.push({ id: 'add-button', isAddButton: true } as any)
+        items.push({ id: 'add-button', isAddButton: true })
     }
 
-    const rows: any[][] = []
+    const rows: GridItem[][] = []
     for (let i = 0; i < items.length; i += 3) {
         rows.push(items.slice(i, i + 3))
     }

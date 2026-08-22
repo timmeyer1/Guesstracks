@@ -36,7 +36,7 @@ const applySnapshot = (payload: GameStatePayload) => {
         case 'round_result':
             store.setPhase('round_result')
             store.setTotalRounds(payload.totalRounds)
-            store.setLeaderboard(payload.leaderboard as any)
+            store.setLeaderboard(payload.leaderboard)
             break
         case 'finished':
             store.setPhase('finished')

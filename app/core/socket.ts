@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client'
 import { LOBBY_SERVER_URL } from './constants'
-import type { GameRoundStart, GameRoundEnd, GameStarted, GameEnd, TrackType } from './types'
+import type { GameRoundStart, GameRoundEnd, GameStarted, GameEnd, LeaderboardEntry, TrackType } from './types'
 
 let socket: Socket | null = null
 
@@ -49,7 +49,7 @@ export const subscribeToLobby = (
 export type GameStatePayload =
     | { status: 'idle' | 'collecting' | 'finished' }
     | { status: 'in_round'; round: GameRoundStart }
-    | { status: 'round_result'; roundIndex: number | null; totalRounds: number; leaderboard: unknown }
+    | { status: 'round_result'; roundIndex: number | null; totalRounds: number; leaderboard: LeaderboardEntry[] }
 
 export type GameSocketHandlers = {
     onStarted: (payload: GameStarted) => void
