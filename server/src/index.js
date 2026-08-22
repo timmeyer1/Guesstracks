@@ -2,6 +2,7 @@ import 'dotenv/config'
 import http from 'node:http'
 import express from 'express'
 import cors from 'cors'
+import rateLimit from 'express-rate-limit'
 import { Server } from 'socket.io'
 
 import { connectDB } from './db.js'
@@ -24,8 +25,25 @@ const io = new Server(httpServer, {
 })
 
 app.get('/health', (req, res) => res.json({ ok: true }))
-app.use('/api', createLobbyRouter(io))
-app.use('/api/auth', createAuthRouter())
+
+// les codes de lobby ne font que 4 caractères (32^4 combinaisons) : sans
+// limite de débit, GET/join permettent de les brute-forcer pour rejoindre
+// des lobbies au hasard (cf. audit sécurité, finding I3)
+const lobbyLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 20, // 20 requêtes/min/IP sur les routes de lobby
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+const authLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 10, // 10 requêtes/min/IP sur l'échange de token OAuth
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
+app.use('/api', lobbyLimiter, createLobbyRouter(io))
+app.use('/api/auth', authLimiter, createAuthRouter())
 
 app.use((req, res) => {
     res.status(404).json({ error: 'Route introuvable' })
