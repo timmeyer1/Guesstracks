@@ -149,7 +149,7 @@ const LobbyScreen = () => {
                 { text: "Rester", style: "cancel" },
                 {
                     text: "Quitter",
-                    // EXPÉRIMENTAL — navigation optimiste (cf. discussion audit
+                    // EXPÉRIMENTAL — navigation optimisée (cf. discussion audit
                     // perf) : leaveLobby() avale déjà ses propres erreurs réseau
                     // (log + continue, cf. lobby.service.ts) sans jamais annuler
                     // le départ, donc attendre sa réponse avant de naviguer ne

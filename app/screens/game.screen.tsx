@@ -85,7 +85,7 @@ const GameScreen = () => {
     // chaque render de cet écran leur ferait perdre ce bénéfice
     const handleToggleWhoLiked = useCallback((id: string) => toggleSelection(id, true), [toggleSelection])
 
-    // EXPÉRIMENTAL — navigation optimiste, même principe que
+    // EXPÉRIMENTAL — navigation optimisée, même principe que
     // lobby.screen.tsx:handleLeaveLobby (cf. discussion audit perf)
     const handleBackToHome = () => {
         leaveLobby()

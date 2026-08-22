@@ -63,7 +63,7 @@ export const HomeScreen = () => {
         )
     }
 
-    // EXPÉRIMENTAL — navigation optimiste (cf. discussion audit perf) : on
+    // EXPÉRIMENTAL — navigation optimisée (cf. discussion audit perf) : on
     // bascule sur Lobby tout de suite (qui affiche déjà un spinner tant que
     // lobby est null, cf. lobby.screen.tsx) au lieu d'attendre la réponse du
     // serveur avant de naviguer, pour masquer l'aller-retour réseau derrière
