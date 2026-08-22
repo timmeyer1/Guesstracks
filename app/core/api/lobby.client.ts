@@ -8,6 +8,10 @@ export const lobbyApiClient = axios.create({
     headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        // sans ce header, un tunnel ngrok gratuit renvoie une page HTML
+        // d'avertissement au lieu de proxyfier la requête vers le serveur —
+        // inoffensif si le serveur n'est pas derrière ngrok (header ignoré)
+        'ngrok-skip-browser-warning': 'true',
     },
 })
 

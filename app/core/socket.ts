@@ -9,6 +9,9 @@ const getSocket = (): Socket => {
         socket = io(LOBBY_SERVER_URL, {
             transports: ['websocket'],
             autoConnect: true,
+            // même raison que app/core/api/lobby.client.ts : évite que le
+            // handshake échoue derrière un tunnel ngrok gratuit
+            extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
         })
         // émis par le serveur si lobby:subscribe reçoit un jeton de lobby
         // absent/invalide/expiré (cf. server/src/sockets/index.js) : le socket

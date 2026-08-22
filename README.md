@@ -61,6 +61,8 @@ Settings → Redirect URIs, ajouter :
 - `exp://<IP_LOCALE>:8081` (visible dans les logs à la connexion, cf. `app/modules/auth/spotify.ts`)
 
 Ces IP changent si le réseau change → mettre à jour `.env` et le dashboard.
+En tunnel (`expo start --tunnel`), l'URI affichée dans les logs change à
+chaque redémarrage du tunnel — même remarque.
 
 ## Connexion Deezer
 
@@ -99,6 +101,59 @@ npx expo start
 Vérifier le serveur : `curl http://localhost:4000/health` → `{"ok":true}`
 
 Après modif d'un `.env` : `npx expo start -c`
+
+### Ami sur un autre réseau
+
+Le serveur (port 4000) n'est accessible que sur le réseau local par défaut.
+Pour qu'un ami hors de ce réseau puisse rejoindre, il faut exposer le port
+4000 via [ngrok](https://ngrok.com).
+
+**Installation (une seule fois) :**
+
+```bash
+brew install ngrok
+```
+
+**Créer un compte (une seule fois)** — ngrok exige un compte gratuit depuis
+2023 pour utiliser le tunnel, même en usage ponctuel :
+
+1. Aller sur https://dashboard.ngrok.com/signup et créer un compte (email, ou
+   Google/GitHub)
+2. Une fois connecté, le token est affiché directement sur
+   https://dashboard.ngrok.com/get-started/your-authtoken — le copier
+3. L'enregistrer en local :
+
+```bash
+ngrok config add-authtoken <le_token_copié>
+```
+
+**À chaque session avec un ami distant :**
+
+```bash
+# terminal 1 : le serveur (cf. "Démarrage" plus haut)
+cd server && npm run dev
+
+# terminal 2 : le tunnel vers le serveur
+ngrok http 4000
+```
+
+`ngrok` affiche une ligne `Forwarding` du type
+`https://xxxx.ngrok-free.app -> http://localhost:4000` : copier cette URL
+dans `EXPO_PUBLIC_LOBBY_SERVER_URL` (`.env` racine), puis relancer l'app en
+tunnel :
+
+```bash
+# terminal 3 : l'app, avec cache vidé (le .env a changé) et en tunnel
+npx expo start -c --tunnel
+```
+
+Envoyer le lien `exp://...` affiché à l'ami (ouverture directe dans Expo Go).
+
+⚠️ Les 3 terminaux (serveur, ngrok, Expo) doivent rester ouverts pendant
+toute la session — fermer l'un d'eux coupe la partie pour tout le monde,
+vous y compris. L'URL ngrok **change à chaque redémarrage de `ngrok`** (plan
+gratuit) : il faut alors répéter l'étape "copier l'URL dans `.env`, relancer
+Expo".
 
 ## Dépannage
 
