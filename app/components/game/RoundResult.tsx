@@ -45,7 +45,7 @@ export const RoundResult: React.FC<RoundResultProps> = ({ result, questionType, 
 
             {previewUrl && (
                 <View className="mb-4">
-                    <AudioPlayer previewUrl={previewUrl} compact />
+                    <AudioPlayer previewUrl={previewUrl} startedAt={result.audioStartedAt} compact />
                 </View>
             )}
 

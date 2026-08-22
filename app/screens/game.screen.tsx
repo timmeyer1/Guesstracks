@@ -60,6 +60,7 @@ const GameScreen = () => {
         round,
         lastRoundEnd,
         finalLeaderboard,
+        finalAudioStartedAt,
         totalRounds,
         catalog,
         mySelection,
@@ -71,6 +72,7 @@ const GameScreen = () => {
             round: s.round,
             lastRoundEnd: s.lastRoundEnd,
             finalLeaderboard: s.finalLeaderboard,
+            finalAudioStartedAt: s.finalAudioStartedAt,
             totalRounds: s.totalRounds,
             catalog: s.catalog,
             mySelection: s.mySelection,
@@ -119,6 +121,7 @@ const GameScreen = () => {
                     onStayInLobby={handleStayInLobby}
                     onBackToHome={handleBackToHome}
                     lastPreviewUrl={round?.track.previewUrl}
+                    audioStartedAt={finalAudioStartedAt}
                 />
             </ScreenLayout>
         )
@@ -145,7 +148,7 @@ const GameScreen = () => {
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
-                <ScreenLayout noPadding shapes={!isSearchMode ? GAME_SHAPES : undefined}>
+                <ScreenLayout noPadding shapes={GAME_SHAPES}>
                     {!isSearchMode ? (
                         <View className="flex-1 px-8 pb-10" style={{ paddingTop: insets.top + topExtraSpacing }}>
                             <RoundHeader

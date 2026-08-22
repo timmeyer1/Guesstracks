@@ -71,7 +71,7 @@ export const startWatchingGame = () => {
             useGameStore.getState().endRound(payload)
         },
         onEnd: (payload: GameEnd) => {
-            useGameStore.getState().setFinal(payload.leaderboard, payload.totalRounds)
+            useGameStore.getState().setFinal(payload.leaderboard, payload.totalRounds, payload.audioStartedAt)
         },
         onError: (payload) => {
             useGameStore.getState().setError(payload.message)

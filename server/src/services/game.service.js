@@ -28,6 +28,12 @@ const games = new Map()
 
 const room = (code) => `lobby:${code}`
 
+// instant commun (epoch) auquel les clients doivent lancer la lecture d'un
+// extrait, avec la même marge de bufferisation que le lancement de manche
+// (cf. startNextRound et AUDIO_SYNC_LEAD_MS) — utilisé pour les extraits
+// rejoués sur les écrans de résultat de manche / résultats finaux.
+const audioSyncedStart = () => Date.now() + AUDIO_SYNC_LEAD_MS
+
 const emptyScore = () => ({
     total: 0,
     streak: 0,
@@ -476,7 +482,7 @@ const startNextRound = async (code, io) => {
     // l'extrait pile à cet instant plutôt que dès que son propre buffer est
     // prêt (cf. AudioPlayer.tsx), pour que tout le monde entende la musique
     // démarrer en même temps.
-    round.startedAt = Date.now() + AUDIO_SYNC_LEAD_MS
+    round.startedAt = audioSyncedStart()
 
     io.to(room(code)).emit('game:round:start', publicRound(game, round))
 
@@ -590,6 +596,7 @@ const endRound = (code, io) => {
         },
         results,
         leaderboard: buildLeaderboard(game),
+        audioStartedAt: audioSyncedStart(),
     })
 
     game.timer = setTimeout(() => {
@@ -616,7 +623,7 @@ const finishGame = (code, io) => {
         }
     })
 
-    io.to(room(code)).emit('game:end', { leaderboard, totalRounds })
+    io.to(room(code)).emit('game:end', { leaderboard, totalRounds, audioStartedAt: audioSyncedStart() })
 
     startReturnWaiting(code, io)
 }

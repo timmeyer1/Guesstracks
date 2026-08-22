@@ -17,6 +17,11 @@ type GameStoreType = {
     lastRoundEnd: GameRoundEnd | null
     leaderboard: LeaderboardEntry[]
     finalLeaderboard: FinalLeaderboardEntry[]
+    // instant commun (epoch) auquel rejouer l'extrait sur l'écran de
+    // résultats finaux (cf. GameEnd.audioStartedAt) ; absent de
+    // FinalLeaderboardEntry car ce n'est pas une propriété d'entrée de
+    // classement mais de l'événement game:end dans son ensemble
+    finalAudioStartedAt: number | null
     catalog: CatalogEntry[] // titres cherchables en mode blindtest
     mySelection: string[]
     hasAnswered: boolean
@@ -38,7 +43,7 @@ type GameStoreType = {
     startRound: (round: GameRoundStart) => void
     endRound: (payload: GameRoundEnd) => void
     setLeaderboard: (leaderboard: LeaderboardEntry[]) => void
-    setFinal: (leaderboard: FinalLeaderboardEntry[], totalRounds: number) => void
+    setFinal: (leaderboard: FinalLeaderboardEntry[], totalRounds: number, audioStartedAt: number) => void
     toggleSelection: (id: string, multi: boolean) => void
     setHasAnswered: (hasAnswered: boolean) => void
     setError: (message: string | null) => void
@@ -63,6 +68,7 @@ const initialState = {
     lastRoundEnd: null as GameRoundEnd | null,
     leaderboard: [] as LeaderboardEntry[],
     finalLeaderboard: [] as FinalLeaderboardEntry[],
+    finalAudioStartedAt: null as number | null,
     catalog: [] as CatalogEntry[],
     mySelection: [] as string[],
     hasAnswered: false,
@@ -81,6 +87,7 @@ const rematchState = {
     lastRoundEnd: initialState.lastRoundEnd,
     leaderboard: initialState.leaderboard,
     finalLeaderboard: initialState.finalLeaderboard,
+    finalAudioStartedAt: initialState.finalAudioStartedAt,
     catalog: initialState.catalog,
     mySelection: initialState.mySelection,
     hasAnswered: initialState.hasAnswered,
@@ -116,8 +123,8 @@ export const useGameStore = create<GameStoreType>((set, get) => ({
 
     setLeaderboard: (leaderboard) => set({ leaderboard }),
 
-    setFinal: (finalLeaderboard, totalRounds) =>
-        set({ phase: 'finished', finalLeaderboard, totalRounds }),
+    setFinal: (finalLeaderboard, totalRounds, audioStartedAt) =>
+        set({ phase: 'finished', finalLeaderboard, totalRounds, finalAudioStartedAt: audioStartedAt }),
 
     toggleSelection: (id, multi) => {
         const { mySelection } = get()

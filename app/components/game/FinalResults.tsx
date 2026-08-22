@@ -16,6 +16,9 @@ type FinalResultsProps = {
     // extrait de la toute dernière manche jouée (cf. game.screen.tsx), pour
     // que la musique continue plutôt que de s'arrêter net à l'écran final
     lastPreviewUrl?: string | null
+    // instant commun (epoch) auquel lancer cet extrait sur tous les
+    // appareils (cf. GameEnd.audioStartedAt)
+    audioStartedAt?: number | null
 }
 
 // ordre d'affichage du podium : 2e, 1er, 3e (au centre, en hauteur)
@@ -28,6 +31,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
     onStayInLobby,
     onBackToHome,
     lastPreviewUrl,
+    audioStartedAt,
 }) => {
     const podium = leaderboard.slice(0, 3)
     const rest = leaderboard.slice(3)
@@ -85,7 +89,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
 
             {lastPreviewUrl && (
                 <View className="mb-4">
-                    <AudioPlayer previewUrl={lastPreviewUrl} compact />
+                    <AudioPlayer previewUrl={lastPreviewUrl} startedAt={audioStartedAt ?? undefined} compact />
                 </View>
             )}
 

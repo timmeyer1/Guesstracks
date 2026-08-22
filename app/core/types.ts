@@ -112,6 +112,11 @@ export type GameRoundEnd = {
     track: { id: string; name: string; artist: string; album: string; image: string | null }
     results: GameRoundPlayerResult[]
     leaderboard: LeaderboardEntry[]
+    // même principe que GameRoundStart.startedAt : instant commun (epoch,
+    // cf. server/src/constants.js AUDIO_SYNC_LEAD_MS) auquel rejouer l'extrait
+    // sur l'écran de résultat de manche, pour que tous les appareils
+    // l'entendent reprendre en même temps
+    audioStartedAt: number
 }
 
 export type GameStarted = {
@@ -123,6 +128,9 @@ export type GameStarted = {
 export type GameEnd = {
     leaderboard: FinalLeaderboardEntry[]
     totalRounds: number
+    // même principe que GameRoundEnd.audioStartedAt, pour l'extrait rejoué
+    // sur l'écran de résultats finaux
+    audioStartedAt: number
 }
 
 export type GamePhase = 'idle' | 'collecting' | 'in_round' | 'round_result' | 'finished'
