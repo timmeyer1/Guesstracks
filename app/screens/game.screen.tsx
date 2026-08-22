@@ -144,55 +144,64 @@ const GameScreen = () => {
         const isSearchMode = round.questionType === 'guess_track'
 
         return (
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
-                <ScreenLayout noPadding shapes={GAME_SHAPES}>
-                    {!isSearchMode ? (
-                        <View className="flex-1 px-8 pb-10" style={{ paddingTop: insets.top + topExtraSpacing }}>
-                            <RoundHeader
-                                roundIndex={round.roundIndex}
-                                totalRounds={round.totalRounds}
-                                startedAt={round.startedAt}
-                                duration={round.duration}
-                                gameMode={gameMode}
-                                compact
-                            />
+            // KeyboardAvoidingView ne doit envelopper QUE le contenu qui a
+            // besoin de laisser de la place au clavier (la recherche
+            // blindtest, cf. ci-dessous) : l'englober autour de ScreenLayout
+            // (comme avant) faisait aussi rétrécir/repositionner les formes
+            // décoratives (CornerShape, positionnées en % de leur conteneur)
+            // dès que le clavier s'ouvrait, alors qu'elles doivent rester
+            // fixes par rapport à l'écran entier.
+            <ScreenLayout noPadding shapes={GAME_SHAPES}>
+                {!isSearchMode ? (
+                    <View className="flex-1 px-8 pb-10" style={{ paddingTop: insets.top + topExtraSpacing }}>
+                        <RoundHeader
+                            roundIndex={round.roundIndex}
+                            totalRounds={round.totalRounds}
+                            startedAt={round.startedAt}
+                            duration={round.duration}
+                            gameMode={gameMode}
+                            compact
+                        />
 
-                            <View className="items-center mb-4">
-                                {round.track.image && (
-                                    <Image
-                                        source={{ uri: round.track.image }}
-                                        style={{ width: 80, height: 80, borderRadius: 16 }}
-                                        className="mb-2"
-                                    />
-                                )}
-                                <Text className="text-black text-lg font-bold text-center">
-                                    {truncateTitle(round.track.name)}
-                                </Text>
-                                <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
-                            </View>
-
-                            <View className="mb-6">
-                                <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} />
-                            </View>
-
-                            <WhoLikedQuestion
-                                options={round.options}
-                                selected={mySelection}
-                                hasAnswered={hasAnswered}
-                                startedAt={round.startedAt}
-                                duration={round.duration}
-                                onToggle={(id) => toggleSelection(id, true)}
-                                onSubmit={() => submitAnswer(mySelection)}
-                            />
+                        <View className="items-center mb-4">
+                            {round.track.image && (
+                                <Image
+                                    source={{ uri: round.track.image }}
+                                    style={{ width: 80, height: 80, borderRadius: 16 }}
+                                    className="mb-2"
+                                />
+                            )}
+                            <Text className="text-black text-lg font-bold text-center">
+                                {truncateTitle(round.track.name)}
+                            </Text>
+                            <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
                         </View>
-                    ) : (
-                        // en mode blindtest, le décompte, la pochette floutée et le titre
-                        // restent en haut, tandis que la recherche reste seule en bas de
-                        // l'écran : quand le clavier s'ouvre, KeyboardAvoidingView réduit
-                        // l'espace disponible et ce bloc du bas remonte au-dessus
+
+                        <View className="mb-6">
+                            <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} />
+                        </View>
+
+                        <WhoLikedQuestion
+                            options={round.options}
+                            selected={mySelection}
+                            hasAnswered={hasAnswered}
+                            startedAt={round.startedAt}
+                            duration={round.duration}
+                            onToggle={(id) => toggleSelection(id, true)}
+                            onSubmit={() => submitAnswer(mySelection)}
+                        />
+                    </View>
+                ) : (
+                    // en mode blindtest, le décompte, la pochette floutée et le titre
+                    // restent en haut, tandis que la recherche reste seule en bas de
+                    // l'écran : quand le clavier s'ouvre, KeyboardAvoidingView réduit
+                    // l'espace disponible et ce bloc du bas remonte au-dessus. Limité à
+                    // ce seul contenu (cf. commentaire plus haut) pour ne pas affecter
+                    // les formes décoratives de ScreenLayout.
+                    <KeyboardAvoidingView
+                        style={{ flex: 1 }}
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    >
                         <View
                             className="flex-1 px-8 pb-4 justify-between"
                             style={{ paddingTop: insets.top + topExtraSpacing }}
@@ -231,9 +240,9 @@ const GameScreen = () => {
                                 }}
                             />
                         </View>
-                    )}
-                </ScreenLayout>
-            </KeyboardAvoidingView>
+                    </KeyboardAvoidingView>
+                )}
+            </ScreenLayout>
         )
     }
 
