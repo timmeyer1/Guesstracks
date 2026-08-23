@@ -1,4 +1,4 @@
-import { GameMode, PhaseSpeed } from '../types'
+import { GameMode, PhaseSpeed, TrackAlgorithm } from '../types'
 
 // mode de jeu
 export const GAME_MODES = {
@@ -13,6 +13,23 @@ export const GAME_MODES = {
         // description: '',
     },
 } as const satisfies Record<GameMode, { label: string; icon: string }>
+
+// algorithme de sélection des titres (mode blindtest uniquement, cf.
+// LobbySettingsModal) — labels affichés dans le sélecteur de réglages
+export const TRACK_ALGORITHMS = {
+    random: {
+        label: 'Complètement aléatoire',
+        description: 'Les titres sont tirés au hasard, sans autre contrainte',
+    },
+    known_half: {
+        label: '1 titre connu de tous / 2',
+        description: 'Un titre sur deux sera aimé par plusieurs joueurs',
+    },
+    known_third: {
+        label: '1 titre connu de tous / 3',
+        description: 'Un titre sur trois sera aimé par plusieurs joueurs',
+    },
+} as const satisfies Record<TrackAlgorithm, { label: string; description: string }>
 
 // limites
 export const LOBBY_LIMITS = {
@@ -33,6 +50,7 @@ export const DEFAULT_LOBBY_SETTINGS = {
     rounds: 10,
     phaseSpeed: 15 as PhaseSpeed,
     manualAdvance: false,
+    trackAlgorithm: 'random' as TrackAlgorithm,
     maxPlayers: LOBBY_LIMITS.MAX_PLAYERS,
 }
 

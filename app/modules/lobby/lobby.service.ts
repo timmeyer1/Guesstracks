@@ -21,6 +21,7 @@ type ServerLobby = {
     rounds: number
     phaseSpeed: LobbyType['phaseSpeed']
     manualAdvance: boolean
+    trackAlgorithm: LobbyType['trackAlgorithm']
     settingsConfirmed: boolean
     maxPlayers: number
     players: ServerPlayer[]
@@ -48,6 +49,7 @@ const applyServerLobby = (serverLobby: ServerLobby) => {
         rounds: serverLobby.rounds,
         phaseSpeed: serverLobby.phaseSpeed,
         manualAdvance: serverLobby.manualAdvance,
+        trackAlgorithm: serverLobby.trackAlgorithm,
         settingsConfirmed: serverLobby.settingsConfirmed,
     })
     setUsers(serverLobby.players.map(toLobbyUser))
@@ -199,6 +201,7 @@ export const updateLobbySettings = async (settings: {
     rounds: number
     phaseSpeed: LobbyType['phaseSpeed']
     manualAdvance: boolean
+    trackAlgorithm: LobbyType['trackAlgorithm']
 }): Promise<LobbyResult> => {
     const { user } = useAuthStore.getState()
     const { lobby } = useLobbyStore.getState()

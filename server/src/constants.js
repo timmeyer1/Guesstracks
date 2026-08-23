@@ -1,5 +1,22 @@
 export const GAME_MODES = ['guesstracks', 'blindtest']
 
+// mode blindtest uniquement (cf. LobbySettingsModal côté client) : comment
+// les titres des manches sont choisis parmi le pool de titres likés
+// - random : tirage complètement aléatoire, sans autre contrainte
+// - known_half / known_third : un titre sur 2 (ou sur 3) doit être un titre
+//   "connu de tous" (cf. isPopularTrack, game.service.js)
+export const TRACK_ALGORITHMS = ['random', 'known_half', 'known_third']
+
+// seuil (nombre de joueurs actifs ayant liké un titre) à partir duquel un
+// titre est considéré "connu de tous" en mode known_half/known_third — plus
+// élevé dans un grand lobby, sinon un titre liké par 3 joueurs sur 12 ne
+// représente plus vraiment "tout le monde" (cf. game.service.js)
+export const POPULAR_TRACK_THRESHOLD = {
+    DEFAULT: 2, // "plus de 2" joueurs, donc 3 ou plus
+    BIG_LOBBY: 3, // "plus de 3" joueurs, donc 4 ou plus
+    BIG_LOBBY_MIN_PLAYERS: 7,
+}
+
 export const LOBBY_LIMITS = {
     MIN_ROUNDS: 5,
     MAX_ROUNDS: 30,
@@ -21,6 +38,7 @@ export const DEFAULT_LOBBY_SETTINGS = {
     rounds: 10,
     phaseSpeed: 15,
     manualAdvance: false,
+    trackAlgorithm: 'random',
 }
 
 export const CODE_LENGTH = 4

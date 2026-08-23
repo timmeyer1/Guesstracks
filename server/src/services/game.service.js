@@ -7,6 +7,7 @@ import {
     LOBBY_LIMITS,
     RETURN_TO_LOBBY_TIMEOUT_MS,
     AUDIO_SYNC_LEAD_MS,
+    POPULAR_TRACK_THRESHOLD,
 } from '../constants.js'
 import { resolvePreviewUrl, normalizeTrackText } from './preview.service.js'
 import { resolveDeezerArtist } from './deezer.service.js'
@@ -260,34 +261,32 @@ const buildGuesstracksRounds = async (pool, requestedRounds, activePlayerIds) =>
     return [...fairnessRounds, ...withPreview, ...withoutPreview].slice(0, requestedRounds)
 }
 
-// mode blindtest : on devine le titre, donc un extrait est indispensable.
-// Même logique d'équité que buildGuesstracksRounds (une passe d'équité dont
-// les manches sont toujours conservées, puis une passe de remplissage), mais
-// l'extrait est requis dès la première passe (pas de repli "sans extrait" ici).
-const buildBlindtestRounds = async (pool, requestedRounds, activePlayerIds) => {
-    const shuffledPool = shuffle(pool)
-    const used = new Set()
-    const fairnessRounds = []
-    const uncovered = new Set(activePlayerIds)
+// nombre de joueurs actifs ayant liké un titre, parmi ceux réellement présents
+// dans la partie (le pool peut contenir des likes de joueurs qui ont depuis
+// quitté le lobby, cf. buildPool)
+const likedByCount = (track, activePlayerIds) =>
+    [...track.likedBy].filter((id) => activePlayerIds.includes(id)).length
 
-    for (const track of byCoverageDesc(shuffledPool, activePlayerIds)) {
-        if (fairnessRounds.length >= requestedRounds || uncovered.size === 0) break
-        const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
-        if (!likedBy.some((id) => uncovered.has(id))) continue
+// un titre est "connu de tous" (cf. modes known_half/known_third) à partir de
+// POPULAR_TRACK_THRESHOLD.DEFAULT joueurs actifs qui l'ont liké — un seuil
+// plus élevé (BIG_LOBBY) dans un grand lobby, sinon un titre liké par 3
+// joueurs sur 12 ne représente plus vraiment "tout le monde" (cf. constants.js)
+const isPopularTrack = (track, activePlayerIds) => {
+    const threshold =
+        activePlayerIds.length >= POPULAR_TRACK_THRESHOLD.BIG_LOBBY_MIN_PLAYERS
+            ? POPULAR_TRACK_THRESHOLD.BIG_LOBBY
+            : POPULAR_TRACK_THRESHOLD.DEFAULT
+    return likedByCount(track, activePlayerIds) > threshold
+}
 
-        const previewUrl = await resolvePreviewUrl(track)
-        if (!previewUrl) continue
-
-        used.add(track.id)
-        fairnessRounds.push({ track: { ...track, previewUrl } })
-        for (const id of likedBy) uncovered.delete(id)
-    }
-
-    const remainingSlots = requestedRounds - fairnessRounds.length
+// pioche jusqu'à `count` manches dans `candidates` (déjà mélangés/triés),
+// extrait audio requis (repli vers le titre suivant sinon) ; `used` est
+// partagé entre tous les appels d'une même partie pour ne jamais reproposer
+// un titre déjà retenu pour une autre manche
+const takeRounds = async (candidates, count, used) => {
     const rounds = []
-
-    for (const track of shuffledPool) {
-        if (rounds.length >= remainingSlots) break
+    for (const track of candidates) {
+        if (rounds.length >= count) break
         if (used.has(track.id)) continue
 
         const previewUrl = await resolvePreviewUrl(track)
@@ -296,8 +295,53 @@ const buildBlindtestRounds = async (pool, requestedRounds, activePlayerIds) => {
         used.add(track.id)
         rounds.push({ track: { ...track, previewUrl } })
     }
+    return rounds
+}
 
-    return [...fairnessRounds, ...rounds]
+// intervalle "1 titre connu de tous sur N" selon l'algorithme choisi par
+// l'hôte (cf. LobbySettingsModal côté client) — absent pour "random"
+const POPULAR_SLOT_INTERVAL = { known_half: 2, known_third: 3 }
+
+// mode blindtest : on devine le titre, donc un extrait est indispensable. Le
+// choix des titres dépend de trackAlgorithm :
+// - random : tirage complètement aléatoire dans le pool, sans autre contrainte
+// - known_half / known_third : un titre sur 2 (ou sur 3) doit être "connu de
+//   tous" (cf. isPopularTrack) ; si le pool ne contient pas assez de titres
+//   populaires distincts pour remplir tous ces créneaux, on comble avec un
+//   titre normal à la place — pas d'autre choix possible
+const buildBlindtestRounds = async (pool, requestedRounds, activePlayerIds, trackAlgorithm) => {
+    const shuffledPool = shuffle(pool)
+    const used = new Set()
+
+    const interval = POPULAR_SLOT_INTERVAL[trackAlgorithm]
+    if (!interval) {
+        return takeRounds(shuffledPool, requestedRounds, used)
+    }
+
+    const popularIds = new Set(
+        shuffledPool.filter((track) => isPopularTrack(track, activePlayerIds)).map((track) => track.id)
+    )
+    const popularCandidates = shuffledPool.filter((track) => popularIds.has(track.id))
+    const normalCandidates = shuffledPool.filter((track) => !popularIds.has(track.id))
+
+    const rounds = []
+    for (let i = 0; i < requestedRounds; i += 1) {
+        const wantsPopular = (i + 1) % interval === 0
+        const primary = wantsPopular ? popularCandidates : normalCandidates
+        const fallback = wantsPopular ? normalCandidates : popularCandidates
+
+        const [picked] = await takeRounds(primary, 1, used)
+        if (picked) {
+            rounds.push(picked)
+            continue
+        }
+        const [fallbackPicked] = await takeRounds(fallback, 1, used)
+        if (fallbackPicked) rounds.push(fallbackPicked)
+        // sinon : plus aucun titre disponible avec extrait, cette manche est
+        // simplement absente (cf. MIN_ROUNDS_PLAYABLE côté appelant)
+    }
+
+    return rounds
 }
 
 // nombre d'enrichissements Deezer (cf. resolveDeezerArtist) menés en
@@ -432,7 +476,7 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     const built =
         questionType === 'who_liked'
             ? await buildGuesstracksRounds(pool, lobby.rounds, activePlayerIds)
-            : await buildBlindtestRounds(pool, lobby.rounds, activePlayerIds)
+            : await buildBlindtestRounds(pool, lobby.rounds, activePlayerIds, lobby.trackAlgorithm)
 
     if (built.length < MIN_ROUNDS_PLAYABLE) {
         throw new GameError(

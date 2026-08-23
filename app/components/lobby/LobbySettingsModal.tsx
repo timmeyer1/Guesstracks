@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react"
 import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView, Switch } from "react-native"
 import Slider from "@react-native-community/slider"
-import { GAME_MODES, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
+import { GAME_MODES, TRACK_ALGORITHMS, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
-import { GameMode, PhaseSpeed } from "../../core/types"
+import { GameMode, PhaseSpeed, TrackAlgorithm } from "../../core/types"
 import { SectionTitle } from "../SectionTitle"
 import { CustomButton } from "../Button"
 
@@ -12,6 +12,7 @@ export type LobbySettings = {
     rounds: number
     phaseSpeed: PhaseSpeed
     manualAdvance: boolean
+    trackAlgorithm: TrackAlgorithm
 }
 
 type LobbySettingsModalProps = {
@@ -41,6 +42,16 @@ export const LobbySettingsModal = ({
     const [manualAdvance, setManualAdvance] = useState(
         initialSettings?.manualAdvance ?? DEFAULT_LOBBY_SETTINGS.manualAdvance
     )
+    const [trackAlgorithm, setTrackAlgorithm] = useState<TrackAlgorithm>(
+        initialSettings?.trackAlgorithm ?? DEFAULT_LOBBY_SETTINGS.trackAlgorithm
+    )
+
+    // couleur d'accent des réglages (curseurs, contours, switch...) : celle du
+    // mode de jeu actuellement sélectionné (violet guesstracks / orange
+    // blindtest, cf. colors.constants.ts) plutôt qu'une couleur fixe, pour que
+    // toute la modale se re-teinte instantanément quand on change de mode —
+    // s'étend automatiquement à un futur mode tant qu'il a une entrée dans COLORS
+    const accentColor = COLORS[gameMode]
 
     // synchro avec les paramètres initiaux quand la modal s'ouvre
     useEffect(() => {
@@ -49,11 +60,12 @@ export const LobbySettingsModal = ({
             setRounds(initialSettings.rounds)
             setPhaseSpeed(initialSettings.phaseSpeed)
             setManualAdvance(initialSettings.manualAdvance)
+            setTrackAlgorithm(initialSettings.trackAlgorithm)
         }
     }, [visible, initialSettings])
 
     const handleConfirm = () => {
-        onConfirm({ gameMode, rounds, phaseSpeed, manualAdvance })
+        onConfirm({ gameMode, rounds, phaseSpeed, manualAdvance, trackAlgorithm })
         onClose()
     }
 
@@ -64,11 +76,13 @@ export const LobbySettingsModal = ({
             setRounds(initialSettings.rounds)
             setPhaseSpeed(initialSettings.phaseSpeed)
             setManualAdvance(initialSettings.manualAdvance)
+            setTrackAlgorithm(initialSettings.trackAlgorithm)
         } else {
             setGameMode(DEFAULT_LOBBY_SETTINGS.gameMode)
             setRounds(DEFAULT_LOBBY_SETTINGS.rounds)
             setPhaseSpeed(DEFAULT_LOBBY_SETTINGS.phaseSpeed)
             setManualAdvance(DEFAULT_LOBBY_SETTINGS.manualAdvance)
+            setTrackAlgorithm(DEFAULT_LOBBY_SETTINGS.trackAlgorithm)
         }
         onClose()
     }
@@ -132,9 +146,9 @@ export const LobbySettingsModal = ({
                                     step={LOBBY_LIMITS.ROUNDS_STEP}
                                     value={rounds}
                                     onValueChange={setRounds}
-                                    minimumTrackTintColor={COLORS.primary}
+                                    minimumTrackTintColor={accentColor}
                                     maximumTrackTintColor="transparent"
-                                    thumbTintColor={COLORS.primary}
+                                    thumbTintColor={accentColor}
                                 />
                             </View>
                             <View className="flex-row justify-between mt-2">
@@ -158,9 +172,9 @@ export const LobbySettingsModal = ({
                                     step={LOBBY_LIMITS.PHASE_SPEED_STEP}
                                     value={phaseSpeed}
                                     onValueChange={setPhaseSpeed}
-                                    minimumTrackTintColor={COLORS.primary}
+                                    minimumTrackTintColor={accentColor}
                                     maximumTrackTintColor="transparent"
-                                    thumbTintColor={COLORS.primary}
+                                    thumbTintColor={accentColor}
                                 />
                             </View>
                             <View className="flex-row justify-between mt-2">
@@ -168,6 +182,40 @@ export const LobbySettingsModal = ({
                                 <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MAX_PHASE_SPEED}s</Text>
                             </View>
                         </View>
+
+                        {/* spécifique au blindtest : détermine comment les titres des
+                            manches sont choisis (cf. TRACK_ALGORITHMS) — n'a aucun effet
+                            en guesstracks (le titre y est toujours affiché, jamais deviné),
+                            donc masqué pour ne pas exposer un réglage sans effet */}
+                        {gameMode === 'blindtest' && (
+                            <View className="mb-6">
+                                <SectionTitle title="Choix des titres" align="center" titleSize="sm" className="mb-3" />
+                                <View className="gap-2">
+                                    {(Object.keys(TRACK_ALGORITHMS) as TrackAlgorithm[]).map((algorithm) => {
+                                        const selected = trackAlgorithm === algorithm
+                                        return (
+                                            <TouchableOpacity
+                                                key={algorithm}
+                                                className="rounded-2xl px-4 py-3"
+                                                style={{
+                                                    backgroundColor: selected ? accentColor + '15' : COLORS.offwhite,
+                                                    borderWidth: 1.5,
+                                                    borderColor: selected ? accentColor : 'transparent',
+                                                }}
+                                                onPress={() => setTrackAlgorithm(algorithm)}
+                                            >
+                                                <Text className="font-bold text-black text-sm">
+                                                    {TRACK_ALGORITHMS[algorithm].label}
+                                                </Text>
+                                                <Text className="text-darkgray text-xs mt-0.5">
+                                                    {TRACK_ALGORITHMS[algorithm].description}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )
+                                    })}
+                                </View>
+                            </View>
+                        )}
 
                         <View className="mb-2 flex-row items-center justify-between bg-offwhite rounded-2xl px-4 py-3">
                             <View className="flex-1 mr-3">
@@ -178,7 +226,7 @@ export const LobbySettingsModal = ({
                             <Switch
                                 value={!manualAdvance}
                                 onValueChange={(value) => setManualAdvance(!value)}
-                                trackColor={{ true: COLORS.primary }}
+                                trackColor={{ true: accentColor }}
                                 thumbColor={COLORS.white}
                             />
                         </View>
