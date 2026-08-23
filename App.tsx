@@ -13,7 +13,7 @@ export default function App() {
         <ErrorBoundary>
           <AuthNavigator />
         </ErrorBoundary>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -270,6 +270,13 @@ const LobbyScreen = () => {
                     className="flex-1 w-full"
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingBottom: 20 }}
+                    // Android uniquement : sans ça, le conteneur natif de l'écran
+                    // (react-native-screens) intercepte le geste de glissement
+                    // vertical avant que cette ScrollView ne le récupère, même
+                    // sans ScrollView parent visible côté JS (cf. même bug déjà
+                    // rencontré sur TrackSuggestionsList) — la liste reste
+                    // affichée mais ne réagit à aucun glissement
+                    nestedScrollEnabled
                 >
                     <PlayersGrid
                         users={users}

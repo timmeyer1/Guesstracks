@@ -84,7 +84,17 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
                 Plusieurs choix possibles
             </Text>
 
-            <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                contentContainerStyle={{ flexGrow: 1 }}
+                showsVerticalScrollIndicator={false}
+                // Android uniquement : sans ça, le conteneur natif de l'écran
+                // (react-native-screens) intercepte le geste de glissement
+                // vertical avant que cette ScrollView ne le récupère, même
+                // sans ScrollView parent visible côté JS (cf. même bug déjà
+                // rencontré sur TrackSuggestionsList) — la liste reste
+                // affichée mais ne réagit à aucun glissement
+                nestedScrollEnabled
+            >
                 <View className="flex-row flex-wrap justify-between gap-y-3">
                     {options.map((option) => (
                         <OptionRow
