@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { GAME_MODES, PHASE_SPEEDS, LOBBY_LIMITS } from '../constants.js'
+import { GAME_MODES, PHASE_SPEED_LIMITS, LOBBY_LIMITS } from '../constants.js'
 
 const playerSchema = new mongoose.Schema(
     {
@@ -16,7 +16,7 @@ const lobbySchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true, maxlength: 60 },
     gameMode: { type: String, enum: GAME_MODES, default: 'guesstracks' },
     rounds: { type: Number, min: LOBBY_LIMITS.MIN_ROUNDS, max: LOBBY_LIMITS.MAX_ROUNDS, default: 10 },
-    phaseSpeed: { type: String, enum: PHASE_SPEEDS, default: 'normal' },
+    phaseSpeed: { type: Number, min: PHASE_SPEED_LIMITS.MIN, max: PHASE_SPEED_LIMITS.MAX, default: 15 },
     // le lobby a des valeurs par défaut dès sa création, mais tant que l'hôte
     // n'a pas explicitement validé les réglages, on ne veut pas les afficher
     // comme "choisis" aux autres joueurs (cf. LobbySettingsModal)

@@ -1,6 +1,6 @@
 import { LobbyModel } from '../models/lobby.model.js'
 import { generateUniqueLobbyCode } from '../utils/generateCode.js'
-import { GAME_MODES, PHASE_SPEEDS, LOBBY_LIMITS, DEFAULT_LOBBY_SETTINGS } from '../constants.js'
+import { GAME_MODES, PHASE_SPEED_LIMITS, LOBBY_LIMITS, DEFAULT_LOBBY_SETTINGS } from '../constants.js'
 
 export class LobbyError extends Error {
     constructor(message, status = 400) {
@@ -103,15 +103,26 @@ export const updateLobbySettings = async (code, playerId, settings) => {
     }
 
     if (settings.phaseSpeed !== undefined) {
-        if (!PHASE_SPEEDS.includes(settings.phaseSpeed)) {
+        const phaseSpeed = Number(settings.phaseSpeed)
+        if (
+            !Number.isInteger(phaseSpeed) ||
+            phaseSpeed < PHASE_SPEED_LIMITS.MIN ||
+            phaseSpeed > PHASE_SPEED_LIMITS.MAX ||
+            phaseSpeed % PHASE_SPEED_LIMITS.STEP !== 0
+        ) {
             throw new LobbyError('Vitesse de phase invalide')
         }
-        lobby.phaseSpeed = settings.phaseSpeed
+        lobby.phaseSpeed = phaseSpeed
     }
 
     if (settings.rounds !== undefined) {
         const rounds = Number(settings.rounds)
-        if (!Number.isInteger(rounds) || rounds < LOBBY_LIMITS.MIN_ROUNDS || rounds > LOBBY_LIMITS.MAX_ROUNDS) {
+        if (
+            !Number.isInteger(rounds) ||
+            rounds < LOBBY_LIMITS.MIN_ROUNDS ||
+            rounds > LOBBY_LIMITS.MAX_ROUNDS ||
+            rounds % LOBBY_LIMITS.ROUNDS_STEP !== 0
+        ) {
             throw new LobbyError('Nombre de manches invalide')
         }
         lobby.rounds = rounds

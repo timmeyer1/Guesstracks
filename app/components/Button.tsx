@@ -91,7 +91,10 @@ export const CustomButton = ({
                     </>
                 )}
 
-                <Text className={`text-sm font-semibold ${available ? textClass : 'text-gray-500'}`}>
+                <Text
+                    numberOfLines={1}
+                    className={`text-sm font-semibold ${available ? textClass : 'text-gray-500'}`}
+                >
                     {name}
                 </Text>
             </Pressable>

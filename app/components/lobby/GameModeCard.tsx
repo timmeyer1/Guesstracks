@@ -1,14 +1,15 @@
 import React from 'react'
-import { View, Text } from 'react-native'
-import { Flag, Clock, HelpCircle, Music, Trophy } from 'lucide-react-native'
-import { GAME_MODES, PHASE_SPEEDS } from '../../core/constants/lobby.constants'
+import { View, Text, Pressable } from 'react-native'
+import { Flag, Clock, HelpCircle, Music, Trophy, Settings } from 'lucide-react-native'
+import { GAME_MODES, getPhaseSpeedLabel } from '../../core/constants/lobby.constants'
 import { COLORS, type GameMode } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
 
 interface GameModeCardProps {
     gameMode?: GameMode
     rounds?: number
-    phaseSpeed?: 'slow' | 'normal' | 'fast'
+    phaseSpeed?: number
+    onSettingsPress?: () => void
 }
 
 const GAME_ICONS: Record<GameMode, React.ComponentType<any>> = {
@@ -24,7 +25,8 @@ const GAME_STYLES: Record<GameMode, { borderClass: string; iconColor: string }> 
 export const GameModeCard: React.FC<GameModeCardProps> = ({
     gameMode,
     rounds,
-    phaseSpeed
+    phaseSpeed,
+    onSettingsPress
 }) => {
     if (!gameMode || !rounds || !phaseSpeed) {
         return <WaitingCard />
@@ -33,7 +35,7 @@ export const GameModeCard: React.FC<GameModeCardProps> = ({
     const Icon = GAME_ICONS[gameMode]
     const { borderClass, iconColor } = GAME_STYLES[gameMode]
     const modeLabel = GAME_MODES[gameMode].label
-    const speedLabel = PHASE_SPEEDS[phaseSpeed].label
+    const speedLabel = getPhaseSpeedLabel(phaseSpeed)
 
     return (
         <ActiveGameCard
@@ -43,6 +45,7 @@ export const GameModeCard: React.FC<GameModeCardProps> = ({
             modeLabel={modeLabel}
             rounds={rounds}
             speedLabel={speedLabel}
+            onSettingsPress={onSettingsPress}
         />
     )
 }
@@ -67,6 +70,7 @@ interface ActiveGameCardProps {
     modeLabel: string
     rounds: number
     speedLabel: string
+    onSettingsPress?: () => void
 }
 
 const ActiveGameCard: React.FC<ActiveGameCardProps> = ({
@@ -75,7 +79,8 @@ const ActiveGameCard: React.FC<ActiveGameCardProps> = ({
     borderClass,
     modeLabel,
     rounds,
-    speedLabel
+    speedLabel,
+    onSettingsPress
 }) => {
     const backgroundColor = color + '10'
 
@@ -95,6 +100,16 @@ const ActiveGameCard: React.FC<ActiveGameCardProps> = ({
                     <InfoBadge icon={Clock} text={speedLabel} />
                 </View>
             </View>
+
+            {onSettingsPress && (
+                <Pressable
+                    onPress={onSettingsPress}
+                    className="absolute top-3 right-3 bg-offwhite rounded-full p-2"
+                    hitSlop={8}
+                >
+                    <Settings size={18} color={COLORS.darkgray} />
+                </Pressable>
+            )}
         </View>
     )
 }

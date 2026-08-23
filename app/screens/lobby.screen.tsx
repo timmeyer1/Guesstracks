@@ -172,7 +172,7 @@ const LobbyScreen = () => {
     const handleUpdateSettings = async (settings: {
         gameMode: 'guesstracks' | 'blindtest'
         rounds: number
-        phaseSpeed: 'slow' | 'normal' | 'fast'
+        phaseSpeed: number
     }) => {
         const result = await updateLobbySettings(settings)
         if (!result.ok) {
@@ -258,6 +258,7 @@ const LobbyScreen = () => {
                     gameMode={isGameModeSelected ? lobby.gameMode : undefined}
                     rounds={isGameModeSelected ? lobby.rounds : undefined}
                     phaseSpeed={isGameModeSelected ? lobby.phaseSpeed : undefined}
+                    onSettingsPress={isHost && isGameModeSelected ? () => setIsSettingsModalVisible(true) : undefined}
                 />
 
                 <SectionTitle
@@ -327,14 +328,6 @@ const LobbyScreen = () => {
                     </View>
 
                     <View className="flex-row gap-6 pt-5 justify-center">
-                        {isHost && isGameModeSelected && (
-                            <IconButton
-                                icon="Settings"
-                                onPress={() => setIsSettingsModalVisible(true)}
-                                variant="white"
-                            />
-                        )}
-
                         <IconButton
                             icon="LogOut"
                             onPress={handleLeaveLobby}

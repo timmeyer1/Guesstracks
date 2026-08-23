@@ -1,7 +1,6 @@
 import {
     QUESTION_TYPES,
     SCORING,
-    PHASE_DURATIONS,
     ROUND_RESULTS_PAUSE_MS,
     MIN_ROUNDS_PLAYABLE,
     LOBBY_LIMITS,
@@ -434,7 +433,7 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         questionType,
         options: questionType === 'who_liked' ? activePlayerIds.map((id) => game.playersInfo.get(id)) : [],
         correctAnswerIds: questionType === 'who_liked' ? r.likedBy : [r.track.id],
-        duration: PHASE_DURATIONS[game.phaseSpeed],
+        duration: game.phaseSpeed,
         startedAt: null,
         answers: new Map(),
     }))

@@ -10,7 +10,8 @@ export type TrackType = {
 
 
 export type GameMode = 'guesstracks' | 'blindtest'
-export type PhaseSpeed = 'slow' | 'normal' | 'fast'
+// durée d'une phase de manche, en secondes
+export type PhaseSpeed = number
 
 export type LobbyType = {
     code: string;

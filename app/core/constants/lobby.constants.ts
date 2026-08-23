@@ -14,51 +14,33 @@ export const GAME_MODES = {
     },
 } as const satisfies Record<GameMode, { label: string; icon: string }>
 
-// vitesses des phases
-export const PHASE_SPEEDS = {
-    slow: {
-        label: 'Lent',
-        duration: 30,
-        durationLabel: '30s',
-    },
-    normal: {
-        label: 'Normal',
-        duration: 15,
-        durationLabel: '15s',
-    },
-    fast: {
-        label: 'Rapide',
-        duration: 7,
-        durationLabel: '7s',
-    },
-} as const satisfies Record<PhaseSpeed, { label: string; duration: number; durationLabel: string }>
-
 // limites
 export const LOBBY_LIMITS = {
     MIN_ROUNDS: 5,
-    MAX_ROUNDS: 20,
+    MAX_ROUNDS: 30,
+    ROUNDS_STEP: 5,
     MIN_PLAYERS_TO_START: 2,
     MAX_PLAYERS: 12,
+    // vitesse des phases : durée d'une manche en secondes
+    MIN_PHASE_SPEED: 5,
+    MAX_PHASE_SPEED: 30,
+    PHASE_SPEED_STEP: 5,
 }
 
 // paramètres par défaut
 export const DEFAULT_LOBBY_SETTINGS = {
     gameMode: 'guesstracks' as GameMode,
     rounds: 10,
-    phaseSpeed: 'normal' as PhaseSpeed,
+    phaseSpeed: 15 as PhaseSpeed,
     maxPlayers: LOBBY_LIMITS.MAX_PLAYERS,
 }
 
 // récupère le label d'un mode de jeu
 export const getGameModeLabel = (mode: GameMode) => GAME_MODES[mode].label
 
-// récupère le label d'une vitesse
-export const getPhaseSpeedLabel = (speed: PhaseSpeed) => PHASE_SPEEDS[speed].label
-
-// récupère la durée complète avec label
-export const getPhaseSpeedFull = (speed: PhaseSpeed) =>
-    `${PHASE_SPEEDS[speed].label} (${PHASE_SPEEDS[speed].durationLabel})`
+// récupère le label d'une vitesse (durée en secondes d'une phase)
+export const getPhaseSpeedLabel = (speed: PhaseSpeed) => `${speed}s`
 
 // récupère toutes les infos d'un lobby sous forme de texte
 export const getLobbyInfoText = (gameMode: GameMode, rounds: number, phaseSpeed: PhaseSpeed) =>
-    `${GAME_MODES[gameMode].label} • ${rounds} manches • ${getPhaseSpeedFull(phaseSpeed)}`
+    `${GAME_MODES[gameMode].label} • ${rounds} manches • ${getPhaseSpeedLabel(phaseSpeed)}`

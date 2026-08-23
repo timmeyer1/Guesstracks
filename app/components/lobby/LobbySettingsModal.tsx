@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView } from "react-native"
 import Slider from "@react-native-community/slider"
-import { GAME_MODES, PHASE_SPEEDS, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
+import { GAME_MODES, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
 import { GameMode, PhaseSpeed } from "../../core/types"
 import { SectionTitle } from "../SectionTitle"
@@ -88,15 +88,20 @@ export const LobbySettingsModal = ({
                             <View className="flex-row gap-2">
                                 {(Object.keys(GAME_MODES) as GameMode[]).map((mode) => {
                                     const selected = gameMode === mode
+                                    const modeColor = COLORS[mode]
                                     return (
                                         <TouchableOpacity
                                             key={mode}
-                                            className={`flex-1 py-3 rounded-2xl items-center ${selected ? "bg-primary" : "bg-offwhite"
-                                                }`}
+                                            className="flex-1 py-3 rounded-2xl items-center"
+                                            style={{
+                                                backgroundColor: selected ? modeColor + '15' : COLORS.offwhite,
+                                                borderWidth: 1.5,
+                                                borderColor: selected ? modeColor : 'transparent',
+                                            }}
                                             onPress={() => setGameMode(mode)}
                                         >
                                             <Text className="text-2xl mb-1">{GAME_MODES[mode].icon}</Text>
-                                            <Text className={`font-bold ${selected ? "text-white" : "text-black"}`}>
+                                            <Text className="font-bold text-black">
                                                 {GAME_MODES[mode].label}
                                             </Text>
                                         </TouchableOpacity>
@@ -117,7 +122,7 @@ export const LobbySettingsModal = ({
                                     style={{ width: "100%", height: 40 }}
                                     minimumValue={LOBBY_LIMITS.MIN_ROUNDS}
                                     maximumValue={LOBBY_LIMITS.MAX_ROUNDS}
-                                    step={1}
+                                    step={LOBBY_LIMITS.ROUNDS_STEP}
                                     value={rounds}
                                     onValueChange={setRounds}
                                     minimumTrackTintColor={COLORS.primary}
@@ -132,26 +137,28 @@ export const LobbySettingsModal = ({
                         </View>
 
                         <View className="mb-4">
-                            <SectionTitle title="Vitesse des phases" align="center" titleSize="sm" className="mb-3" />
-                            <View className="flex-row gap-2">
-                                {(Object.keys(PHASE_SPEEDS) as PhaseSpeed[]).map((speed) => {
-                                    const selected = phaseSpeed === speed
-                                    return (
-                                        <TouchableOpacity
-                                            key={speed}
-                                            className={`flex-1 py-3 rounded-2xl items-center ${selected ? "bg-primary" : "bg-offwhite"
-                                                }`}
-                                            onPress={() => setPhaseSpeed(speed)}
-                                        >
-                                            <Text className={`font-bold ${selected ? "text-white" : "text-black"}`}>
-                                                {PHASE_SPEEDS[speed].label}
-                                            </Text>
-                                            <Text className={`text-xs mt-1 ${selected ? "text-white" : "text-darkgray"}`}>
-                                                {PHASE_SPEEDS[speed].durationLabel}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )
-                                })}
+                            <SectionTitle
+                                title={`Vitesse des phases : ${phaseSpeed}s`}
+                                align="center"
+                                titleSize="sm"
+                                className="mb-3"
+                            />
+                            <View className="bg-offwhite rounded-full p-1">
+                                <Slider
+                                    style={{ width: "100%", height: 40 }}
+                                    minimumValue={LOBBY_LIMITS.MIN_PHASE_SPEED}
+                                    maximumValue={LOBBY_LIMITS.MAX_PHASE_SPEED}
+                                    step={LOBBY_LIMITS.PHASE_SPEED_STEP}
+                                    value={phaseSpeed}
+                                    onValueChange={setPhaseSpeed}
+                                    minimumTrackTintColor={COLORS.primary}
+                                    maximumTrackTintColor="transparent"
+                                    thumbTintColor={COLORS.primary}
+                                />
+                            </View>
+                            <View className="flex-row justify-between mt-2">
+                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MIN_PHASE_SPEED}s</Text>
+                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MAX_PHASE_SPEED}s</Text>
                             </View>
                         </View>
                     </ScrollView>
@@ -163,7 +170,7 @@ export const LobbySettingsModal = ({
 
                         <View className="flex-1">
                             <CustomButton
-                                name={mode === "create" ? "Créer" : "Sauvegarder"}
+                                name="Go"
                                 onPress={handleConfirm}
                                 variant="white"
                             />
