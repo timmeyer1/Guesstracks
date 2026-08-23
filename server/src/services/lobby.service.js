@@ -28,6 +28,7 @@ export const createLobby = async (player) => {
         gameMode: DEFAULT_LOBBY_SETTINGS.gameMode,
         rounds: DEFAULT_LOBBY_SETTINGS.rounds,
         phaseSpeed: DEFAULT_LOBBY_SETTINGS.phaseSpeed,
+        manualAdvance: DEFAULT_LOBBY_SETTINGS.manualAdvance,
         maxPlayers: LOBBY_LIMITS.MAX_PLAYERS,
         players: [
             {
@@ -126,6 +127,10 @@ export const updateLobbySettings = async (code, playerId, settings) => {
             throw new LobbyError('Nombre de manches invalide')
         }
         lobby.rounds = rounds
+    }
+
+    if (settings.manualAdvance !== undefined) {
+        lobby.manualAdvance = Boolean(settings.manualAdvance)
     }
 
     lobby.settingsConfirmed = true

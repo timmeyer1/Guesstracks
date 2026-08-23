@@ -1,5 +1,5 @@
 // app/core/hooks/useSyncedAudioPlayer.ts
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio'
 
 type UseSyncedAudioPlayerOptions = {
@@ -34,8 +34,22 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
     const player = useAudioPlayer(previewUrl ?? null, { updateInterval: 1000 })
     const status = useAudioPlayerStatus(player)
 
+    // ce rattrapage (rejoindre startedAt) ne doit se faire qu'UNE FOIS par
+    // extrait chargé, pas à chaque fois que status.isLoaded change de valeur.
+    // Observé sur Android : un seekTo() (cf. game.screen.tsx, qui relance
+    // l'extrait via ce même player) peut faire re-basculer isLoaded à false
+    // puis true pendant le rebuffering qui suit — sans ce garde-fou, cet
+    // effet se redéclenchait alors avec un startedAt resté figé (donc de plus
+    // en plus ancien), recalculait un décalage énorme et re-sautait près de
+    // la fin de l'extrait, ce qui déclenchait aussitôt une nouvelle "fin de
+    // lecture" côté game.screen.tsx → nouveau redémarrage → nouveau seekTo →
+    // boucle, perçue comme le bouton play/pause qui s'active/se désactive
+    // très vite.
+    const syncedForUrlRef = useRef<string | null | undefined>(undefined)
+
     useEffect(() => {
-        if (!autoPlay || !status.isLoaded) return
+        if (!autoPlay || !status.isLoaded || syncedForUrlRef.current === previewUrl) return
+        syncedForUrlRef.current = previewUrl
 
         if (startedAt === undefined) {
             player.play()
@@ -59,7 +73,7 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
         const timeout = setTimeout(() => player.play(), delayMs)
         return () => clearTimeout(timeout)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [status.isLoaded, startedAt])
+    }, [status.isLoaded, startedAt, previewUrl])
 
     const toggle = () => {
         if (status.playing) player.pause()

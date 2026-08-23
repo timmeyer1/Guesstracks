@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView } from "react-native"
+import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView, Switch } from "react-native"
 import Slider from "@react-native-community/slider"
 import { GAME_MODES, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
@@ -11,6 +11,7 @@ export type LobbySettings = {
     gameMode: GameMode
     rounds: number
     phaseSpeed: PhaseSpeed
+    manualAdvance: boolean
 }
 
 type LobbySettingsModalProps = {
@@ -37,6 +38,9 @@ export const LobbySettingsModal = ({
     const [phaseSpeed, setPhaseSpeed] = useState<PhaseSpeed>(
         initialSettings?.phaseSpeed ?? DEFAULT_LOBBY_SETTINGS.phaseSpeed
     )
+    const [manualAdvance, setManualAdvance] = useState(
+        initialSettings?.manualAdvance ?? DEFAULT_LOBBY_SETTINGS.manualAdvance
+    )
 
     // synchro avec les paramètres initiaux quand la modal s'ouvre
     useEffect(() => {
@@ -44,11 +48,12 @@ export const LobbySettingsModal = ({
             setGameMode(initialSettings.gameMode)
             setRounds(initialSettings.rounds)
             setPhaseSpeed(initialSettings.phaseSpeed)
+            setManualAdvance(initialSettings.manualAdvance)
         }
     }, [visible, initialSettings])
 
     const handleConfirm = () => {
-        onConfirm({ gameMode, rounds, phaseSpeed })
+        onConfirm({ gameMode, rounds, phaseSpeed, manualAdvance })
         onClose()
     }
 
@@ -58,10 +63,12 @@ export const LobbySettingsModal = ({
             setGameMode(initialSettings.gameMode)
             setRounds(initialSettings.rounds)
             setPhaseSpeed(initialSettings.phaseSpeed)
+            setManualAdvance(initialSettings.manualAdvance)
         } else {
             setGameMode(DEFAULT_LOBBY_SETTINGS.gameMode)
             setRounds(DEFAULT_LOBBY_SETTINGS.rounds)
             setPhaseSpeed(DEFAULT_LOBBY_SETTINGS.phaseSpeed)
+            setManualAdvance(DEFAULT_LOBBY_SETTINGS.manualAdvance)
         }
         onClose()
     }
@@ -160,6 +167,20 @@ export const LobbySettingsModal = ({
                                 <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MIN_PHASE_SPEED}s</Text>
                                 <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MAX_PHASE_SPEED}s</Text>
                             </View>
+                        </View>
+
+                        <View className="mb-2 flex-row items-center justify-between bg-offwhite rounded-2xl px-4 py-3">
+                            <View className="flex-1 mr-3">
+                                <Text className="text-black font-semibold text-sm">
+                                    Manche automatique
+                                </Text>
+                            </View>
+                            <Switch
+                                value={!manualAdvance}
+                                onValueChange={(value) => setManualAdvance(!value)}
+                                trackColor={{ true: COLORS.primary }}
+                                thumbColor={COLORS.white}
+                            />
                         </View>
                     </ScrollView>
 

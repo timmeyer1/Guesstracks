@@ -118,3 +118,10 @@ export const emitGameSync = (code: string) => {
 export const emitConfirmReturn = (code: string) => {
     getSocket().emit('game:confirmReturn', { code })
 }
+
+// n'a d'effet que si le lobby a activé "avancer manuellement" (cf.
+// LobbyType.manualAdvance) — ignoré par le serveur sinon (endRound y arme
+// déjà son propre timer, cf. game.service.js)
+export const emitNextRound = (code: string) => {
+    getSocket().emit('game:nextRound', { code })
+}

@@ -4,7 +4,13 @@ import Reanimated, { LinearTransition } from 'react-native-reanimated'
 import { Image } from 'expo-image'
 import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
+import { StatusPill } from '../StatusPill'
+import { CustomButton } from '../Button'
 import { AudioPlayerButton } from './AudioPlayer'
+import { useGameStore } from '../../stores/game.store'
+import { useLobbyStore } from '../../stores/lobby.store'
+import { useAuthStore } from '../../stores/auth.store'
+import { advanceRound } from '../../modules/game/game.service'
 import type { GameRoundEnd, GameRoundPlayerResult, QuestionType, CatalogEntry } from '../../core/types'
 
 const SCORE_COUNT_UP_MS = 900
@@ -55,6 +61,10 @@ type RoundResultProps = {
     result: GameRoundEnd
     questionType: QuestionType
     myPlayerId: string
+    // pour savoir si result.roundIndex est la dernière manche (cf.
+    // manualAdvance plus bas : le bouton doit alors annoncer "Résultat final"
+    // plutôt que "Manche suivante")
+    totalRounds: number
     // absent du payload "round:end" du serveur (cf. game.service.js) pour ne
     // pas influencer la manche pendant qu'elle est encore en cours ; on le
     // récupère à la place depuis le round qui vient de se terminer côté
@@ -77,6 +87,7 @@ export const RoundResult: React.FC<RoundResultProps> = ({
     result,
     questionType,
     myPlayerId,
+    totalRounds,
     previewUrl,
     audioPlaying,
     onToggleAudio,
@@ -90,6 +101,23 @@ export const RoundResult: React.FC<RoundResultProps> = ({
         [result.leaderboard]
     )
     const myResult = resultsById.get(myPlayerId)
+
+    // en mode "avancer manuellement" (cf. LobbyType.manualAdvance), le
+    // serveur n'enchaîne plus tout seul sur la manche suivante : seul l'hôte
+    // (même convention que lobby.screen.tsx : premier joueur du lobby) peut
+    // la déclencher, les autres joueurs voient juste qu'ils attendent
+    const manualAdvance = useGameStore((s) => s.manualAdvance)
+    const lobbyUsers = useLobbyStore((s) => s.users)
+    const authUser = useAuthStore((s) => s.user)
+    const isHost = lobbyUsers[0]?.id === authUser?.id
+    const isLastRound = result.roundIndex === totalRounds - 1
+    const [isAdvancing, setIsAdvancing] = useState(false)
+
+    const handleNextRound = () => {
+        if (isAdvancing) return
+        setIsAdvancing(true)
+        advanceRound()
+    }
 
     // reconstitue ce que chaque joueur a répondu à partir de son
     // selectedIds : liste de noms de joueurs en mode guesstracks, titre
@@ -139,20 +167,23 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                         transition={100}
                     />
                 )}
-                <SectionTitle
-                    title={result.track.name}
-                    subtitle={result.track.artist}
-                    align="center"
-                    titleSize="md"
-                    subtitleSize="sm"
-                />
-            </View>
-
-            {previewUrl && (
-                <View className="mb-4">
-                    <AudioPlayerButton previewUrl={previewUrl} playing={audioPlaying} onToggle={onToggleAudio} compact />
+                {/* le bouton play/pause à gauche du titre (plutôt qu'en dessous, sur
+                    sa propre ligne) laisse beaucoup plus de place à la section
+                    Classement plus bas, notamment sur les écrans plus petits */}
+                <View className="flex-row items-center gap-3 w-full">
+                    {previewUrl && (
+                        <AudioPlayerButton previewUrl={previewUrl} playing={audioPlaying} onToggle={onToggleAudio} compact />
+                    )}
+                    <SectionTitle
+                        title={result.track.name}
+                        subtitle={result.track.artist}
+                        align={previewUrl ? 'left' : 'center'}
+                        titleSize="md"
+                        subtitleSize="sm"
+                        className="flex-1"
+                    />
                 </View>
-            )}
+            </View>
 
             <View className="bg-offwhite rounded-3xl p-4 mb-4 items-center">
                 <Text className="text-darkgray text-sm mb-1">
@@ -248,6 +279,37 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                     )
                 })}
             </ScrollView>
+
+            {manualAdvance && (
+                <View className="mt-4">
+                    {isHost ? (
+                        <CustomButton
+                            name={
+                                isAdvancing
+                                    ? isLastRound
+                                        ? 'Résultat final...'
+                                        : 'Manche suivante...'
+                                    : isLastRound
+                                      ? 'Résultat final'
+                                      : 'Manche suivante'
+                            }
+                            onPress={handleNextRound}
+                            icon={isLastRound ? 'Trophy' : 'ArrowRight'}
+                            variant="dark"
+                            available={!isAdvancing}
+                            loading={isAdvancing}
+                        />
+                    ) : (
+                        <StatusPill
+                            text={
+                                isLastRound
+                                    ? "En attente de l'hôte pour les résultats finaux"
+                                    : "En attente de l'hôte pour la manche suivante"
+                            }
+                        />
+                    )}
+                </View>
+            )}
         </View>
     )
 }

@@ -12,6 +12,11 @@ import type {
 type GameStoreType = {
     phase: GamePhase
     gameMode: GameMode | null
+    // cf. LobbyType.manualAdvance : figé pour toute la partie au lancement
+    // (game:started), détermine si RoundResult affiche un bouton "Manche
+    // suivante" (hôte) / un statut d'attente (autres joueurs) au lieu de
+    // basculer automatiquement
+    manualAdvance: boolean
     totalRounds: number
     round: GameRoundStart | null
     lastRoundEnd: GameRoundEnd | null
@@ -36,6 +41,7 @@ type GameStoreType = {
 
     setPhase: (phase: GamePhase) => void
     setGameMode: (gameMode: GameMode) => void
+    setManualAdvance: (manualAdvance: boolean) => void
     setTotalRounds: (totalRounds: number) => void
     setCatalog: (catalog: CatalogEntry[]) => void
     setSubmittedPlayerIds: (ids: string[]) => void
@@ -63,6 +69,7 @@ type GameStoreType = {
 const initialState = {
     phase: 'idle' as GamePhase,
     gameMode: null as GameMode | null,
+    manualAdvance: false,
     totalRounds: 0,
     round: null as GameRoundStart | null,
     lastRoundEnd: null as GameRoundEnd | null,
@@ -82,6 +89,7 @@ const initialState = {
 const rematchState = {
     phase: initialState.phase,
     gameMode: initialState.gameMode,
+    manualAdvance: initialState.manualAdvance,
     totalRounds: initialState.totalRounds,
     round: initialState.round,
     lastRoundEnd: initialState.lastRoundEnd,
@@ -99,6 +107,7 @@ export const useGameStore = create<GameStoreType>((set, get) => ({
 
     setPhase: (phase) => set({ phase }),
     setGameMode: (gameMode) => set({ gameMode }),
+    setManualAdvance: (manualAdvance) => set({ manualAdvance }),
     setTotalRounds: (totalRounds) => set({ totalRounds }),
     setCatalog: (catalog) => set({ catalog }),
     setSubmittedPlayerIds: (submittedPlayerIds) => set({ submittedPlayerIds }),

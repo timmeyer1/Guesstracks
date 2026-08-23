@@ -27,6 +27,10 @@ import { RoundResult } from '../components/game/RoundResult'
 import { FinalResults } from '../components/game/FinalResults'
 import { CountdownLabel } from '../components/game/CountdownLabel'
 
+// délai après un redémarrage de l'extrait pendant lequel on ignore tout
+// nouveau déclenchement de redémarrage (cf. restartPreview plus bas)
+const RESTART_GUARD_MS = 800
+
 const GUESSTRACKS_TITLE_MAX_LENGTH = 40
 // en mode guesstracks le titre est toujours affiché en entier pendant la
 // manche (ce n'est pas ce qu'on devine, cf. core/types.ts) : un titre trop
@@ -107,6 +111,26 @@ const GameScreen = () => {
         startedAt: round?.startedAt,
     })
 
+    // RESTART_GUARD_MS après un redémarrage, on ignore tout nouveau
+    // déclenchement (cf. les deux effets plus bas, qui appellent tous les
+    // deux restartPreview) : sans ce garde-fou, deux redémarrages quasi
+    // simultanés (l'effet de transition de phase ET l'effet "fin en direct"
+    // ci-dessous, ou un statut natif qui rebascule brièvement pendant le
+    // seekTo) pouvaient s'enchaîner presque en même temps et se marcher
+    // dessus — observé sur Android comme le bouton play/pause qui
+    // s'active/se désactive très vite juste après un redémarrage.
+    const restartingRef = useRef(false)
+    const restartPreview = () => {
+        if (restartingRef.current) return
+        restartingRef.current = true
+        roundAudio.player.seekTo(0).then(() => {
+            roundAudio.player.play()
+            setTimeout(() => {
+                restartingRef.current = false
+            }, RESTART_GUARD_MS)
+        })
+    }
+
     // dès qu'on bascule sur un écran de résultat (de manche OU final), si
     // l'extrait avait déjà fini de jouer AVANT cette transition, on le
     // relance depuis le début plutôt que de le laisser silencieux sur ce
@@ -126,13 +150,12 @@ const GameScreen = () => {
         // consommé tout de suite (cf. l'autre effet ci-dessous, qui le
         // repassera à true si l'extrait relancé finit à nouveau)
         audioFinishedRef.current = false
-        const restart = () => roundAudio.player.seekTo(0).then(() => roundAudio.player.play())
         const delayMs = syncAt - Date.now()
         if (delayMs <= 0) {
-            restart()
+            restartPreview()
             return
         }
-        const timeout = setTimeout(restart, delayMs)
+        const timeout = setTimeout(restartPreview, delayMs)
         return () => clearTimeout(timeout)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [phase])
@@ -150,7 +173,7 @@ const GameScreen = () => {
             audioFinishedRef.current = true
             return
         }
-        roundAudio.player.seekTo(0).then(() => roundAudio.player.play())
+        restartPreview()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roundAudio.status.didJustFinish])
 
@@ -204,6 +227,7 @@ const GameScreen = () => {
                     result={lastRoundEnd}
                     questionType={round.questionType}
                     myPlayerId={user.id}
+                    totalRounds={totalRounds}
                     previewUrl={round.track.previewUrl}
                     audioPlaying={roundAudio.status.playing}
                     onToggleAudio={roundAudio.toggle}

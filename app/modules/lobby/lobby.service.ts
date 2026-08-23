@@ -20,6 +20,7 @@ type ServerLobby = {
     gameMode: LobbyType['gameMode']
     rounds: number
     phaseSpeed: LobbyType['phaseSpeed']
+    manualAdvance: boolean
     settingsConfirmed: boolean
     maxPlayers: number
     players: ServerPlayer[]
@@ -46,6 +47,7 @@ const applyServerLobby = (serverLobby: ServerLobby) => {
         gameMode: serverLobby.gameMode,
         rounds: serverLobby.rounds,
         phaseSpeed: serverLobby.phaseSpeed,
+        manualAdvance: serverLobby.manualAdvance,
         settingsConfirmed: serverLobby.settingsConfirmed,
     })
     setUsers(serverLobby.players.map(toLobbyUser))
@@ -196,6 +198,7 @@ export const updateLobbySettings = async (settings: {
     gameMode: LobbyType['gameMode']
     rounds: number
     phaseSpeed: LobbyType['phaseSpeed']
+    manualAdvance: boolean
 }): Promise<LobbyResult> => {
     const { user } = useAuthStore.getState()
     const { lobby } = useLobbyStore.getState()

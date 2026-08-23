@@ -9,6 +9,7 @@ import {
     emitAnswer,
     emitGameSync,
     emitConfirmReturn,
+    emitNextRound,
     type GameStatePayload,
 } from '../../core/socket'
 import type { GameRoundStart, GameRoundEnd, GameEnd, GameStarted } from '../../core/types'
@@ -61,6 +62,7 @@ export const startWatchingGame = () => {
             // dans la foulée
             useGameStore.getState().setPhase('collecting')
             useGameStore.getState().setGameMode(payload.gameMode)
+            useGameStore.getState().setManualAdvance(payload.manualAdvance)
             useGameStore.getState().setTotalRounds(payload.totalRounds)
             useGameStore.getState().setCatalog(payload.catalog ?? [])
         },
@@ -143,6 +145,15 @@ export const submitAnswer = (selected: string[]) => {
 
     useGameStore.getState().setHasAnswered(true)
     emitAnswer(lobby.code, round.roundIndex, selected)
+}
+
+// n'a d'effet que si le lobby a activé "avancer manuellement" (cf.
+// useGameStore().manualAdvance) et que l'appelant est bien l'hôte — le
+// serveur revalide les deux de toute façon (cf. advanceRound, game.service.js)
+export const advanceRound = () => {
+    const { lobby } = useLobbyStore.getState()
+    if (!lobby) return
+    emitNextRound(lobby.code)
 }
 
 // à appeler après une reconnexion pour rattraper l'état de partie en cours

@@ -20,6 +20,7 @@ export const DEFAULT_LOBBY_SETTINGS = {
     gameMode: 'guesstracks',
     rounds: 10,
     phaseSpeed: 15,
+    manualAdvance: false,
 }
 
 export const CODE_LENGTH = 4

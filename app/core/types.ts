@@ -21,6 +21,9 @@ export type LobbyType = {
     gameMode: GameMode;
     rounds: number;
     phaseSpeed: PhaseSpeed;
+    // si activé, la partie n'enchaîne plus automatiquement sur la manche
+    // suivante après l'affichage des résultats : seul l'hôte peut continuer
+    manualAdvance: boolean;
     settingsConfirmed: boolean;
 };
 
@@ -130,6 +133,8 @@ export type GameRoundEnd = {
 export type GameStarted = {
     totalRounds: number
     gameMode: GameMode
+    // cf. LobbyType.manualAdvance : figé pour toute la partie au lancement
+    manualAdvance: boolean
     catalog?: CatalogEntry[] // présent uniquement en mode blindtest
 }
 

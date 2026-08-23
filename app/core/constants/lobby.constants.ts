@@ -32,6 +32,7 @@ export const DEFAULT_LOBBY_SETTINGS = {
     gameMode: 'guesstracks' as GameMode,
     rounds: 10,
     phaseSpeed: 15 as PhaseSpeed,
+    manualAdvance: false,
     maxPlayers: LOBBY_LIMITS.MAX_PLAYERS,
 }
 

@@ -17,6 +17,10 @@ const lobbySchema = new mongoose.Schema({
     gameMode: { type: String, enum: GAME_MODES, default: 'guesstracks' },
     rounds: { type: Number, min: LOBBY_LIMITS.MIN_ROUNDS, max: LOBBY_LIMITS.MAX_ROUNDS, default: 10 },
     phaseSpeed: { type: Number, min: PHASE_SPEED_LIMITS.MIN, max: PHASE_SPEED_LIMITS.MAX, default: 15 },
+    // si activé, la partie n'enchaîne plus automatiquement sur la manche
+    // suivante après l'affichage des résultats : seul l'hôte peut continuer
+    // (cf. game.service.js, endRound/advanceRound)
+    manualAdvance: { type: Boolean, default: false },
     // le lobby a des valeurs par défaut dès sa création, mais tant que l'hôte
     // n'a pas explicitement validé les réglages, on ne veut pas les afficher
     // comme "choisis" aux autres joueurs (cf. LobbySettingsModal)
@@ -34,6 +38,7 @@ lobbySchema.methods.toPublic = function toPublic() {
         gameMode: this.gameMode,
         rounds: this.rounds,
         phaseSpeed: this.phaseSpeed,
+        manualAdvance: this.manualAdvance,
         settingsConfirmed: this.settingsConfirmed,
         maxPlayers: this.maxPlayers,
         players: this.players,

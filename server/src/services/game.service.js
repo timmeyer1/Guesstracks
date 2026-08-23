@@ -55,6 +55,10 @@ const getOrCreate = (code) => {
             scores: new Map(), // playerId -> score
             gameMode: null,
             phaseSpeed: null,
+            // si true, endRound n'arme pas de timer automatique : seul
+            // l'hôte peut passer à la manche suivante (cf. advanceRound)
+            manualAdvance: false,
+            hostId: null,
             rounds: [],
             currentRoundIndex: -1,
             timer: null,
@@ -416,6 +420,8 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     game.activePlayerIds = activePlayerIds
     game.gameMode = lobby.gameMode
     game.phaseSpeed = lobby.phaseSpeed
+    game.manualAdvance = Boolean(lobby.manualAdvance)
+    game.hostId = hostId
 
     const pool = buildPool(game)
     if (pool.length === 0) {
@@ -453,6 +459,7 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     io.to(room(code)).emit('game:started', {
         totalRounds: game.rounds.length,
         gameMode: game.gameMode,
+        manualAdvance: game.manualAdvance,
         catalog,
     })
 
@@ -626,11 +633,34 @@ const endRound = (code, io) => {
         audioStartedAt: audioSyncedStart(),
     })
 
-    game.timer = setTimeout(() => {
-        startNextRound(code, io).catch((err) => {
-            console.error('❌ Erreur au démarrage de la manche suivante :', err)
-        })
-    }, ROUND_RESULTS_PAUSE_MS)
+    // en mode "avancer manuellement" (cf. game.manualAdvance), pas de timer
+    // automatique ici : la manche reste affichée tant que l'hôte n'a pas
+    // explicitement déclenché la suivante (cf. advanceRound ci-dessous)
+    if (!game.manualAdvance) {
+        game.timer = setTimeout(() => {
+            startNextRound(code, io).catch((err) => {
+                console.error('❌ Erreur au démarrage de la manche suivante :', err)
+            })
+        }, ROUND_RESULTS_PAUSE_MS)
+    }
+}
+
+// déclenché par l'hôte quand game.manualAdvance est actif : endRound n'a alors
+// armé aucun timer automatique, donc rien ne fait avancer la partie sans cet
+// appel explicite
+export const advanceRound = ({ code, playerId, io }) => {
+    const game = games.get(code)
+    if (!game || game.status !== 'round_result') return
+    if (!game.manualAdvance) return
+    if (game.hostId !== playerId) {
+        throw new GameError("Seul l'hôte peut passer à la manche suivante", 403)
+    }
+
+    clearTimeout(game.timer)
+    game.timer = null
+    startNextRound(code, io).catch((err) => {
+        console.error('❌ Erreur au démarrage de la manche suivante (manuel) :', err)
+    })
 }
 
 const finishGame = (code, io) => {

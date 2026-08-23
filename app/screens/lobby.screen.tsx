@@ -25,7 +25,7 @@ import { ScreenLayout } from "../components/ScreenLayout"
 import { CornerShape } from "../components/CornerShape"
 import { StatusPill } from "../components/StatusPill"
 import { LoadingSpinner } from "../components/LoadingSpinner"
-import { LobbySettingsModal } from '../components/lobby/LobbySettingsModal'
+import { LobbySettingsModal, type LobbySettings } from '../components/lobby/LobbySettingsModal'
 import { GameModeCard } from '../components/lobby/GameModeCard'
 import { PlayersGrid } from '../components/lobby/PlayersGrid'
 import { PlayerActionsModal } from '../components/lobby/PlayerActionsModal'
@@ -169,11 +169,7 @@ const LobbyScreen = () => {
         )
     }
 
-    const handleUpdateSettings = async (settings: {
-        gameMode: 'guesstracks' | 'blindtest'
-        rounds: number
-        phaseSpeed: number
-    }) => {
+    const handleUpdateSettings = async (settings: LobbySettings) => {
         const result = await updateLobbySettings(settings)
         if (!result.ok) {
             Alert.alert("Impossible de sauvegarder", result.error)

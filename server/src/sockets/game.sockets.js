@@ -57,6 +57,20 @@ export const registerGameSockets = (io) => {
             gameService.submitAnswer({ code: identity.code, playerId: identity.playerId, roundIndex, selected, io })
         })
 
+        // uniquement utilisé quand le lobby a activé "avancer manuellement"
+        // (cf. game.manualAdvance) : sans quoi endRound arme déjà son propre
+        // timer et cet événement n'a aucun effet (advanceRound l'ignore)
+        socket.on('game:nextRound', (payload = {}) => {
+            const { code } = payload
+            const identity = identityFor(code)
+            if (!identity) return
+            try {
+                gameService.advanceRound({ code: identity.code, playerId: identity.playerId, io })
+            } catch (err) {
+                socket.emit('game:error', { message: errorMessage(err) })
+            }
+        })
+
         // permet à un client qui vient de (re)rejoindre la room de resynchroniser
         // son affichage sur l'état de partie en cours (reconnexion réseau, etc.)
         socket.on('game:sync', (code) => {
