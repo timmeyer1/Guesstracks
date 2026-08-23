@@ -4,7 +4,7 @@ import Reanimated, { LinearTransition } from 'react-native-reanimated'
 import { Image } from 'expo-image'
 import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
-import { AudioPlayer } from './AudioPlayer'
+import { AudioPlayerButton } from './AudioPlayer'
 import type { GameRoundEnd, GameRoundPlayerResult, QuestionType, CatalogEntry } from '../../core/types'
 
 const SCORE_COUNT_UP_MS = 900
@@ -61,6 +61,12 @@ type RoundResultProps = {
     // client (cf. game.screen.tsx) pour prolonger l'extrait pendant l'écran
     // de résultat plutôt que de le couper net
     previewUrl?: string | null
+    // état/contrôle du lecteur partagé avec l'écran de question (cf.
+    // useSyncedAudioPlayer dans game.screen.tsx) : ce composant n'a plus sa
+    // propre instance audio, pour que l'extrait continue sans coupure/rechute
+    // au changement d'écran plutôt que d'être rechargé
+    audioPlaying: boolean
+    onToggleAudio: () => void
     // catalogue de recherche du mode blindtest (cf. game.store.ts) : nécessaire
     // pour retrouver le nom du titre cherché par chaque joueur à partir de son
     // selectedIds, absent du payload "round:end" comme previewUrl ci-dessus
@@ -72,6 +78,8 @@ export const RoundResult: React.FC<RoundResultProps> = ({
     questionType,
     myPlayerId,
     previewUrl,
+    audioPlaying,
+    onToggleAudio,
     catalog = [],
 }) => {
     const nameOf = (id: string) => result.leaderboard.find((entry) => entry.playerId === id)?.name ?? '???'
@@ -142,7 +150,7 @@ export const RoundResult: React.FC<RoundResultProps> = ({
 
             {previewUrl && (
                 <View className="mb-4">
-                    <AudioPlayer previewUrl={previewUrl} startedAt={result.audioStartedAt} compact />
+                    <AudioPlayerButton previewUrl={previewUrl} playing={audioPlaying} onToggle={onToggleAudio} compact />
                 </View>
             )}
 

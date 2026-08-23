@@ -1,5 +1,5 @@
 // app/screens/game.screen.tsx
-import React, { useCallback } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import { View, Text, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native'
 import { Image } from 'expo-image'
 import { useNavigation } from '@react-navigation/native'
@@ -18,7 +18,8 @@ import { CornerShape } from '../components/CornerShape'
 import { StatusPill } from '../components/StatusPill'
 import { COLORS } from '../core/constants/colors.constants'
 import { RoundHeader } from '../components/game/RoundHeader'
-import { AudioPlayer } from '../components/game/AudioPlayer'
+import { AudioPlayerButton } from '../components/game/AudioPlayer'
+import { useSyncedAudioPlayer } from '../core/hooks/useSyncedAudioPlayer'
 import { WhoLikedQuestion } from '../components/game/WhoLikedQuestion'
 import { SearchTrackQuestion } from '../components/game/SearchTrackQuestion'
 import { BlurredCover } from '../components/game/BlurredCover'
@@ -85,6 +86,74 @@ const GameScreen = () => {
     // chaque render de cet écran leur ferait perdre ce bénéfice
     const handleToggleWhoLiked = useCallback((id: string) => toggleSelection(id, true), [toggleSelection])
 
+    // mémorise si l'extrait de la manche en cours a atteint sa fin naturelle
+    // depuis le dernier redémarrage (cf. les deux effets plus bas) : sert à
+    // décider si un écran de résultat doit rejouer l'extrait depuis le début
+    // (déjà fini) ou le laisser continuer tel quel — une ref plutôt qu'un
+    // state car ça ne doit jamais provoquer de re-render
+    const audioFinishedRef = useRef(false)
+    useEffect(() => {
+        audioFinishedRef.current = false
+    }, [round?.roundIndex])
+
+    // lecteur audio unique pour toute la durée de la manche (question ET
+    // résultat, cf. useSyncedAudioPlayer) : appelé ici, à un niveau jamais
+    // démonté entre ces deux écrans, plutôt que dans chacun séparément, pour
+    // que l'extrait ne soit jamais rechargé (donc pas de saut audible) au
+    // changement d'écran — seul le bouton <AudioPlayerButton /> qui le
+    // représente est affiché à des endroits différents selon la phase.
+    const roundAudio = useSyncedAudioPlayer({
+        previewUrl: round?.track.previewUrl,
+        startedAt: round?.startedAt,
+    })
+
+    // dès qu'on bascule sur un écran de résultat (de manche OU final), si
+    // l'extrait avait déjà fini de jouer AVANT cette transition, on le
+    // relance depuis le début plutôt que de le laisser silencieux sur ce
+    // nouvel écran — synchronisé comme au lancement de manche (audioStartedAt
+    // propre à chaque transition), mais sans jamais recréer le lecteur. S'il
+    // n'avait pas encore fini, on ne fait rien : il continue tel quel.
+    useEffect(() => {
+        if (!audioFinishedRef.current) return
+        const syncAt =
+            phase === 'round_result' && lastRoundEnd
+                ? lastRoundEnd.audioStartedAt
+                : phase === 'finished' && finalAudioStartedAt !== null
+                  ? finalAudioStartedAt
+                  : null
+        if (syncAt === null) return
+
+        // consommé tout de suite (cf. l'autre effet ci-dessous, qui le
+        // repassera à true si l'extrait relancé finit à nouveau)
+        audioFinishedRef.current = false
+        const restart = () => roundAudio.player.seekTo(0).then(() => roundAudio.player.play())
+        const delayMs = syncAt - Date.now()
+        if (delayMs <= 0) {
+            restart()
+            return
+        }
+        const timeout = setTimeout(restart, delayMs)
+        return () => clearTimeout(timeout)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [phase])
+
+    // symétrique de l'effet ci-dessus, pour le cas où l'extrait finit tout
+    // seul PENDANT qu'un écran de résultat est déjà affiché (ex: manche de
+    // 30s avec un extrait de ~30s et personne qui répond : les deux se
+    // terminent quasi en même temps, souvent après la transition plutôt
+    // qu'avant) — sans ça, l'effet au-dessus ne se redéclenche jamais (il ne
+    // réagit qu'aux CHANGEMENTS de phase) et l'extrait reste silencieux pour
+    // le reste de l'écran de résultat
+    useEffect(() => {
+        if (!roundAudio.status.didJustFinish) return
+        if (phase !== 'round_result' && phase !== 'finished') {
+            audioFinishedRef.current = true
+            return
+        }
+        roundAudio.player.seekTo(0).then(() => roundAudio.player.play())
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [roundAudio.status.didJustFinish])
+
     // EXPÉRIMENTAL — navigation optimisée, même principe que
     // lobby.screen.tsx:handleLeaveLobby (cf. discussion audit perf)
     const handleBackToHome = () => {
@@ -121,7 +190,8 @@ const GameScreen = () => {
                     onStayInLobby={handleStayInLobby}
                     onBackToHome={handleBackToHome}
                     lastPreviewUrl={round?.track.previewUrl}
-                    audioStartedAt={finalAudioStartedAt}
+                    audioPlaying={roundAudio.status.playing}
+                    onToggleAudio={roundAudio.toggle}
                 />
             </ScreenLayout>
         )
@@ -135,6 +205,8 @@ const GameScreen = () => {
                     questionType={round.questionType}
                     myPlayerId={user.id}
                     previewUrl={round.track.previewUrl}
+                    audioPlaying={roundAudio.status.playing}
+                    onToggleAudio={roundAudio.toggle}
                     catalog={catalog}
                 />
             </ScreenLayout>
@@ -174,7 +246,12 @@ const GameScreen = () => {
                         </View>
 
                         <View className="flex-row items-center justify-center gap-3 mb-6">
-                            <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} compact />
+                            <AudioPlayerButton
+                                previewUrl={round.track.previewUrl}
+                                playing={roundAudio.status.playing}
+                                onToggle={roundAudio.toggle}
+                                compact
+                            />
                             <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
                         </View>
 
@@ -209,7 +286,12 @@ const GameScreen = () => {
                                 </View>
 
                                 <View className="flex-row items-center justify-center gap-3 mb-3">
-                                    <AudioPlayer previewUrl={round.track.previewUrl} startedAt={round.startedAt} compact />
+                                    <AudioPlayerButton
+                                        previewUrl={round.track.previewUrl}
+                                        playing={roundAudio.status.playing}
+                                        onToggle={roundAudio.toggle}
+                                        compact
+                                    />
                                     <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
                                 </View>
 

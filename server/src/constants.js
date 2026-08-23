@@ -41,6 +41,12 @@ export const SCORING = {
 
 export const ROUND_RESULTS_PAUSE_MS = 5000 // temps d'affichage des résultats entre deux manches
 
+// une fois que tous les joueurs ont répondu, délai laissé avant de basculer
+// sur les résultats (plutôt que de couper la manche net) — mais seulement si
+// il restait plus que ce délai au chrono naturel de la manche, sinon celui-ci
+// suffit déjà (cf. submitAnswer, game.service.js)
+export const ROUND_ANSWER_GRACE_MS = 3000
+
 // startedAt (envoyé dans game:round:start) est fixé à Date.now() + ce délai
 // plutôt qu'à l'instant présent : sans cette marge, chaque appareil lance la
 // lecture de l'extrait dès que son propre buffer est prêt, ce qui varie selon

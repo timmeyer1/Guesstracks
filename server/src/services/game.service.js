@@ -2,6 +2,7 @@ import {
     QUESTION_TYPES,
     SCORING,
     ROUND_RESULTS_PAUSE_MS,
+    ROUND_ANSWER_GRACE_MS,
     MIN_ROUNDS_PLAYABLE,
     LOBBY_LIMITS,
     RETURN_TO_LOBBY_TIMEOUT_MS,
@@ -513,9 +514,20 @@ export const submitAnswer = ({ code, playerId, roundIndex, selected, io }) => {
 
     round.answers.set(playerId, { selectedIds, elapsedMs })
 
+    // ne termine plus la manche dès que tout le monde a répondu : on laisse le
+    // timer de round.duration (cf. startNextRound) s'écouler, pour que les
+    // joueurs rapides voient le temps restant plutôt que d'être basculés
+    // instantanément sur les résultats. On raccourcit quand même l'attente à
+    // ROUND_ANSWER_GRACE_MS une fois que tout le monde a répondu, sauf si le
+    // chrono naturel devait de toute façon se terminer avant ce délai.
     const allAnswered = game.activePlayerIds.every((id) => round.answers.has(id))
     if (allAnswered) {
-        endRound(code, io)
+        const naturalEndAt = round.startedAt + round.duration * 1000
+        const remainingMs = naturalEndAt - Date.now()
+        if (remainingMs > ROUND_ANSWER_GRACE_MS) {
+            clearTimeout(game.timer)
+            game.timer = setTimeout(() => endRound(code, io), ROUND_ANSWER_GRACE_MS)
+        }
     }
 
     return { allAnswered }

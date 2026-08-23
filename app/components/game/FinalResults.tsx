@@ -5,7 +5,7 @@ import { Trophy } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
 import { CustomButton } from '../Button'
-import { AudioPlayer } from './AudioPlayer'
+import { AudioPlayerButton } from './AudioPlayer'
 import type { FinalLeaderboardEntry } from '../../core/types'
 
 type FinalResultsProps = {
@@ -16,9 +16,13 @@ type FinalResultsProps = {
     // extrait de la toute dernière manche jouée (cf. game.screen.tsx), pour
     // que la musique continue plutôt que de s'arrêter net à l'écran final
     lastPreviewUrl?: string | null
-    // instant commun (epoch) auquel lancer cet extrait sur tous les
-    // appareils (cf. GameEnd.audioStartedAt)
-    audioStartedAt?: number | null
+    // état/contrôle du lecteur partagé avec les écrans précédents (question,
+    // résultat de manche, cf. useSyncedAudioPlayer dans game.screen.tsx) : ce
+    // composant n'a plus sa propre instance audio, pour que l'extrait
+    // continue sans coupure/rechute au changement d'écran plutôt que d'être
+    // rechargé (et donc réentendu deux fois)
+    audioPlaying: boolean
+    onToggleAudio: () => void
 }
 
 // ordre d'affichage du podium : 2e, 1er, 3e (au centre, en hauteur)
@@ -31,7 +35,8 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
     onStayInLobby,
     onBackToHome,
     lastPreviewUrl,
-    audioStartedAt,
+    audioPlaying,
+    onToggleAudio,
 }) => {
     const podium = leaderboard.slice(0, 3)
     const rest = leaderboard.slice(3)
@@ -89,7 +94,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
 
             {lastPreviewUrl && (
                 <View className="mb-4">
-                    <AudioPlayer previewUrl={lastPreviewUrl} startedAt={audioStartedAt ?? undefined} compact />
+                    <AudioPlayerButton previewUrl={lastPreviewUrl} playing={audioPlaying} onToggle={onToggleAudio} compact />
                 </View>
             )}
 
