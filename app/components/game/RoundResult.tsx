@@ -167,21 +167,22 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                         transition={100}
                     />
                 )}
-                {/* le bouton play/pause à gauche du titre (plutôt qu'en dessous, sur
-                    sa propre ligne) laisse beaucoup plus de place à la section
-                    Classement plus bas, notamment sur les écrans plus petits */}
-                <View className="flex-row items-center gap-3 w-full">
-                    {previewUrl && (
-                        <AudioPlayerButton previewUrl={previewUrl} playing={audioPlaying} onToggle={onToggleAudio} compact />
-                    )}
+                {/* le titre reste centré exactement comme avant (mêmes props
+                    SectionTitle) ; le bouton play/pause est juste superposé à
+                    côté en position absolue, sans influencer sa mise en page */}
+                <View style={{ alignSelf: 'stretch', alignItems: 'center' }}>
                     <SectionTitle
                         title={result.track.name}
                         subtitle={result.track.artist}
-                        align={previewUrl ? 'left' : 'center'}
+                        align="center"
                         titleSize="md"
                         subtitleSize="sm"
-                        className="flex-1"
                     />
+                    {previewUrl && (
+                        <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, justifyContent: 'center' }}>
+                            <AudioPlayerButton previewUrl={previewUrl} playing={audioPlaying} onToggle={onToggleAudio} compact />
+                        </View>
+                    )}
                 </View>
             </View>
 

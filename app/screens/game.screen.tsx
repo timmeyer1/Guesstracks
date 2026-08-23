@@ -263,19 +263,26 @@ const GameScreen = () => {
                                     transition={100}
                                 />
                             )}
-                            <Text className="text-black text-lg font-bold text-center">
-                                {truncateTitle(round.track.name)}
-                            </Text>
-                            <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
+                            {/* le titre reste centré exactement comme avant ; le
+                                bouton play/pause est juste superposé à côté en
+                                position absolue, sans influencer sa mise en page */}
+                            <View style={{ alignSelf: 'stretch', alignItems: 'center' }}>
+                                <Text className="text-black text-lg font-bold text-center">
+                                    {truncateTitle(round.track.name)}
+                                </Text>
+                                <Text className="text-darkgray text-sm text-center">{round.track.artist}</Text>
+                                <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, justifyContent: 'center' }}>
+                                    <AudioPlayerButton
+                                        previewUrl={round.track.previewUrl}
+                                        playing={roundAudio.status.playing}
+                                        onToggle={roundAudio.toggle}
+                                        compact
+                                    />
+                                </View>
+                            </View>
                         </View>
 
-                        <View className="flex-row items-center justify-center gap-3 mb-6">
-                            <AudioPlayerButton
-                                previewUrl={round.track.previewUrl}
-                                playing={roundAudio.status.playing}
-                                onToggle={roundAudio.toggle}
-                                compact
-                            />
+                        <View className="items-center mb-6">
                             <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
                         </View>
 

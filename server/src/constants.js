@@ -40,7 +40,7 @@ export const SCORING = {
     STREAK_BONUS_CAP: 500,
 }
 
-export const ROUND_RESULTS_PAUSE_MS = 5000 // temps d'affichage des résultats entre deux manches
+export const ROUND_RESULTS_PAUSE_MS = 7000 // temps d'affichage des résultats entre deux manches
 
 // une fois que tous les joueurs ont répondu, délai laissé avant de basculer
 // sur les résultats (plutôt que de couper la manche net) — mais seulement si
