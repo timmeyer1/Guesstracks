@@ -84,7 +84,14 @@ export type GameRoundPlayerResult = {
     correctSelected: number
     incorrectSelected: number
     isPerfect: boolean
+    // facteur de vitesse (0..1) déjà appliqué dans basePoints — exposé à part
+    // pour pouvoir afficher "vitesse : xx %" sans reconstituer le calcul
+    speedFactor: number
     basePoints: number
+    // détail de bonusPoints (leur somme) : série de manches parfaites
+    // d'affilée vs. bonus fixe "manche parfaite"
+    streakBonus: number
+    perfectBonus: number
     bonusPoints: number
     points: number
     totalPoints: number

@@ -83,18 +83,26 @@ export const submitTracks = (code, player, tracks, io) => {
     }
 
     const game = getOrCreate(code)
-    // partie déjà lancée : un envoi tardif (reconnexion, etc.) est ignoré, le
-    // pool a déjà été figé au démarrage. On rediffuse quand même l'état
-    // courant (même principe que clearPendingReturn pour
-    // pendingReturnPlayerIds) : un joueur expulsé pour inactivité en fin de
-    // partie (cf. handleReturnTimeout) puis revenu au lobby en retapant le
-    // code voit son game store local réinitialisé (cf. lobby.screen.tsx)
-    // avant de renvoyer ses musiques ici ; comme il n'a pas besoin de les
-    // renvoyer (déjà dans submittedTracks depuis la partie précédente), sans
-    // cette rediffusion il n'apprenait jamais que tout le monde avait déjà
-    // soumis, et "En attente des musiques de X joueurs" restait bloqué
-    // indéfiniment côté client s'il devenait hôte entre-temps.
-    if (game.status !== 'collecting') {
+    // partie déjà lancée (en cours de manche ou entre deux manches) : un envoi
+    // tardif (reconnexion, etc.) est ignoré, le pool a déjà été figé au
+    // démarrage. 'finished' est en revanche traité comme 'collecting' (même
+    // liste de statuts que startGame ci-dessous) : entre la fin d'une partie
+    // et le prochain lancement, le statut reste 'finished' tant que l'hôte n'a
+    // pas relancé — un nouveau joueur qui rejoint le lobby à ce moment-là (ou
+    // un joueur existant qui renvoie ses musiques) doit pouvoir être enregistré
+    // dans submittedTracks, sinon il reste invisible du pool et le lancement
+    // reste bloqué indéfiniment sur "En attente des musiques d'un joueur",
+    // sans qu'aucun changement d'hôte ne puisse le débloquer.
+    //
+    // On rediffuse quand même l'état courant dans le cas rejeté (même principe
+    // que clearPendingReturn pour pendingReturnPlayerIds) : un joueur expulsé
+    // pour inactivité en fin de partie (cf. handleReturnTimeout) puis revenu
+    // au lobby en retapant le code voit son game store local réinitialisé
+    // (cf. lobby.screen.tsx) avant de renvoyer ses musiques ici ; comme il n'a
+    // pas besoin de les renvoyer (déjà dans submittedTracks depuis la partie
+    // précédente), sans cette rediffusion il n'apprenait jamais que tout le
+    // monde avait déjà soumis.
+    if (game.status !== 'collecting' && game.status !== 'finished') {
         io?.to(room(code)).emit('game:tracksProgress', {
             submittedPlayerIds: [...game.submittedTracks.keys()],
         })
@@ -545,19 +553,24 @@ const endRound = (code, io) => {
         // rapproche du maximum : une seule bonne personne sur plusieurs ne
         // rapporte qu'une fraction des points, toutes les rapporte en entier
         const basePoints = earnedPoints ? Math.round(SCORING.BASE_POINTS * recall * speedFactor) : 0
-        let bonusPoints = 0
+        // détaillés séparément (plutôt qu'un bonusPoints unique) pour que le
+        // client puisse expliquer au joueur d'où viennent ses points bonus :
+        // série de manches parfaites d'affilée vs. bonus "manche parfaite" fixe
+        let streakBonus = 0
+        let perfectBonus = 0
 
         if (isPerfect) {
             score.streak += 1
             score.bestStreak = Math.max(score.bestStreak, score.streak)
             score.perfectRounds += 1
             const streakLevel = Math.max(0, score.streak - 1)
-            bonusPoints += Math.min(SCORING.STREAK_BONUS_CAP, streakLevel * SCORING.STREAK_BONUS_PER_LEVEL)
-            bonusPoints += SCORING.PERFECT_BONUS
+            streakBonus = Math.min(SCORING.STREAK_BONUS_CAP, streakLevel * SCORING.STREAK_BONUS_PER_LEVEL)
+            perfectBonus = SCORING.PERFECT_BONUS
         } else {
             score.streak = 0
         }
 
+        const bonusPoints = streakBonus + perfectBonus
         const points = Math.max(0, basePoints + bonusPoints)
         if (earnedPoints) score.correctRounds += 1
         if (isPerfect && (score.fastestMs === null || elapsedMs < score.fastestMs)) {
@@ -575,7 +588,10 @@ const endRound = (code, io) => {
             correctSelected,
             incorrectSelected,
             isPerfect,
+            speedFactor,
             basePoints,
+            streakBonus,
+            perfectBonus,
             bonusPoints,
             points,
             totalPoints: score.total,

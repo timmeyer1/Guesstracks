@@ -135,6 +135,7 @@ const GameScreen = () => {
                     questionType={round.questionType}
                     myPlayerId={user.id}
                     previewUrl={round.track.previewUrl}
+                    catalog={catalog}
                 />
             </ScreenLayout>
         )
