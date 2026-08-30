@@ -88,10 +88,16 @@ export const LobbySettingsModal = ({
     // who_liked (le plus compact, sans le bloc "Choix des titres") et
     // réutilisée quel que soit le mode ensuite, pour que la modale ait
     // toujours la même taille : en blindtest, le bloc en plus fait défiler le
-    // contenu dans cet espace au lieu d'agrandir la modale
+    // contenu dans cet espace au lieu d'agrandir la modale. On continue de
+    // remesurer à chaque layout tant qu'on est en who_liked (pas juste la
+    // toute première fois) : un premier onLayout peut survenir avant que tout
+    // ait fini de se stabiliser (icônes, curseur natif...), ce qui donnait une
+    // hauteur parfois trop courte et rendait le scroll en blindtest peu
+    // fiable (tantôt possible, tantôt le contenu débordait sans pouvoir
+    // défiler jusqu'au bout)
     const [compactHeight, setCompactHeight] = useState<number>()
     const handleContentLayout = (e: LayoutChangeEvent) => {
-        if (gameMode !== 'blindtest' && compactHeight === undefined) {
+        if (gameMode !== 'blindtest') {
             setCompactHeight(e.nativeEvent.layout.height)
         }
     }
@@ -140,11 +146,23 @@ export const LobbySettingsModal = ({
 
     return (
         <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
+            {/* backdrop en sibling absolu de la carte (pas un Pressable ancêtre qui
+                l'englobe) : une Pressable ancêtre de la ScrollView capte le geste dès
+                qu'on touche un espace vide de la carte, et une ScrollView ne peut
+                reprendre la main que sur un DESCENDANT (bouton, slider), jamais sur un
+                ancêtre — d'où un scroll qui ne fonctionnait qu'en posant le doigt sur
+                un "module" et jamais sur le vide entre eux. En sibling, le tap sur le
+                fond noir (hors carte) ferme la modale normalement, et la carte ne
+                capte plus rien au niveau ancêtre de la ScrollView */}
             <Pressable
-                className="flex-1 bg-black/60 justify-center items-center px-8"
+                className="absolute top-0 left-0 right-0 bottom-0 bg-black/60"
                 onPress={handleClose}
+            />
+            <View
+                className="flex-1 justify-center items-center px-8"
+                pointerEvents="box-none"
             >
-                <Pressable className="bg-white w-full rounded-3xl p-6" style={{ maxHeight: '85%' }}>
+                <View className="bg-white w-full rounded-3xl p-6" style={{ maxHeight: '85%' }}>
                     <SectionTitle
                         title={mode === "create" ? "Créer une partie" : "Paramètres"}
                         subtitle={mode === "create" ? "Configure ta partie !" : "Modifie les règles"}
@@ -301,8 +319,8 @@ export const LobbySettingsModal = ({
                             />
                         </View>
                     </View>
-                </Pressable>
-            </Pressable>
+                </View>
+            </View>
         </Modal>
     )
 }
