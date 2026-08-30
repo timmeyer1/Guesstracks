@@ -14,7 +14,7 @@ const playerSchema = new mongoose.Schema(
 const lobbySchema = new mongoose.Schema({
     code: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true, trim: true, maxlength: 60 },
-    gameMode: { type: String, enum: GAME_MODES, default: 'guesstracks' },
+    gameMode: { type: String, enum: GAME_MODES, default: 'who_liked' },
     rounds: { type: Number, min: LOBBY_LIMITS.MIN_ROUNDS, max: LOBBY_LIMITS.MAX_ROUNDS, default: 10 },
     phaseSpeed: { type: Number, min: PHASE_SPEED_LIMITS.MIN, max: PHASE_SPEED_LIMITS.MAX, default: 15 },
     // si activé, la partie n'enchaîne plus automatiquement sur la manche
@@ -22,7 +22,7 @@ const lobbySchema = new mongoose.Schema({
     // (cf. game.service.js, endRound/advanceRound)
     manualAdvance: { type: Boolean, default: false },
     // mode blindtest uniquement (cf. constants.js et LobbySettingsModal) : sans
-    // effet en guesstracks, où le titre est toujours affiché
+    // effet en who_liked (Who Liked It), où le titre est toujours affiché
     trackAlgorithm: { type: String, enum: TRACK_ALGORITHMS, default: 'random' },
     // le lobby a des valeurs par défaut dès sa création, mais tant que l'hôte
     // n'a pas explicitement validé les réglages, on ne veut pas les afficher

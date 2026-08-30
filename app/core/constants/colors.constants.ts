@@ -11,7 +11,7 @@ export const COLORS = {
     primary: '#9622E0',
 
     // jeux
-    guesstracks: '#9622E0',
+    who_liked: '#9622E0',
     blindtest: '#E07422',
 
     // plateformes
@@ -26,4 +26,4 @@ export const COLORS = {
 } as const
 
 export type ButtonVariant = 'white' | 'dark' | 'spotify' | 'deezer' | 'apple_music' | 'youtube_music'
-export type GameMode = 'guesstracks' | 'blindtest'
+export type GameMode = 'who_liked' | 'blindtest'

@@ -30,7 +30,7 @@ module.exports = {
         primary: '#9622E0',
 
         // games
-        guesstracks: '#9622E0',
+        who_liked: '#9622E0',
         blindtest: '#E07422',
 
         // plateformes

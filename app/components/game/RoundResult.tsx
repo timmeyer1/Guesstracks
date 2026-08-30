@@ -120,7 +120,7 @@ export const RoundResult: React.FC<RoundResultProps> = ({
     }
 
     // reconstitue ce que chaque joueur a répondu à partir de son
-    // selectedIds : liste de noms de joueurs en mode guesstracks, titre
+    // selectedIds : liste de noms de joueurs en mode who_liked (Who Liked It), titre
     // cherché (via le catalogue) en mode blindtest
     const answerLabel = (r: GameRoundPlayerResult) => {
         if (!r.answered || r.selectedIds.length === 0) return 'Pas de réponse'

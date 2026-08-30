@@ -31,13 +31,14 @@ import { CountdownLabel } from '../components/game/CountdownLabel'
 // nouveau déclenchement de redémarrage (cf. restartPreview plus bas)
 const RESTART_GUARD_MS = 800
 
-const GUESSTRACKS_TITLE_MAX_LENGTH = 40
-// en mode guesstracks le titre est toujours affiché en entier pendant la
-// manche (ce n'est pas ce qu'on devine, cf. core/types.ts) : un titre trop
-// long peut prendre plusieurs lignes et pousser le reste de la mise en page
+const WHO_LIKED_TITLE_MAX_LENGTH = 40
+// en mode who_liked (Who Liked It) le titre est toujours affiché en entier
+// pendant la manche (ce n'est pas ce qu'on devine, cf. core/types.ts) : un
+// titre trop long peut prendre plusieurs lignes et pousser le reste de la
+// mise en page
 const truncateTitle = (name?: string) =>
-    name && name.length > GUESSTRACKS_TITLE_MAX_LENGTH
-        ? `${name.slice(0, GUESSTRACKS_TITLE_MAX_LENGTH).trimEnd()}...`
+    name && name.length > WHO_LIKED_TITLE_MAX_LENGTH
+        ? `${name.slice(0, WHO_LIKED_TITLE_MAX_LENGTH).trimEnd()}...`
         : name
 
 // Tailles exprimées en % de la hauteur d'écran (plutôt qu'en pixels fixes)

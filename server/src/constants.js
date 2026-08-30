@@ -1,4 +1,4 @@
-export const GAME_MODES = ['guesstracks', 'blindtest']
+export const GAME_MODES = ['who_liked', 'blindtest']
 
 // mode blindtest uniquement (cf. LobbySettingsModal côté client) : comment
 // les titres des manches sont choisis parmi le pool de titres likés
@@ -34,7 +34,7 @@ export const PHASE_SPEED_LIMITS = {
 }
 
 export const DEFAULT_LOBBY_SETTINGS = {
-    gameMode: 'guesstracks',
+    gameMode: 'who_liked',
     rounds: 10,
     phaseSpeed: 15,
     manualAdvance: false,
@@ -46,7 +46,7 @@ export const CODE_LENGTH = 4
 export const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 
 export const QUESTION_TYPES = {
-    guesstracks: 'who_liked',
+    who_liked: 'who_liked',
     blindtest: 'guess_track',
 }
 

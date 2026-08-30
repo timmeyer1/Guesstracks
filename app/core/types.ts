@@ -9,7 +9,7 @@ export type TrackType = {
 };
 
 
-export type GameMode = 'guesstracks' | 'blindtest'
+export type GameMode = 'who_liked' | 'blindtest'
 // durée d'une phase de manche, en secondes
 export type PhaseSpeed = number
 
@@ -47,7 +47,7 @@ export type LobbyUserType = {
 
 export type QuestionType = 'who_liked' | 'guess_track'
 
-// mode guesstracks : on choisit parmi les joueurs du lobby
+// mode who_liked (Who Liked It) : on choisit parmi les joueurs du lobby
 export type WhoLikedOption = {
     id: string
     name: string

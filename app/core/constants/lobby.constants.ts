@@ -2,8 +2,8 @@ import { GameMode, PhaseSpeed, TrackAlgorithm } from '../types'
 
 // mode de jeu
 export const GAME_MODES = {
-    guesstracks: {
-        label: 'Guesstracks',
+    who_liked: {
+        label: 'Who Liked It',
         icon: '🎼', // TODO: mettre nos propres icones
         // description: '',
     },
@@ -46,7 +46,7 @@ export const LOBBY_LIMITS = {
 
 // paramètres par défaut
 export const DEFAULT_LOBBY_SETTINGS = {
-    gameMode: 'guesstracks' as GameMode,
+    gameMode: 'who_liked' as GameMode,
     rounds: 10,
     phaseSpeed: 15 as PhaseSpeed,
     manualAdvance: false,

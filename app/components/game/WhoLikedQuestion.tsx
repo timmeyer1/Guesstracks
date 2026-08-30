@@ -55,7 +55,7 @@ const OptionRow: React.FC<OptionRowProps> = React.memo(function OptionRow({
                 {isSelected && (
                     <View
                         className="absolute -top-1 -right-1 rounded-full p-0.5"
-                        style={{ backgroundColor: COLORS.guesstracks }}
+                        style={{ backgroundColor: COLORS.who_liked }}
                     >
                         <Check size={10} color={COLORS.white} />
                     </View>

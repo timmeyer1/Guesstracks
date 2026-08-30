@@ -13,12 +13,12 @@ interface GameModeCardProps {
 }
 
 const GAME_ICONS: Record<GameMode, React.ComponentType<any>> = {
-    guesstracks: Music,
+    who_liked: Music,
     blindtest: Trophy
 }
 
 const GAME_STYLES: Record<GameMode, { borderClass: string; iconColor: string }> = {
-    guesstracks: { borderClass: 'border-guesstracks', iconColor: COLORS.guesstracks },
+    who_liked: { borderClass: 'border-who_liked', iconColor: COLORS.who_liked },
     blindtest: { borderClass: 'border-blindtest', iconColor: COLORS.blindtest },
 }
 

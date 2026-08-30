@@ -208,9 +208,9 @@ const byCoverageDesc = (shuffledPool, activePlayerIds) =>
         return countB - countA
     })
 
-// mode guesstracks : le titre est toujours affiché (ce n'est pas ce qu'on
-// devine), on privilégie juste les musiques qui ont un extrait sans que ce
-// soit bloquant.
+// mode who_liked (Who Liked It) : le titre est toujours affiché (ce n'est pas
+// ce qu'on devine), on privilégie juste les musiques qui ont un extrait sans
+// que ce soit bloquant.
 //
 // Équité : une première passe (triée par couverture, cf. byCoverageDesc)
 // réserve un titre par joueur pas encore représenté ; ces manches "d'équité"
@@ -218,7 +218,7 @@ const byCoverageDesc = (shuffledPool, activePlayerIds) =>
 // les manches restantes avec le reste du pool mélangé, en privilégiant les
 // titres avec extrait comme avant — donc plus il y a de manches, plus les
 // joueurs ont de chances de voir plusieurs de leurs titres tirés.
-const buildGuesstracksRounds = async (pool, requestedRounds, activePlayerIds) => {
+const buildWhoLikedRounds = async (pool, requestedRounds, activePlayerIds) => {
     const shuffledPool = shuffle(pool)
     const used = new Set()
     const fairnessRounds = []
@@ -475,7 +475,7 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     const questionType = QUESTION_TYPES[game.gameMode]
     const built =
         questionType === 'who_liked'
-            ? await buildGuesstracksRounds(pool, lobby.rounds, activePlayerIds)
+            ? await buildWhoLikedRounds(pool, lobby.rounds, activePlayerIds)
             : await buildBlindtestRounds(pool, lobby.rounds, activePlayerIds, lobby.trackAlgorithm)
 
     if (built.length < MIN_ROUNDS_PLAYABLE) {

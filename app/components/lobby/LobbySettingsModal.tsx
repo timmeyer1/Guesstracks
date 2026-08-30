@@ -47,7 +47,7 @@ export const LobbySettingsModal = ({
     )
 
     // couleur d'accent des réglages (curseurs, contours, switch...) : celle du
-    // mode de jeu actuellement sélectionné (violet guesstracks / orange
+    // mode de jeu actuellement sélectionné (violet who_liked / orange
     // blindtest, cf. colors.constants.ts) plutôt qu'une couleur fixe, pour que
     // toute la modale se re-teinte instantanément quand on change de mode —
     // s'étend automatiquement à un futur mode tant qu'il a une entrée dans COLORS
@@ -185,7 +185,7 @@ export const LobbySettingsModal = ({
 
                         {/* spécifique au blindtest : détermine comment les titres des
                             manches sont choisis (cf. TRACK_ALGORITHMS) — n'a aucun effet
-                            en guesstracks (le titre y est toujours affiché, jamais deviné),
+                            en who_liked (Who Liked It) (le titre y est toujours affiché, jamais deviné),
                             donc masqué pour ne pas exposer un réglage sans effet */}
                         {gameMode === 'blindtest' && (
                             <View className="mb-6">
