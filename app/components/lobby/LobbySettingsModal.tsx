@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView, Switch } from "react-native"
+import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView, Switch, LayoutChangeEvent } from "react-native"
 import Slider from "@react-native-community/slider"
 import { GAME_MODES, TRACK_ALGORITHMS, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
@@ -84,6 +84,18 @@ export const LobbySettingsModal = ({
     // s'étend automatiquement à un futur mode tant qu'il a une entrée dans COLORS
     const accentColor = COLORS[gameMode]
 
+    // hauteur figée du contenu défilable — mesurée sur le contenu du mode
+    // who_liked (le plus compact, sans le bloc "Choix des titres") et
+    // réutilisée quel que soit le mode ensuite, pour que la modale ait
+    // toujours la même taille : en blindtest, le bloc en plus fait défiler le
+    // contenu dans cet espace au lieu d'agrandir la modale
+    const [compactHeight, setCompactHeight] = useState<number>()
+    const handleContentLayout = (e: LayoutChangeEvent) => {
+        if (gameMode !== 'blindtest' && compactHeight === undefined) {
+            setCompactHeight(e.nativeEvent.layout.height)
+        }
+    }
+
     // synchro avec les paramètres initiaux quand la modal s'ouvre — uniquement
     // au passage fermée -> ouverte (wasVisible), pas à chaque fois que
     // `initialSettings` change de référence : ce prop vient du lobby du store
@@ -142,7 +154,12 @@ export const LobbySettingsModal = ({
                         className="mb-6"
                     />
 
-                    <ScrollView className="mb-6" showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                        className="mb-6"
+                        showsVerticalScrollIndicator={false}
+                        style={compactHeight !== undefined ? { height: compactHeight } : undefined}
+                    >
+                        <View onLayout={handleContentLayout}>
                         <View className="mb-6">
                             <SectionTitle title="Mode de jeu" align="center" titleSize="sm" className="mb-3" />
                             <View className="flex-row gap-2">
@@ -267,6 +284,7 @@ export const LobbySettingsModal = ({
                                 trackColor={{ true: accentColor }}
                                 thumbColor={COLORS.white}
                             />
+                        </View>
                         </View>
                     </ScrollView>
 
