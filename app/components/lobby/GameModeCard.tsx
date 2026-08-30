@@ -12,7 +12,8 @@ interface GameModeCardProps {
     onSettingsPress?: () => void
 }
 
-const GAME_ICONS: Record<GameMode, React.ComponentType<any>> = {
+// icônes des modes de jeu, partagées avec LobbySettingsModal (sélecteur de mode)
+export const GAME_MODE_ICONS: Record<GameMode, React.ComponentType<any>> = {
     who_liked: Music,
     blindtest: Trophy
 }
@@ -32,7 +33,7 @@ export const GameModeCard: React.FC<GameModeCardProps> = ({
         return <WaitingCard />
     }
 
-    const Icon = GAME_ICONS[gameMode]
+    const Icon = GAME_MODE_ICONS[gameMode]
     const { borderClass, iconColor } = GAME_STYLES[gameMode]
     const modeLabel = GAME_MODES[gameMode].label
     const speedLabel = getPhaseSpeedLabel(phaseSpeed)

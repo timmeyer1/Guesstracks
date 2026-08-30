@@ -4,15 +4,13 @@ import { GameMode, PhaseSpeed, TrackAlgorithm } from '../types'
 export const GAME_MODES = {
     who_liked: {
         label: 'Who Liked It',
-        icon: '🎼', // TODO: mettre nos propres icones
         // description: '',
     },
     blindtest: {
         label: 'Blindtest',
-        icon: '💡',
         // description: '',
     },
-} as const satisfies Record<GameMode, { label: string; icon: string }>
+} as const satisfies Record<GameMode, { label: string }>
 
 // algorithme de sélection des titres (mode blindtest uniquement, cf.
 // LobbySettingsModal) — labels affichés dans le sélecteur de réglages

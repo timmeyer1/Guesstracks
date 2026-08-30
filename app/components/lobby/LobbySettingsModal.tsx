@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView, Switch } from "react-native"
 import Slider from "@react-native-community/slider"
 import { GAME_MODES, TRACK_ALGORITHMS, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
@@ -6,6 +6,28 @@ import { COLORS } from "../../core/constants/colors.constants"
 import { GameMode, PhaseSpeed, TrackAlgorithm } from "../../core/types"
 import { SectionTitle } from "../SectionTitle"
 import { CustomButton } from "../Button"
+import { GAME_MODE_ICONS } from "./GameModeCard"
+
+// dérive la valeur "affichée/confirmée" (multiples de 5) à partir de la
+// position continue du curseur natif. `min` et `max` restent chacun un
+// palier à part, tout seuls à leur extrémité respective (ex. seul 5 pile
+// donne "5", seul 30 pile donne "30") ; l'espace restant de la piste est
+// réparti à parts ÉGALES entre les paliers intermédiaires (10, 15, 20, 25)
+// plutôt que de tout déverser sur le dernier d'entre eux (25 prenait sinon
+// une place disproportionnée) — chacun occupe donc la même largeur visuelle.
+// Sans prop `step` sur le <Slider> plus bas, le drag reste 100% fluide et
+// natif (iOS/Android) — aucun arrondi n'intervient sur la position du
+// curseur lui-même, qui reste exactement là où le doigt l'a laissé ; seul le
+// nombre affiché/envoyé au serveur est calculé à partir de cette position.
+const bucketToStep = (raw: number, min: number, max: number, step: number) => {
+    if (raw <= min) return min
+    if (raw >= max) return max
+    const interiorSteps = Math.round((max - min) / step) - 1
+    if (interiorSteps <= 0) return raw - min < max - raw ? min : max
+    const bucketWidth = (max - min) / interiorSteps
+    const index = Math.min(interiorSteps - 1, Math.floor((raw - min) / bucketWidth))
+    return min + (index + 1) * step
+}
 
 export type LobbySettings = {
     gameMode: GameMode
@@ -33,11 +55,20 @@ export const LobbySettingsModal = ({
     const [gameMode, setGameMode] = useState<GameMode>(
         initialSettings?.gameMode ?? DEFAULT_LOBBY_SETTINGS.gameMode
     )
-    const [rounds, setRounds] = useState(
+    // position brute (continue) du curseur — cf. bucketToStep plus haut : ce
+    // n'est pas forcément un multiple de 5, seul son "bucket" l'est
+    const [roundsPosition, setRoundsPosition] = useState(
         initialSettings?.rounds ?? DEFAULT_LOBBY_SETTINGS.rounds
     )
-    const [phaseSpeed, setPhaseSpeed] = useState<PhaseSpeed>(
+    const [phaseSpeedPosition, setPhaseSpeedPosition] = useState<PhaseSpeed>(
         initialSettings?.phaseSpeed ?? DEFAULT_LOBBY_SETTINGS.phaseSpeed
+    )
+    const rounds = bucketToStep(roundsPosition, LOBBY_LIMITS.MIN_ROUNDS, LOBBY_LIMITS.MAX_ROUNDS, LOBBY_LIMITS.ROUNDS_STEP)
+    const phaseSpeed = bucketToStep(
+        phaseSpeedPosition,
+        LOBBY_LIMITS.MIN_PHASE_SPEED,
+        LOBBY_LIMITS.MAX_PHASE_SPEED,
+        LOBBY_LIMITS.PHASE_SPEED_STEP
     )
     const [manualAdvance, setManualAdvance] = useState(
         initialSettings?.manualAdvance ?? DEFAULT_LOBBY_SETTINGS.manualAdvance
@@ -53,15 +84,23 @@ export const LobbySettingsModal = ({
     // s'étend automatiquement à un futur mode tant qu'il a une entrée dans COLORS
     const accentColor = COLORS[gameMode]
 
-    // synchro avec les paramètres initiaux quand la modal s'ouvre
+    // synchro avec les paramètres initiaux quand la modal s'ouvre — uniquement
+    // au passage fermée -> ouverte (wasVisible), pas à chaque fois que
+    // `initialSettings` change de référence : ce prop vient du lobby du store
+    // (cf. lobby.screen.tsx), qui est remplacé par un nouvel objet à chaque
+    // mise à jour socket (ex. un joueur qui rejoint/quitte) — sans cette
+    // garde, un réglage en cours (curseur en train d'être déplacé) était
+    // écrasé et revenait à sa valeur serveur dès qu'un tel événement arrivait
+    const wasVisible = useRef(false)
     useEffect(() => {
-        if (visible && initialSettings) {
+        if (visible && !wasVisible.current && initialSettings) {
             setGameMode(initialSettings.gameMode)
-            setRounds(initialSettings.rounds)
-            setPhaseSpeed(initialSettings.phaseSpeed)
+            setRoundsPosition(initialSettings.rounds)
+            setPhaseSpeedPosition(initialSettings.phaseSpeed)
             setManualAdvance(initialSettings.manualAdvance)
             setTrackAlgorithm(initialSettings.trackAlgorithm)
         }
+        wasVisible.current = visible
     }, [visible, initialSettings])
 
     const handleConfirm = () => {
@@ -73,14 +112,14 @@ export const LobbySettingsModal = ({
         // reset aux valeurs initiales ou par défaut
         if (initialSettings) {
             setGameMode(initialSettings.gameMode)
-            setRounds(initialSettings.rounds)
-            setPhaseSpeed(initialSettings.phaseSpeed)
+            setRoundsPosition(initialSettings.rounds)
+            setPhaseSpeedPosition(initialSettings.phaseSpeed)
             setManualAdvance(initialSettings.manualAdvance)
             setTrackAlgorithm(initialSettings.trackAlgorithm)
         } else {
             setGameMode(DEFAULT_LOBBY_SETTINGS.gameMode)
-            setRounds(DEFAULT_LOBBY_SETTINGS.rounds)
-            setPhaseSpeed(DEFAULT_LOBBY_SETTINGS.phaseSpeed)
+            setRoundsPosition(DEFAULT_LOBBY_SETTINGS.rounds)
+            setPhaseSpeedPosition(DEFAULT_LOBBY_SETTINGS.phaseSpeed)
             setManualAdvance(DEFAULT_LOBBY_SETTINGS.manualAdvance)
             setTrackAlgorithm(DEFAULT_LOBBY_SETTINGS.trackAlgorithm)
         }
@@ -110,6 +149,7 @@ export const LobbySettingsModal = ({
                                 {(Object.keys(GAME_MODES) as GameMode[]).map((mode) => {
                                     const selected = gameMode === mode
                                     const modeColor = COLORS[mode]
+                                    const Icon = GAME_MODE_ICONS[mode]
                                     return (
                                         <TouchableOpacity
                                             key={mode}
@@ -121,7 +161,7 @@ export const LobbySettingsModal = ({
                                             }}
                                             onPress={() => setGameMode(mode)}
                                         >
-                                            <Text className="text-2xl mb-1">{GAME_MODES[mode].icon}</Text>
+                                            <Icon size={24} color={selected ? modeColor : COLORS.darkgray} style={{ marginBottom: 4 }} />
                                             <Text className="font-bold text-black">
                                                 {GAME_MODES[mode].label}
                                             </Text>
@@ -143,9 +183,8 @@ export const LobbySettingsModal = ({
                                     style={{ width: "100%", height: 40 }}
                                     minimumValue={LOBBY_LIMITS.MIN_ROUNDS}
                                     maximumValue={LOBBY_LIMITS.MAX_ROUNDS}
-                                    step={LOBBY_LIMITS.ROUNDS_STEP}
-                                    value={rounds}
-                                    onValueChange={setRounds}
+                                    value={roundsPosition}
+                                    onValueChange={setRoundsPosition}
                                     minimumTrackTintColor={accentColor}
                                     maximumTrackTintColor="transparent"
                                     thumbTintColor={accentColor}
@@ -169,9 +208,8 @@ export const LobbySettingsModal = ({
                                     style={{ width: "100%", height: 40 }}
                                     minimumValue={LOBBY_LIMITS.MIN_PHASE_SPEED}
                                     maximumValue={LOBBY_LIMITS.MAX_PHASE_SPEED}
-                                    step={LOBBY_LIMITS.PHASE_SPEED_STEP}
-                                    value={phaseSpeed}
-                                    onValueChange={setPhaseSpeed}
+                                    value={phaseSpeedPosition}
+                                    onValueChange={setPhaseSpeedPosition}
                                     minimumTrackTintColor={accentColor}
                                     maximumTrackTintColor="transparent"
                                     thumbTintColor={accentColor}
