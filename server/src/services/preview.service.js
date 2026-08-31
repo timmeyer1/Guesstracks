@@ -45,7 +45,10 @@ const normalize = normalizeTrackText
 // Buckshot -> "A Fever Guttering in the Ribs" - DEAD EYES BASTARD) : on ne
 // fait confiance à un résultat que si son titre ET son artiste correspondent
 // réellement, sinon on préfère ne pas avoir d'extrait plutôt qu'un mauvais
-// extrait
+// extrait. Cette validation compare toujours au nom D'ORIGINE (jamais à la
+// version "nettoyée" utilisée pour la requête, cf. searchTermVariants) : les
+// variantes de requête ci-dessous ne peuvent donc jamais faire remonter un
+// mauvais extrait, seulement en trouver un que la requête brute aurait raté.
 const isRealMatch = (name, artist, gotName, gotArtist) => {
     const wantedName = normalize(name)
     const wantedArtist = normalize(artist)
@@ -61,55 +64,97 @@ const isRealMatch = (name, artist, gotName, gotArtist) => {
     return normGotArtist.includes(wantedArtist) || wantedArtist.includes(normGotArtist)
 }
 
-const searchDeezerPreview = async (name, artist) => {
-    const term = `${name} ${artist}`.trim()
-    if (!term) return null
+// Spotify (et Apple Music) laissent souvent dans le titre un suffixe absent
+// du catalogue Deezer/iTunes — "(Remastered 2011)", "(Live)", "(Deluxe
+// Edition)", "- Radio Edit"... — qui fait échouer la recherche floue même
+// quand le titre existe bel et bien chez eux : testé en pratique, la requête
+// brute renvoie alors un résultat sans rapport (ex: un enregistrement live
+// obscur) plutôt que le titre studio, qu'isRealMatch rejette à raison,
+// laissant le titre sans extrait pour de bon.
+const NOISE_SUFFIX =
+    /\s*[-–—([]\s*(remaster(ed)?(\s*\d{4})?|live|deluxe(\s*edition)?|single version|radio edit|album version|acoustic|mono|stereo|explicit|clean|bonus track|extended(\s*mix)?|anniversary edition|edit)\b.*$/i
 
-    const url = new URL(DEEZER_SEARCH_URL)
-    url.searchParams.set('q', term)
-    url.searchParams.set('limit', '5')
+const stripNoise = (name) => `${name}`.replace(NOISE_SUFFIX, '').trim()
 
+// titre brut d'abord (le cas courant), puis sa version nettoyée en repli
+// seulement si elle diffère réellement du titre brut
+const searchTermVariants = (name) => {
+    const cleaned = stripNoise(name)
+    return cleaned && cleaned !== name ? [name, cleaned] : [name]
+}
+
+const SEARCH_RESULT_LIMIT = 10
+
+const fetchJson = async (url) => {
     try {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 5000)
         const res = await fetch(url, { signal: controller.signal })
         clearTimeout(timeout)
-
         if (!res.ok) return null
-        const data = await res.json()
-        const match = (data.data || []).find((candidate) =>
-            isRealMatch(name, artist, candidate.title, candidate.artist?.name)
-        )
-        return match?.preview || null
+        return await res.json()
     } catch {
         return null
     }
 }
 
-const searchItunesPreview = async (name, artist) => {
-    const term = `${name} ${artist}`.trim()
-    if (!term) return null
+const searchDeezerOnce = async (query) => {
+    if (!query) return []
+    const url = new URL(DEEZER_SEARCH_URL)
+    url.searchParams.set('q', query)
+    url.searchParams.set('limit', String(SEARCH_RESULT_LIMIT))
+    const data = await fetchJson(url)
+    return data?.data || []
+}
 
+const searchDeezerPreview = async (name, artist) => {
+    if (!name && !artist) return null
+
+    // pour chaque variante de titre (brut, puis nettoyé si différent), deux
+    // requêtes en parallèle : la syntaxe à champs de Deezer (artist:"X"
+    // track:"Y"), plus précise que le texte libre car elle classe en tête les
+    // correspondances exactes de métadonnées, et une requête texte libre en
+    // complément (le champ échoue parfois sur des caractères spéciaux)
+    const queries = searchTermVariants(name).flatMap((term) => {
+        const plainQuery = `${term} ${artist}`.trim()
+        if (!plainQuery) return []
+        const fieldQuery = artist ? `artist:"${artist}" track:"${term}"` : plainQuery
+        return [fieldQuery, plainQuery]
+    })
+    if (queries.length === 0) return null
+
+    const resultSets = await Promise.all(queries.map(searchDeezerOnce))
+    for (const results of resultSets) {
+        const match = results.find((candidate) => isRealMatch(name, artist, candidate.title, candidate.artist?.name))
+        if (match?.preview) return match.preview
+    }
+    return null
+}
+
+const searchItunesOnce = async (term) => {
+    if (!term) return []
     const url = new URL(ITUNES_SEARCH_URL)
     url.searchParams.set('term', term)
     url.searchParams.set('entity', 'song')
-    url.searchParams.set('limit', '5')
+    url.searchParams.set('limit', String(SEARCH_RESULT_LIMIT))
+    const data = await fetchJson(url)
+    return data?.results || []
+}
 
-    try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 5000)
-        const res = await fetch(url, { signal: controller.signal })
-        clearTimeout(timeout)
+const searchItunesPreview = async (name, artist) => {
+    if (!name && !artist) return null
 
-        if (!res.ok) return null
-        const data = await res.json()
-        const match = (data.results || []).find((candidate) =>
-            isRealMatch(name, artist, candidate.trackName, candidate.artistName)
-        )
-        return match?.previewUrl ?? null
-    } catch {
-        return null
+    const queries = searchTermVariants(name)
+        .map((term) => `${term} ${artist}`.trim())
+        .filter(Boolean)
+    if (queries.length === 0) return null
+
+    const resultSets = await Promise.all(queries.map(searchItunesOnce))
+    for (const results of resultSets) {
+        const match = results.find((candidate) => isRealMatch(name, artist, candidate.trackName, candidate.artistName))
+        if (match?.previewUrl) return match.previewUrl
     }
+    return null
 }
 
 // track: { name, artist, previewUrl?, provider?, id? }

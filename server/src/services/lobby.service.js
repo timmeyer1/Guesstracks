@@ -1,6 +1,6 @@
 import { LobbyModel } from '../models/lobby.model.js'
 import { generateUniqueLobbyCode } from '../utils/generateCode.js'
-import { GAME_MODES, PHASE_SPEED_LIMITS, LOBBY_LIMITS, DEFAULT_LOBBY_SETTINGS, TRACK_ALGORITHMS } from '../constants.js'
+import { GAME_MODES, PHASE_SPEED_LIMITS, LOBBY_LIMITS, DEFAULT_LOBBY_SETTINGS } from '../constants.js'
 
 export class LobbyError extends Error {
     constructor(message, status = 400) {
@@ -29,7 +29,6 @@ export const createLobby = async (player) => {
         rounds: DEFAULT_LOBBY_SETTINGS.rounds,
         phaseSpeed: DEFAULT_LOBBY_SETTINGS.phaseSpeed,
         manualAdvance: DEFAULT_LOBBY_SETTINGS.manualAdvance,
-        trackAlgorithm: DEFAULT_LOBBY_SETTINGS.trackAlgorithm,
         maxPlayers: LOBBY_LIMITS.MAX_PLAYERS,
         players: [
             {
@@ -132,13 +131,6 @@ export const updateLobbySettings = async (code, playerId, settings) => {
 
     if (settings.manualAdvance !== undefined) {
         lobby.manualAdvance = Boolean(settings.manualAdvance)
-    }
-
-    if (settings.trackAlgorithm !== undefined) {
-        if (!TRACK_ALGORITHMS.includes(settings.trackAlgorithm)) {
-            throw new LobbyError('Algorithme de sélection des titres invalide')
-        }
-        lobby.trackAlgorithm = settings.trackAlgorithm
     }
 
     lobby.settingsConfirmed = true

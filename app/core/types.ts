@@ -13,13 +13,6 @@ export type GameMode = 'who_liked' | 'blindtest'
 // durée d'une phase de manche, en secondes
 export type PhaseSpeed = number
 
-// mode blindtest uniquement (cf. LobbySettingsModal) : comment les titres des
-// manches sont choisis parmi le pool de titres likés par les joueurs
-// - random : tirage complètement aléatoire, sans autre contrainte
-// - known_half / known_third : un titre sur 2 (ou sur 3) est un titre "connu
-//   de tous" (liké par plusieurs joueurs, cf. isPopularTrack côté serveur)
-export type TrackAlgorithm = 'random' | 'known_half' | 'known_third'
-
 export type LobbyType = {
     code: string;
     name: string;
@@ -31,7 +24,6 @@ export type LobbyType = {
     // si activé, la partie n'enchaîne plus automatiquement sur la manche
     // suivante après l'affichage des résultats : seul l'hôte peut continuer
     manualAdvance: boolean;
-    trackAlgorithm: TrackAlgorithm;
     settingsConfirmed: boolean;
 };
 

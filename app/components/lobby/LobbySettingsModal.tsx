@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView, Switch, LayoutChangeEvent } from "react-native"
+import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView, Switch } from "react-native"
 import Slider from "@react-native-community/slider"
-import { GAME_MODES, TRACK_ALGORITHMS, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
+import { GAME_MODES, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
-import { GameMode, PhaseSpeed, TrackAlgorithm } from "../../core/types"
+import { GameMode, PhaseSpeed } from "../../core/types"
 import { SectionTitle } from "../SectionTitle"
 import { CustomButton } from "../Button"
 import { GAME_MODE_ICONS } from "./GameModeCard"
@@ -34,7 +34,6 @@ export type LobbySettings = {
     rounds: number
     phaseSpeed: PhaseSpeed
     manualAdvance: boolean
-    trackAlgorithm: TrackAlgorithm
 }
 
 type LobbySettingsModalProps = {
@@ -73,9 +72,6 @@ export const LobbySettingsModal = ({
     const [manualAdvance, setManualAdvance] = useState(
         initialSettings?.manualAdvance ?? DEFAULT_LOBBY_SETTINGS.manualAdvance
     )
-    const [trackAlgorithm, setTrackAlgorithm] = useState<TrackAlgorithm>(
-        initialSettings?.trackAlgorithm ?? DEFAULT_LOBBY_SETTINGS.trackAlgorithm
-    )
 
     // couleur d'accent des réglages (curseurs, contours, switch...) : celle du
     // mode de jeu actuellement sélectionné (violet who_liked / orange
@@ -83,24 +79,6 @@ export const LobbySettingsModal = ({
     // toute la modale se re-teinte instantanément quand on change de mode —
     // s'étend automatiquement à un futur mode tant qu'il a une entrée dans COLORS
     const accentColor = COLORS[gameMode]
-
-    // hauteur figée du contenu défilable — mesurée sur le contenu du mode
-    // who_liked (le plus compact, sans le bloc "Choix des titres") et
-    // réutilisée quel que soit le mode ensuite, pour que la modale ait
-    // toujours la même taille : en blindtest, le bloc en plus fait défiler le
-    // contenu dans cet espace au lieu d'agrandir la modale. On continue de
-    // remesurer à chaque layout tant qu'on est en who_liked (pas juste la
-    // toute première fois) : un premier onLayout peut survenir avant que tout
-    // ait fini de se stabiliser (icônes, curseur natif...), ce qui donnait une
-    // hauteur parfois trop courte et rendait le scroll en blindtest peu
-    // fiable (tantôt possible, tantôt le contenu débordait sans pouvoir
-    // défiler jusqu'au bout)
-    const [compactHeight, setCompactHeight] = useState<number>()
-    const handleContentLayout = (e: LayoutChangeEvent) => {
-        if (gameMode !== 'blindtest') {
-            setCompactHeight(e.nativeEvent.layout.height)
-        }
-    }
 
     // synchro avec les paramètres initiaux quand la modal s'ouvre — uniquement
     // au passage fermée -> ouverte (wasVisible), pas à chaque fois que
@@ -116,13 +94,12 @@ export const LobbySettingsModal = ({
             setRoundsPosition(initialSettings.rounds)
             setPhaseSpeedPosition(initialSettings.phaseSpeed)
             setManualAdvance(initialSettings.manualAdvance)
-            setTrackAlgorithm(initialSettings.trackAlgorithm)
         }
         wasVisible.current = visible
     }, [visible, initialSettings])
 
     const handleConfirm = () => {
-        onConfirm({ gameMode, rounds, phaseSpeed, manualAdvance, trackAlgorithm })
+        onConfirm({ gameMode, rounds, phaseSpeed, manualAdvance })
         onClose()
     }
 
@@ -133,13 +110,11 @@ export const LobbySettingsModal = ({
             setRoundsPosition(initialSettings.rounds)
             setPhaseSpeedPosition(initialSettings.phaseSpeed)
             setManualAdvance(initialSettings.manualAdvance)
-            setTrackAlgorithm(initialSettings.trackAlgorithm)
         } else {
             setGameMode(DEFAULT_LOBBY_SETTINGS.gameMode)
             setRoundsPosition(DEFAULT_LOBBY_SETTINGS.rounds)
             setPhaseSpeedPosition(DEFAULT_LOBBY_SETTINGS.phaseSpeed)
             setManualAdvance(DEFAULT_LOBBY_SETTINGS.manualAdvance)
-            setTrackAlgorithm(DEFAULT_LOBBY_SETTINGS.trackAlgorithm)
         }
         onClose()
     }
@@ -175,9 +150,7 @@ export const LobbySettingsModal = ({
                     <ScrollView
                         className="mb-6"
                         showsVerticalScrollIndicator={false}
-                        style={compactHeight !== undefined ? { height: compactHeight } : undefined}
                     >
-                        <View onLayout={handleContentLayout}>
                         <View className="mb-6">
                             <SectionTitle title="Mode de jeu" align="center" titleSize="sm" className="mb-3" />
                             <View className="flex-row gap-2">
@@ -256,40 +229,6 @@ export const LobbySettingsModal = ({
                             </View>
                         </View>
 
-                        {/* spécifique au blindtest : détermine comment les titres des
-                            manches sont choisis (cf. TRACK_ALGORITHMS) — n'a aucun effet
-                            en who_liked (Who Liked It) (le titre y est toujours affiché, jamais deviné),
-                            donc masqué pour ne pas exposer un réglage sans effet */}
-                        {gameMode === 'blindtest' && (
-                            <View className="mb-6">
-                                <SectionTitle title="Choix des titres" align="center" titleSize="sm" className="mb-3" />
-                                <View className="gap-2">
-                                    {(Object.keys(TRACK_ALGORITHMS) as TrackAlgorithm[]).map((algorithm) => {
-                                        const selected = trackAlgorithm === algorithm
-                                        return (
-                                            <TouchableOpacity
-                                                key={algorithm}
-                                                className="rounded-2xl px-4 py-3"
-                                                style={{
-                                                    backgroundColor: selected ? accentColor + '15' : COLORS.offwhite,
-                                                    borderWidth: 1.5,
-                                                    borderColor: selected ? accentColor : 'transparent',
-                                                }}
-                                                onPress={() => setTrackAlgorithm(algorithm)}
-                                            >
-                                                <Text className="font-bold text-black text-sm">
-                                                    {TRACK_ALGORITHMS[algorithm].label}
-                                                </Text>
-                                                <Text className="text-darkgray text-xs mt-0.5">
-                                                    {TRACK_ALGORITHMS[algorithm].description}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        )
-                                    })}
-                                </View>
-                            </View>
-                        )}
-
                         <View className="mb-2 flex-row items-center justify-between bg-offwhite rounded-2xl px-4 py-3">
                             <View className="flex-1 mr-3">
                                 <Text className="text-black font-semibold text-sm">
@@ -302,7 +241,6 @@ export const LobbySettingsModal = ({
                                 trackColor={{ true: accentColor }}
                                 thumbColor={COLORS.white}
                             />
-                        </View>
                         </View>
                     </ScrollView>
 

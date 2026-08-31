@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { GAME_MODES, PHASE_SPEED_LIMITS, LOBBY_LIMITS, TRACK_ALGORITHMS } from '../constants.js'
+import { GAME_MODES, PHASE_SPEED_LIMITS, LOBBY_LIMITS } from '../constants.js'
 
 const playerSchema = new mongoose.Schema(
     {
@@ -21,9 +21,6 @@ const lobbySchema = new mongoose.Schema({
     // suivante après l'affichage des résultats : seul l'hôte peut continuer
     // (cf. game.service.js, endRound/advanceRound)
     manualAdvance: { type: Boolean, default: false },
-    // mode blindtest uniquement (cf. constants.js et LobbySettingsModal) : sans
-    // effet en who_liked (Who Liked It), où le titre est toujours affiché
-    trackAlgorithm: { type: String, enum: TRACK_ALGORITHMS, default: 'random' },
     // le lobby a des valeurs par défaut dès sa création, mais tant que l'hôte
     // n'a pas explicitement validé les réglages, on ne veut pas les afficher
     // comme "choisis" aux autres joueurs (cf. LobbySettingsModal)
@@ -42,7 +39,6 @@ lobbySchema.methods.toPublic = function toPublic() {
         rounds: this.rounds,
         phaseSpeed: this.phaseSpeed,
         manualAdvance: this.manualAdvance,
-        trackAlgorithm: this.trackAlgorithm,
         settingsConfirmed: this.settingsConfirmed,
         maxPlayers: this.maxPlayers,
         players: this.players,

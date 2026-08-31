@@ -1,22 +1,5 @@
 export const GAME_MODES = ['who_liked', 'blindtest']
 
-// mode blindtest uniquement (cf. LobbySettingsModal côté client) : comment
-// les titres des manches sont choisis parmi le pool de titres likés
-// - random : tirage complètement aléatoire, sans autre contrainte
-// - known_half / known_third : un titre sur 2 (ou sur 3) doit être un titre
-//   "connu de tous" (cf. isPopularTrack, game.service.js)
-export const TRACK_ALGORITHMS = ['random', 'known_half', 'known_third']
-
-// seuil (nombre de joueurs actifs ayant liké un titre) à partir duquel un
-// titre est considéré "connu de tous" en mode known_half/known_third — plus
-// élevé dans un grand lobby, sinon un titre liké par 3 joueurs sur 12 ne
-// représente plus vraiment "tout le monde" (cf. game.service.js)
-export const POPULAR_TRACK_THRESHOLD = {
-    DEFAULT: 2, // "plus de 2" joueurs, donc 3 ou plus
-    BIG_LOBBY: 3, // "plus de 3" joueurs, donc 4 ou plus
-    BIG_LOBBY_MIN_PLAYERS: 7,
-}
-
 export const LOBBY_LIMITS = {
     MIN_ROUNDS: 5,
     MAX_ROUNDS: 30,
@@ -38,7 +21,6 @@ export const DEFAULT_LOBBY_SETTINGS = {
     rounds: 10,
     phaseSpeed: 15,
     manualAdvance: false,
-    trackAlgorithm: 'random',
 }
 
 export const CODE_LENGTH = 4
@@ -82,3 +64,20 @@ export const TRACK_SUBMIT_TIMEOUT_MS = 15000 // délai laissé aux joueurs pour 
 export const RETURN_TO_LOBBY_TIMEOUT_MS = 30000
 
 export const MIN_ROUNDS_PLAYABLE = 3 // en dessous, la partie ne peut pas démarrer même si le pool est trop petit
+
+// équité inter-comptes en mode blindtest (cf. game.service.js,
+// buildBlindtestRounds) : à chaque manche, priorité est donnée au joueur
+// actif le moins représenté jusqu'ici parmi les titres qu'il est seul à
+// avoir likés (tourniquet, cf. byFairness) — un titre liké par plusieurs
+// joueurs actifs ne compte pour personne. Ce tourniquet tend naturellement
+// vers une répartition égale (1/N des manches par joueur) tant que chacun a
+// assez de titres exclusifs disponibles ; ce facteur est le vrai garde-fou,
+// jamais dépassé : un joueur ne peut jamais recevoir plus de FACTOR × sa part
+// "juste" (ex: 60% à 2 joueurs), même si son compte a beaucoup plus de
+// titres likés qu'un autre (ex: 1800 vs 600, ~70/30 constaté sans ce
+// plafond). En dessous, rien n'est garanti : si le pool exclusif d'un joueur
+// est trop petit face à celui d'un autre (compte à moins de 100 titres likés
+// contre un compte à plus de 1000), il n'y a pas assez de titres pour
+// l'approcher, et l'algorithme prend alors tout ce qui est disponible plutôt
+// que de laisser une manche vide.
+export const FAIRNESS_MAX_SHARE_FACTOR = 1.2

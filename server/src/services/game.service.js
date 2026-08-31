@@ -7,7 +7,7 @@ import {
     LOBBY_LIMITS,
     RETURN_TO_LOBBY_TIMEOUT_MS,
     AUDIO_SYNC_LEAD_MS,
-    POPULAR_TRACK_THRESHOLD,
+    FAIRNESS_MAX_SHARE_FACTOR,
 } from '../constants.js'
 import { resolvePreviewUrl, normalizeTrackText } from './preview.service.js'
 import { resolveDeezerArtist } from './deezer.service.js'
@@ -261,24 +261,6 @@ const buildWhoLikedRounds = async (pool, requestedRounds, activePlayerIds) => {
     return [...fairnessRounds, ...withPreview, ...withoutPreview].slice(0, requestedRounds)
 }
 
-// nombre de joueurs actifs ayant liké un titre, parmi ceux réellement présents
-// dans la partie (le pool peut contenir des likes de joueurs qui ont depuis
-// quitté le lobby, cf. buildPool)
-const likedByCount = (track, activePlayerIds) =>
-    [...track.likedBy].filter((id) => activePlayerIds.includes(id)).length
-
-// un titre est "connu de tous" (cf. modes known_half/known_third) à partir de
-// POPULAR_TRACK_THRESHOLD.DEFAULT joueurs actifs qui l'ont liké — un seuil
-// plus élevé (BIG_LOBBY) dans un grand lobby, sinon un titre liké par 3
-// joueurs sur 12 ne représente plus vraiment "tout le monde" (cf. constants.js)
-const isPopularTrack = (track, activePlayerIds) => {
-    const threshold =
-        activePlayerIds.length >= POPULAR_TRACK_THRESHOLD.BIG_LOBBY_MIN_PLAYERS
-            ? POPULAR_TRACK_THRESHOLD.BIG_LOBBY
-            : POPULAR_TRACK_THRESHOLD.DEFAULT
-    return likedByCount(track, activePlayerIds) > threshold
-}
-
 // pioche jusqu'à `count` manches dans `candidates` (déjà mélangés/triés),
 // extrait audio requis (repli vers le titre suivant sinon) ; `used` est
 // partagé entre tous les appels d'une même partie pour ne jamais reproposer
@@ -298,47 +280,77 @@ const takeRounds = async (candidates, count, used) => {
     return rounds
 }
 
-// intervalle "1 titre connu de tous sur N" selon l'algorithme choisi par
-// l'hôte (cf. LobbySettingsModal côté client) — absent pour "random"
-const POPULAR_SLOT_INTERVAL = { known_half: 2, known_third: 3 }
+// propriétaire exclusif d'un titre parmi les joueurs actifs : null si liké
+// par plusieurs d'entre eux (titre "partagé", cf. buildPool) — un titre
+// partagé ne compte pour personne dans l'équité ci-dessous, il ne pénalise ni
+// n'avantage aucun joueur
+const exclusiveOwner = (track, activePlayerIds) => {
+    const likers = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
+    return likers.length === 1 ? likers[0] : null
+}
 
-// mode blindtest : on devine le titre, donc un extrait est indispensable. Le
-// choix des titres dépend de trackAlgorithm :
-// - random : tirage complètement aléatoire dans le pool, sans autre contrainte
-// - known_half / known_third : un titre sur 2 (ou sur 3) doit être "connu de
-//   tous" (cf. isPopularTrack) ; si le pool ne contient pas assez de titres
-//   populaires distincts pour remplir tous ces créneaux, on comble avec un
-//   titre normal à la place — pas d'autre choix possible
-const buildBlindtestRounds = async (pool, requestedRounds, activePlayerIds, trackAlgorithm) => {
+// réordonne `candidates` (déjà mélangés) pour l'équité inter-comptes (cf.
+// FAIRNESS_MAX_SHARE_FACTOR, constants.js) : vrai tourniquet — le titre dont
+// le propriétaire exclusif a le moins de manches jusqu'ici passe en tête, ce
+// qui tend naturellement vers une répartition égale plutôt qu'un seuil
+// binaire "sous X% -> priorité, sinon -> ordre de mélange brut" (ce dernier
+// laissait la partie mélangée décider des dernières manches une fois le
+// plancher atteint par tout le monde, ce qui retombait presque toujours sur
+// le plafond haut plutôt que sur un vrai 50/50, même à bibliothèques
+// égales). Si `respectMax` est vrai, un titre dont le propriétaire a déjà
+// atteint son plafond est carrément écarté (l'appelant retente ensuite sans
+// ce filtre plutôt que de laisser une manche vide, cf. pickFairestRound). Un
+// titre partagé (owner null) n'est ni favorisé ni pénalisé : il est traité
+// comme s'il appartenait à un joueur "dans la moyenne" des manches déjà
+// jouées ; le tri étant stable, l'ordre de mélange d'origine sert de
+// départage entre titres à égalité de priorité.
+const byFairness = (candidates, activePlayerIds, ownerRoundCounts, fairnessMax, respectMax) => {
+    const meanCount =
+        [...ownerRoundCounts.values()].reduce((sum, count) => sum + count, 0) / activePlayerIds.length
+
+    const eligible = candidates.filter((track) => {
+        const owner = exclusiveOwner(track, activePlayerIds)
+        return !owner || !respectMax || (ownerRoundCounts.get(owner) ?? 0) < fairnessMax
+    })
+
+    const priority = (track) => {
+        const owner = exclusiveOwner(track, activePlayerIds)
+        return owner ? ownerRoundCounts.get(owner) ?? 0 : meanCount
+    }
+    return [...eligible].sort((a, b) => priority(a) - priority(b))
+}
+
+// mode blindtest : on devine le titre, donc un extrait est indispensable ;
+// le tirage est complètement aléatoire dans le pool, sans autre contrainte.
+// Un tirage naïf dans le pool mélangé reflète directement la taille des
+// bibliothèques likées : un compte à 1800 titres écrase un compte à 600
+// (~70/30 constaté en pratique, cf. FAIRNESS_MAX_SHARE_FACTOR). Chaque
+// manche est donc choisie via pickFairestRound, qui priorise/écarte les
+// titres selon la part de manches déjà attribuées exclusivement à chaque
+// joueur (cf. byFairness).
+const buildBlindtestRounds = async (pool, requestedRounds, activePlayerIds) => {
     const shuffledPool = shuffle(pool)
     const used = new Set()
 
-    const interval = POPULAR_SLOT_INTERVAL[trackAlgorithm]
-    if (!interval) {
-        return takeRounds(shuffledPool, requestedRounds, used)
-    }
-
-    const popularIds = new Set(
-        shuffledPool.filter((track) => isPopularTrack(track, activePlayerIds)).map((track) => track.id)
-    )
-    const popularCandidates = shuffledPool.filter((track) => popularIds.has(track.id))
-    const normalCandidates = shuffledPool.filter((track) => !popularIds.has(track.id))
+    const fairnessMax = Math.ceil((requestedRounds / activePlayerIds.length) * FAIRNESS_MAX_SHARE_FACTOR)
+    const ownerRoundCounts = new Map(activePlayerIds.map((id) => [id, 0]))
 
     const rounds = []
     for (let i = 0; i < requestedRounds; i += 1) {
-        const wantsPopular = (i + 1) % interval === 0
-        const primary = wantsPopular ? popularCandidates : normalCandidates
-        const fallback = wantsPopular ? normalCandidates : popularCandidates
+        const order = (respectMax) => byFairness(shuffledPool, activePlayerIds, ownerRoundCounts, fairnessMax, respectMax)
 
-        const [picked] = await takeRounds(primary, 1, used)
-        if (picked) {
-            rounds.push(picked)
-            continue
-        }
-        const [fallbackPicked] = await takeRounds(fallback, 1, used)
-        if (fallbackPicked) rounds.push(fallbackPicked)
+        let [picked] = await takeRounds(order(true), 1, used)
+        // plafond intenable (pool exclusif de l'autre joueur épuisé) : on
+        // retente sans le filtre plutôt que de laisser la manche vide
+        if (!picked) [picked] = await takeRounds(order(false), 1, used)
+
+        if (!picked) continue
         // sinon : plus aucun titre disponible avec extrait, cette manche est
         // simplement absente (cf. MIN_ROUNDS_PLAYABLE côté appelant)
+
+        const owner = exclusiveOwner(picked.track, activePlayerIds)
+        if (owner) ownerRoundCounts.set(owner, (ownerRoundCounts.get(owner) ?? 0) + 1)
+        rounds.push(picked)
     }
 
     return rounds
@@ -476,7 +488,7 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     const built =
         questionType === 'who_liked'
             ? await buildWhoLikedRounds(pool, lobby.rounds, activePlayerIds)
-            : await buildBlindtestRounds(pool, lobby.rounds, activePlayerIds, lobby.trackAlgorithm)
+            : await buildBlindtestRounds(pool, lobby.rounds, activePlayerIds)
 
     if (built.length < MIN_ROUNDS_PLAYABLE) {
         throw new GameError(
