@@ -392,8 +392,9 @@ const warmPreviewCache = async (code, game) => {
 //    une fois. Ces manches sont toujours conservées telles quelles.
 // 2. Part de manches (même mécanisme que buildBlindtestRounds/byFairness,
 //    cf. FAIRNESS_MAX_SHARE_FACTOR) : au-delà de cette couverture minimale,
-//    aucun joueur ne peut voir SES titres exclusifs (ceux qu'il est seul à
-//    avoir likés, cf. exclusiveOwner) dépasser FAIRNESS_MAX_SHARE_FACTOR × sa
+//    aucun joueur ne peut voir son CRÉDIT de représentation (cf.
+//    registerCredit — pas seulement ses titres exclusifs, un titre partagé
+//    compte aussi un peu pour lui) dépasser FAIRNESS_MAX_SHARE_FACTOR × sa
 //    part "juste" des manches (~60% à 2 joueurs) — sans quoi un joueur à
 //    grosse bibliothèque finissait par y apparaître beaucoup plus souvent que
 //    les autres, alors que ce mode n'a même pas besoin d'un extrait pour
@@ -405,7 +406,7 @@ const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds)
     const fairnessRounds = []
     const uncovered = new Set(activePlayerIds)
     const fairnessMax = Math.ceil((requestedRounds / activePlayerIds.length) * FAIRNESS_MAX_SHARE_FACTOR)
-    const ownerRoundCounts = new Map(activePlayerIds.map((id) => [id, 0]))
+    const playerCredit = new Map(activePlayerIds.map((id) => [id, 0]))
 
     const buildRound = async (track) => {
         const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
@@ -417,8 +418,7 @@ const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds)
     const registerPick = (track, likedBy) => {
         used.add(track.id)
         for (const id of likedBy) uncovered.delete(id)
-        const owner = exclusiveOwner(track, activePlayerIds)
-        if (owner) ownerRoundCounts.set(owner, (ownerRoundCounts.get(owner) ?? 0) + 1)
+        registerCredit(playerCredit, likedBy)
     }
 
     for (const track of byCoverageDesc(shuffledPool, activePlayerIds)) {
@@ -450,7 +450,7 @@ const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds)
             const candidates = byFairness(
                 shuffledPool,
                 activePlayerIds,
-                ownerRoundCounts,
+                playerCredit,
                 fairnessMax,
                 respectMax
             ).filter((t) => !used.has(t.id))
@@ -491,20 +491,36 @@ const takeRounds = async (candidates, count, used, previewCache) => {
 }
 
 // propriétaire exclusif d'un titre parmi les joueurs actifs : null si liké
-// par plusieurs d'entre eux (titre "partagé", cf. buildPool) — un titre
-// partagé ne compte pour personne dans l'équité ci-dessous, il ne pénalise ni
-// n'avantage aucun joueur
+// par plusieurs d'entre eux (titre "partagé", cf. buildPool) — utilisé
+// uniquement pour le diagnostic de composition du pool (cf. startGame), plus
+// pour l'équité elle-même (cf. registerCredit/byFairness ci-dessous)
 const exclusiveOwner = (track, activePlayerIds) => {
     const likers = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
     return likers.length === 1 ? likers[0] : null
 }
 
+// répartit 1 point de crédit de représentation entre tous les joueurs de
+// `likedBy` : 1 point plein si `likedBy` n'en contient qu'un (titre
+// exclusif), 1/N chacun s'il y en a N (titre partagé) — cf. byFairness. Un
+// titre partagé traité comme neutre (ne comptant pour personne, comme avant)
+// laissait le plafond "officiel" toujours respecté à la lettre, alors que la
+// part RESSENTIE d'un compte (manches où SON propre titre apparaît,
+// partagées comprises) pouvait largement dépasser 60% en conditions
+// réelles — deux comptes aux goûts qui se recoupent peuvent avoir beaucoup de
+// manches "partagées", qui à l'écran montrent quand même chacun des deux.
+const registerCredit = (playerCredit, likedBy) => {
+    const share = 1 / likedBy.length
+    for (const id of likedBy) {
+        playerCredit.set(id, (playerCredit.get(id) ?? 0) + share)
+    }
+}
+
 // filtre `candidates` (déjà mélangés) pour l'équité inter-comptes (cf.
-// FAIRNESS_MAX_SHARE_FACTOR, constants.js) : écarte seulement un titre dont
-// le propriétaire exclusif a déjà atteint son plafond de manches (si
-// `respectMax` est vrai — l'appelant retente ensuite sans ce filtre plutôt
-// que de laisser une manche vide, cf. pickFairestRound), SANS reclasser le
-// reste par priorité. Une première version triait par "propriétaire le moins
+// FAIRNESS_MAX_SHARE_FACTOR, constants.js) : écarte un titre si l'un
+// quelconque des joueurs qui l'ont liké a déjà atteint son plafond de crédit
+// (si `respectMax` est vrai — l'appelant retente ensuite sans ce filtre
+// plutôt que de laisser une manche vide, cf. pickFairestRound), SANS
+// reclasser le reste par priorité. Une première version triait par "le moins
 // représenté d'abord" (un vrai tourniquet) : ça respectait bien le plafond,
 // mais produisait un ping-pong strict et prévisible à chaque manche (1, 2, 1,
 // 2, 1, 2...) — repéré en conditions réelles sur un lobby à 2 comptes très
@@ -513,13 +529,20 @@ const exclusiveOwner = (track, activePlayerIds) => {
 // plafond et en laissant l'ordre du mélange d'origine (`candidates`) décider
 // qui vient ensuite, l'enchaînement redevient imprévisible (des séries de
 // plusieurs manches d'affilée pour un même compte sont possibles) tout en
-// gardant la même garantie dure : personne ne peut dépasser
-// FAIRNESS_MAX_SHARE_FACTOR × sa part "juste" sur l'ensemble de la partie. Un
-// titre partagé (owner null) n'est jamais écarté par ce filtre.
-const byFairness = (candidates, activePlayerIds, ownerRoundCounts, fairnessMax, respectMax) =>
+// gardant la même garantie dure sur l'ensemble de la partie.
+const byFairness = (candidates, activePlayerIds, playerCredit, fairnessMax, respectMax) =>
     candidates.filter((track) => {
-        const owner = exclusiveOwner(track, activePlayerIds)
-        return !owner || !respectMax || (ownerRoundCounts.get(owner) ?? 0) < fairnessMax
+        if (!respectMax) return true
+        const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
+        // vérifie le crédit APRÈS cette pioche (pas juste l'état courant) :
+        // le crédit d'un joueur peut être fractionnaire (manches partagées à
+        // 1/N chacun, cf. registerCredit) — un joueur à 17,5 point restait
+        // sous le plafond entier (18) au sens strict, mais une manche
+        // exclusive suivante (+1 point plein) l'aurait fait grimper à 18,5,
+        // dépassant le plafond. Projeter l'ajout avant de décider évite ce
+        // dépassement d'une fraction de point.
+        const share = 1 / likedBy.length
+        return likedBy.every((id) => (playerCredit.get(id) ?? 0) + share <= fairnessMax)
     })
 
 // mode blindtest : on devine le titre, donc un extrait est indispensable ;
@@ -536,11 +559,11 @@ const buildBlindtestRounds = async (game, pool, requestedRounds, activePlayerIds
     const used = new Set()
 
     const fairnessMax = Math.ceil((requestedRounds / activePlayerIds.length) * FAIRNESS_MAX_SHARE_FACTOR)
-    const ownerRoundCounts = new Map(activePlayerIds.map((id) => [id, 0]))
+    const playerCredit = new Map(activePlayerIds.map((id) => [id, 0]))
 
     const rounds = []
     for (let i = 0; i < requestedRounds; i += 1) {
-        const order = (respectMax) => byFairness(shuffledPool, activePlayerIds, ownerRoundCounts, fairnessMax, respectMax)
+        const order = (respectMax) => byFairness(shuffledPool, activePlayerIds, playerCredit, fairnessMax, respectMax)
 
         let [picked] = await takeRounds(order(true), 1, used, previewCache)
         // plafond intenable (pool exclusif de l'autre joueur épuisé) : on
@@ -551,8 +574,8 @@ const buildBlindtestRounds = async (game, pool, requestedRounds, activePlayerIds
         // sinon : plus aucun titre disponible avec extrait, cette manche est
         // simplement absente (cf. MIN_ROUNDS_PLAYABLE côté appelant)
 
-        const owner = exclusiveOwner(picked.track, activePlayerIds)
-        if (owner) ownerRoundCounts.set(owner, (ownerRoundCounts.get(owner) ?? 0) + 1)
+        const likedBy = [...picked.track.likedBy].filter((id) => activePlayerIds.includes(id))
+        registerCredit(playerCredit, likedBy)
         rounds.push(picked)
     }
 
@@ -713,6 +736,23 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     if (pool.length === 0) {
         throw new GameError("Aucun titre liké n'a été reçu, impossible de lancer la partie")
     }
+
+    // diagnostic : la part de manches qu'un joueur peut "gagner" en équité
+    // (cf. byFairness) dépend de son pool EXCLUSIF (titres qu'il est seul à
+    // avoir likés, une fois les recoupements avec les autres retirés), pas
+    // de son nombre de titres likés brut — un joueur dont les goûts
+    // recoupent beaucoup ceux des autres peut avoir un pool exclusif bien
+    // plus petit que ce que son nombre de titres likés laisse penser, ce qui
+    // épuise son quota avant d'atteindre son plafond/plancher d'équité et
+    // fait basculer les manches restantes vers l'autre (cf. le repli "pool
+    // exclusif épuisé" dans buildWhoLikedRounds/buildBlindtestRounds)
+    const exclusiveCounts = activePlayerIds.map(
+        (id) => [id, pool.filter((t) => exclusiveOwner(t, activePlayerIds) === id).length]
+    )
+    const sharedCount = pool.filter((t) => exclusiveOwner(t, activePlayerIds) === null).length
+    console.log(
+        `⏱️ [${code}] pool : ${pool.length} titres au total, ${sharedCount} partagés, exclusifs par joueur : ${JSON.stringify(exclusiveCounts)}`
+    )
 
     const questionType = QUESTION_TYPES[game.gameMode]
     const built =
