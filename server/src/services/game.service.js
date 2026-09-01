@@ -217,18 +217,6 @@ const buildPool = (game) => {
     return [...merged.values()]
 }
 
-// trie une liste de titres mélangée par nombre décroissant de joueurs actifs
-// qui les ont likés : un titre partagé par plusieurs joueurs couvre plusieurs
-// joueurs d'un coup, donc l'essayer en premier évite de gaspiller le budget de
-// manches sur des titres qui n'en couvrent qu'un seul (le mélange en amont
-// sert de départage aléatoire entre titres à égalité de couverture)
-const byCoverageDesc = (shuffledPool, activePlayerIds) =>
-    [...shuffledPool].sort((a, b) => {
-        const countA = [...a.likedBy].filter((id) => activePlayerIds.includes(id)).length
-        const countB = [...b.likedBy].filter((id) => activePlayerIds.includes(id)).length
-        return countB - countA
-    })
-
 // nombre de résolutions d'extrait (cf. resolvePreviewUrl) menées en parallèle
 // lors du pré-chargement ci-dessous. Contrairement à DEEZER_ARTIST_BATCH_SIZE
 // (un seul GET /track/{id} par titre), une résolution d'extrait pour un titre
@@ -245,9 +233,10 @@ const byCoverageDesc = (shuffledPool, activePlayerIds) =>
 // limiting Deezer/iTunes plutôt que d'un manque d'extraits disponibles.
 const PREVIEW_PREFETCH_BATCH_SIZE = 8
 // marge de sécurité (nombre de succès visés au-delà de requestedRounds) avant
-// d'arrêter le pré-chargement : l'équité (cf. byFairness) ou les manches
-// "who_liked" sans recouvrement peuvent écarter des candidats qui ONT un
-// extrait, il en faut donc un peu plus que le strict nécessaire en réserve
+// d'arrêter le pré-chargement : la répartition par joueur (cf.
+// allocateRoundsPerPlayer) peut écarter des candidats qui ONT un extrait
+// (déjà utilisés, ou hors du quota d'un joueur), il en faut donc un peu plus
+// que le strict nécessaire en réserve
 const PREVIEW_PREFETCH_SUCCESS_MARGIN = 1.2
 // plafond absolu (filet de sécurité si le taux de succès est mauvais) : sans
 // lui, un pool où peu de titres ont un extrait ferait pré-charger tout le pool
@@ -382,180 +371,16 @@ const warmPreviewCache = async (code, game) => {
     }
 }
 
-// mode who_liked (Who Liked It) : le titre est toujours affiché (ce n'est pas
-// ce qu'on devine), on privilégie juste les musiques qui ont un extrait sans
-// que ce soit bloquant.
-//
-// Équité, en deux temps :
-// 1. Couverture (triée par byCoverageDesc, inchangé) : réserve un titre par
-//    joueur pas encore représenté, pour que tout le monde apparaisse au moins
-//    une fois. Ces manches sont toujours conservées telles quelles.
-// 2. Part de manches (même mécanisme que buildBlindtestRounds/byFairness,
-//    cf. FAIRNESS_MAX_SHARE_FACTOR) : au-delà de cette couverture minimale,
-//    aucun joueur ne peut voir son CRÉDIT de représentation (cf.
-//    registerCredit — pas seulement ses titres exclusifs, un titre partagé
-//    compte aussi un peu pour lui) dépasser FAIRNESS_MAX_SHARE_FACTOR × sa
-//    part "juste" des manches (~60% à 2 joueurs) — sans quoi un joueur à
-//    grosse bibliothèque finissait par y apparaître beaucoup plus souvent que
-//    les autres, alors que ce mode n'a même pas besoin d'un extrait pour
-//    tourner, ce qui accentuait encore l'effet à bibliothèques inégales.
-const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds) => {
-    const shuffledPool = shuffle(pool)
-    const previewCache = await prefetchPreviews(game, shuffledPool, requestedRounds)
-    const used = new Set()
-    const fairnessRounds = []
-    const uncovered = new Set(activePlayerIds)
-    const fairnessMax = Math.ceil((requestedRounds / activePlayerIds.length) * FAIRNESS_MAX_SHARE_FACTOR)
-    const playerCredit = new Map(activePlayerIds.map((id) => [id, 0]))
-
-    const buildRound = async (track) => {
-        const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
-        if (likedBy.length === 0) return null
-        const previewUrl = await resolvePreviewCached(track, previewCache)
-        return { round: { track: { ...track, previewUrl }, likedBy }, previewUrl, likedBy }
-    }
-
-    const registerPick = (track, likedBy) => {
-        used.add(track.id)
-        for (const id of likedBy) uncovered.delete(id)
-        registerCredit(playerCredit, likedBy)
-    }
-
-    for (const track of byCoverageDesc(shuffledPool, activePlayerIds)) {
-        if (fairnessRounds.length >= requestedRounds || uncovered.size === 0) break
-        if (![...track.likedBy].some((id) => uncovered.has(id))) continue
-
-        const result = await buildRound(track)
-        if (!result) continue
-
-        registerPick(track, result.likedBy)
-        fairnessRounds.push(result.round)
-    }
-
-    // pour chaque manche restante, priorise les candidats dont le
-    // propriétaire exclusif a le moins de manches jusqu'ici (cf. byFairness) ;
-    // retente sans le plafond d'équité seulement si plus aucun candidat n'est
-    // éligible en-dessous (pool exclusif d'un joueur épuisé). La préférence
-    // pour un extrait ne coûte AUCUN appel réseau supplémentaire : elle ne
-    // regarde que ce qui est déjà en cache (cf. game.previewCache, chauffé en
-    // amont par prefetchPreviews/warmPreviewCache) — contrairement à
-    // buildBlindtestRounds, ce mode n'a pas besoin d'extrait pour tourner,
-    // donc pas question de faire une recherche réseau exhaustive juste pour
-    // en trouver un ; le premier candidat éligible fait l'affaire sinon.
-    const remainingSlots = requestedRounds - fairnessRounds.length
-    const rounds = []
-
-    for (let i = 0; i < remainingSlots; i += 1) {
-        const pick = async (respectMax) => {
-            const candidates = byFairness(
-                shuffledPool,
-                activePlayerIds,
-                playerCredit,
-                fairnessMax,
-                respectMax
-            ).filter((t) => !used.has(t.id))
-            if (candidates.length === 0) return null
-
-            const cachedWithPreview = candidates.find((t) => previewCache.get(t.id))
-            const result = await buildRound(cachedWithPreview ?? candidates[0])
-            return result ? { track: cachedWithPreview ?? candidates[0], result } : null
-        }
-
-        const picked = (await pick(true)) ?? (await pick(false))
-        if (!picked) break // plus aucun titre disponible, quel qu'il soit
-
-        registerPick(picked.track, picked.result.likedBy)
-        rounds.push(picked.result.round)
-    }
-
-    // byCoverageDesc (passe 1) trie systématiquement les titres partagés en
-    // tête (ils couvrent les deux joueurs d'un coup) : sans réordonnancement
-    // final, la manche 1 était donc quasi toujours un titre partagé,
-    // prévisible à chaque partie — et sans plafond de série, rien
-    // n'empêchait non plus une longue suite de manches d'affilée pour le
-    // même joueur (cf. MAX_OWNER_STREAK/sequenceWithMaxStreak). Le CONTENU
-    // des manches (déjà décidé ci-dessus) ne change pas, seul l'ORDRE dans
-    // lequel elles sont jouées est réordonné.
-    return sequenceWithMaxStreak(
-        [...fairnessRounds, ...rounds],
-        MAX_OWNER_STREAK,
-        (r) => (r.likedBy.length === 1 ? r.likedBy[0] : null)
-    ).slice(0, requestedRounds)
-}
-
-// pioche jusqu'à `count` manches dans `candidates` (déjà mélangés/triés),
-// extrait audio requis (repli vers le titre suivant sinon) ; `used` est
-// partagé entre tous les appels d'une même partie pour ne jamais reproposer
-// un titre déjà retenu pour une autre manche
-const takeRounds = async (candidates, count, used, previewCache) => {
-    const rounds = []
-    for (const track of candidates) {
-        if (rounds.length >= count) break
-        if (used.has(track.id)) continue
-
-        const previewUrl = await resolvePreviewCached(track, previewCache)
-        if (!previewUrl) continue
-
-        used.add(track.id)
-        rounds.push({ track: { ...track, previewUrl } })
-    }
-    return rounds
-}
-
 // propriétaire exclusif d'un titre parmi les joueurs actifs : null si liké
-// par plusieurs d'entre eux (titre "partagé", cf. buildPool) — utilisé
-// uniquement pour le diagnostic de composition du pool (cf. startGame), plus
-// pour l'équité elle-même (cf. registerCredit/byFairness ci-dessous)
+// par plusieurs d'entre eux (titre "partagé", cf. buildPool) — utilisé pour
+// isoler la bibliothèque exclusive de chaque joueur (cf.
+// allocateRoundsPerPlayer/buildRoundsForPlayers), pour couper toute série en
+// cours (cf. sequenceWithMaxStreak), et pour le diagnostic de composition du
+// pool (cf. startGame).
 const exclusiveOwner = (track, activePlayerIds) => {
     const likers = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
     return likers.length === 1 ? likers[0] : null
 }
-
-// répartit 1 point de crédit de représentation entre tous les joueurs de
-// `likedBy` : 1 point plein si `likedBy` n'en contient qu'un (titre
-// exclusif), 1/N chacun s'il y en a N (titre partagé) — cf. byFairness. Un
-// titre partagé traité comme neutre (ne comptant pour personne, comme avant)
-// laissait le plafond "officiel" toujours respecté à la lettre, alors que la
-// part RESSENTIE d'un compte (manches où SON propre titre apparaît,
-// partagées comprises) pouvait largement dépasser 60% en conditions
-// réelles — deux comptes aux goûts qui se recoupent peuvent avoir beaucoup de
-// manches "partagées", qui à l'écran montrent quand même chacun des deux.
-const registerCredit = (playerCredit, likedBy) => {
-    const share = 1 / likedBy.length
-    for (const id of likedBy) {
-        playerCredit.set(id, (playerCredit.get(id) ?? 0) + share)
-    }
-}
-
-// filtre `candidates` (déjà mélangés) pour l'équité inter-comptes (cf.
-// FAIRNESS_MAX_SHARE_FACTOR, constants.js) : écarte un titre si l'un
-// quelconque des joueurs qui l'ont liké a déjà atteint son plafond de crédit
-// (si `respectMax` est vrai — l'appelant retente ensuite sans ce filtre
-// plutôt que de laisser une manche vide, cf. pickFairestRound), SANS
-// reclasser le reste par priorité. Une première version triait par "le moins
-// représenté d'abord" (un vrai tourniquet) : ça respectait bien le plafond,
-// mais produisait un ping-pong strict et prévisible à chaque manche (1, 2, 1,
-// 2, 1, 2...) — repéré en conditions réelles sur un lobby à 2 comptes très
-// déséquilibrés (1800 vs 600 titres likés), où l'alternance était
-// systématique malgré l'écart de bibliothèque. En ne filtrant QUE par le
-// plafond et en laissant l'ordre du mélange d'origine (`candidates`) décider
-// qui vient ensuite, l'enchaînement redevient imprévisible (des séries de
-// plusieurs manches d'affilée pour un même compte sont possibles) tout en
-// gardant la même garantie dure sur l'ensemble de la partie.
-const byFairness = (candidates, activePlayerIds, playerCredit, fairnessMax, respectMax) =>
-    candidates.filter((track) => {
-        if (!respectMax) return true
-        const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
-        // vérifie le crédit APRÈS cette pioche (pas juste l'état courant) :
-        // le crédit d'un joueur peut être fractionnaire (manches partagées à
-        // 1/N chacun, cf. registerCredit) — un joueur à 17,5 point restait
-        // sous le plafond entier (18) au sens strict, mais une manche
-        // exclusive suivante (+1 point plein) l'aurait fait grimper à 18,5,
-        // dépassant le plafond. Projeter l'ajout avant de décider évite ce
-        // dépassement d'une fraction de point.
-        const share = 1 / likedBy.length
-        return likedBy.every((id) => (playerCredit.get(id) ?? 0) + share <= fairnessMax)
-    })
 
 // nombre maximal de manches d'affilée pour un même propriétaire exclusif,
 // tous modes et tout nombre de joueurs confondus : au-delà, on force un
@@ -603,50 +428,117 @@ const sequenceWithMaxStreak = (items, maxStreak, ownerOf) => {
     return result
 }
 
-// mode blindtest : on devine le titre, donc un extrait est indispensable ;
-// le tirage est complètement aléatoire dans le pool, sans autre contrainte.
-// Un tirage naïf dans le pool mélangé reflète directement la taille des
-// bibliothèques likées : un compte à 1800 titres écrase un compte à 600
-// (~70/30 constaté en pratique, cf. FAIRNESS_MAX_SHARE_FACTOR). Chaque
-// manche est donc choisie via pickFairestRound, qui priorise/écarte les
-// titres selon la part de manches déjà attribuées exclusivement à chaque
-// joueur (cf. byFairness).
-const buildBlindtestRounds = async (game, pool, requestedRounds, activePlayerIds) => {
+// alloue le nombre de manches que chaque joueur actif doit fournir avec SES
+// PROPRES titres, plutôt que de piocher dans un pool fusionné et d'espérer
+// qu'un plafond après coup retombe sur la bonne répartition. L'ancienne
+// approche (byFairness/playerCredit) laissait un compte à grosse
+// bibliothèque statistiquement plus susceptible d'être tiré à CHAQUE manche
+// — le plafond l'empêchait juste de dépasser 60%, mais rien ne donnait sa
+// chance au petit compte de dépasser le gros (jamais observé sur une
+// dizaine de parties réelles, toujours le même sens). Ici la répartition
+// est décidée D'ABORD (aléatoire, dans les bornes du plafond), puis chaque
+// joueur fournit ce nombre exact de manches — garantit le 40/60 par
+// construction plutôt que par accumulation statistique. Généralisé à N
+// joueurs : bornes haute/basse dérivées de FAIRNESS_MAX_SHARE_FACTOR autour
+// de la part "juste" (requestedRounds / N).
+const allocateRoundsPerPlayer = (requestedRounds, activePlayerIds, requireCoverage) => {
+    const n = activePlayerIds.length
+    const fairShare = requestedRounds / n
+    let minShare = Math.floor(fairShare / FAIRNESS_MAX_SHARE_FACTOR)
+    // who_liked veut qu'un joueur actif apparaisse au moins une fois (cf.
+    // requireCoverage) ; sans objet en blindtest, l'identité du liker n'est
+    // jamais affichée pendant la manche
+    if (requireCoverage) minShare = Math.max(minShare, 1)
+    // filet de sécurité : plus de joueurs actifs que de manches demandées
+    // (lobby nombreux, peu de manches) rend la couverture minimale intenable
+    // pour tout le monde — répartit alors ce qu'il y a plutôt que de
+    // dépasser requestedRounds
+    if (minShare * n > requestedRounds) minShare = Math.floor(requestedRounds / n)
+    const maxShare = Math.max(minShare, Math.ceil(fairShare * FAIRNESS_MAX_SHARE_FACTOR))
+
+    const allocation = new Map(activePlayerIds.map((id) => [id, minShare]))
+    let remaining = requestedRounds - minShare * n
+
+    // distribue le reste un par un, au hasard parmi les joueurs pas encore à
+    // leur plafond — pas un ordre fixe, pour que ce ne soit pas
+    // systématiquement le même joueur qui absorbe tout le "reste"
+    while (remaining > 0) {
+        const eligible = activePlayerIds.filter((id) => allocation.get(id) < maxShare)
+        const candidates = eligible.length > 0 ? eligible : activePlayerIds
+        const pick = candidates[Math.floor(Math.random() * candidates.length)]
+        allocation.set(pick, allocation.get(pick) + 1)
+        remaining -= 1
+    }
+    return allocation
+}
+
+// cœur commun aux deux modes : chaque joueur actif pioche, dans SA
+// bibliothèque exclusive (titres qu'il est seul à avoir likés, cf.
+// exclusiveOwner), le nombre de manches que lui a attribué
+// allocateRoundsPerPlayer. Si sa bibliothèque exclusive ne suffit pas (peu
+// de titres, ou en blindtest trop peu avec un extrait disponible), le
+// manque est comblé en dernier recours par n'importe quel titre du pool
+// (partagé compris) plutôt que de laisser des manches vides — cf.
+// MIN_ROUNDS_PLAYABLE côté appelant si même ce repli ne suffit pas.
+const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerIds, requireCoverage, requirePreview) => {
     const shuffledPool = shuffle(pool)
     const previewCache = await prefetchPreviews(game, shuffledPool, requestedRounds)
+    const allocation = allocateRoundsPerPlayer(requestedRounds, activePlayerIds, requireCoverage)
     const used = new Set()
 
-    const fairnessMax = Math.ceil((requestedRounds / activePlayerIds.length) * FAIRNESS_MAX_SHARE_FACTOR)
-    const playerCredit = new Map(activePlayerIds.map((id) => [id, 0]))
-
-    const rounds = []
-    for (let i = 0; i < requestedRounds; i += 1) {
-        const order = (respectMax) => byFairness(shuffledPool, activePlayerIds, playerCredit, fairnessMax, respectMax)
-
-        let [picked] = await takeRounds(order(true), 1, used, previewCache)
-        // plafond intenable (pool exclusif de l'autre joueur épuisé) : on
-        // retente sans le filtre plutôt que de laisser la manche vide
-        if (!picked) [picked] = await takeRounds(order(false), 1, used, previewCache)
-
-        if (!picked) continue
-        // sinon : plus aucun titre disponible avec extrait, cette manche est
-        // simplement absente (cf. MIN_ROUNDS_PLAYABLE côté appelant)
-
-        const likedBy = [...picked.track.likedBy].filter((id) => activePlayerIds.includes(id))
-        registerCredit(playerCredit, likedBy)
-        rounds.push(picked)
+    const tryBuild = async (track) => {
+        const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
+        if (likedBy.length === 0) return null
+        const previewUrl = await resolvePreviewCached(track, previewCache)
+        if (requirePreview && !previewUrl) return null
+        return { track: { ...track, previewUrl }, likedBy }
     }
 
-    // même limite de série qu'en who_liked (cf. MAX_OWNER_STREAK) : le
-    // plafond global (~60% à 2 joueurs) laissait largement la place à de
-    // longues suites de manches d'affilée pour le compte à la plus grosse
-    // bibliothèque, avant de basculer sur l'autre compte une fois son crédit
-    // épuisé — prévisible d'une partie à l'autre
-    return sequenceWithMaxStreak(rounds, MAX_OWNER_STREAK, (r) => {
-        const likedBy = [...r.track.likedBy].filter((id) => activePlayerIds.includes(id))
-        return likedBy.length === 1 ? likedBy[0] : null
-    })
+    const takeFrom = async (candidates, count) => {
+        const taken = []
+        for (const track of shuffle(candidates)) {
+            if (taken.length >= count) break
+            if (used.has(track.id)) continue
+            const built = await tryBuild(track)
+            if (!built) continue
+            used.add(track.id)
+            taken.push(built)
+        }
+        return taken
+    }
+
+    const rounds = []
+    let shortfall = 0
+    for (const id of activePlayerIds) {
+        const exclusive = pool.filter((t) => exclusiveOwner(t, activePlayerIds) === id)
+        const taken = await takeFrom(exclusive, allocation.get(id))
+        rounds.push(...taken)
+        shortfall += allocation.get(id) - taken.length
+    }
+    if (shortfall > 0) {
+        rounds.push(...(await takeFrom(pool, shortfall)))
+    }
+
+    // limite les séries d'affilée (cf. MAX_OWNER_STREAK) : le contenu des
+    // manches (déjà décidé ci-dessus) ne change pas, seul l'ORDRE dans lequel
+    // elles sont jouées est réordonné
+    return sequenceWithMaxStreak(rounds, MAX_OWNER_STREAK, (r) => (r.likedBy.length === 1 ? r.likedBy[0] : null))
 }
+
+// mode who_liked (Who Liked It) : le titre est toujours affiché (ce n'est pas
+// ce qu'on devine), un extrait est préférable mais pas requis pour tourner —
+// cf. requirePreview=false. Couverture minimale requise (cf.
+// requireCoverage=true) : chaque joueur actif doit apparaître au moins une
+// fois.
+const buildWhoLikedRounds = (game, pool, requestedRounds, activePlayerIds) =>
+    buildRoundsForPlayers(game, pool, requestedRounds, activePlayerIds, true, false)
+
+// mode blindtest : on devine le titre, donc un extrait est indispensable —
+// cf. requirePreview=true. Pas de couverture minimale (l'identité de qui a
+// liké le titre n'est jamais montrée pendant la manche), cf.
+// requireCoverage=false.
+const buildBlindtestRounds = (game, pool, requestedRounds, activePlayerIds) =>
+    buildRoundsForPlayers(game, pool, requestedRounds, activePlayerIds, false, true)
 
 // nombre d'enrichissements Deezer (cf. resolveDeezerArtist) menés en
 // parallèle : assez pour rester rapide, assez peu pour ne pas dépasser la
@@ -803,15 +695,14 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         throw new GameError("Aucun titre liké n'a été reçu, impossible de lancer la partie")
     }
 
-    // diagnostic : la part de manches qu'un joueur peut "gagner" en équité
-    // (cf. byFairness) dépend de son pool EXCLUSIF (titres qu'il est seul à
-    // avoir likés, une fois les recoupements avec les autres retirés), pas
-    // de son nombre de titres likés brut — un joueur dont les goûts
-    // recoupent beaucoup ceux des autres peut avoir un pool exclusif bien
-    // plus petit que ce que son nombre de titres likés laisse penser, ce qui
-    // épuise son quota avant d'atteindre son plafond/plancher d'équité et
-    // fait basculer les manches restantes vers l'autre (cf. le repli "pool
-    // exclusif épuisé" dans buildWhoLikedRounds/buildBlindtestRounds)
+    // diagnostic : le nombre de manches qu'un joueur peut fournir (cf.
+    // allocateRoundsPerPlayer/buildRoundsForPlayers) dépend de son pool
+    // EXCLUSIF (titres qu'il est seul à avoir likés, une fois les
+    // recoupements avec les autres retirés), pas de son nombre de titres
+    // likés brut — un joueur dont les goûts recoupent beaucoup ceux des
+    // autres peut avoir un pool exclusif bien plus petit que ce que son
+    // nombre de titres likés laisse penser, ce qui déclenche le repli "pool
+    // exclusif insuffisant" dans buildRoundsForPlayers
     const exclusiveCounts = activePlayerIds.map(
         (id) => [id, pool.filter((t) => exclusiveOwner(t, activePlayerIds) === id).length]
     )
