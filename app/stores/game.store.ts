@@ -44,6 +44,10 @@ type GameStoreType = {
     setManualAdvance: (manualAdvance: boolean) => void
     setTotalRounds: (totalRounds: number) => void
     setCatalog: (catalog: CatalogEntry[]) => void
+    // fusionne les artistes enrichis (featurings) reçus après coup, cf.
+    // game:catalogEnriched — le catalogue de base est déjà affichable dès
+    // game:started, ceci ne fait qu'améliorer le matching de recherche
+    enrichCatalog: (updates: { id: string; artist: string }[]) => void
     setSubmittedPlayerIds: (ids: string[]) => void
     setPendingReturnPlayerIds: (ids: string[]) => void
     startRound: (round: GameRoundStart) => void
@@ -110,6 +114,10 @@ export const useGameStore = create<GameStoreType>((set, get) => ({
     setManualAdvance: (manualAdvance) => set({ manualAdvance }),
     setTotalRounds: (totalRounds) => set({ totalRounds }),
     setCatalog: (catalog) => set({ catalog }),
+    enrichCatalog: (updates) => {
+        const byId = new Map(updates.map((u) => [u.id, u.artist]))
+        set({ catalog: get().catalog.map((entry) => (byId.has(entry.id) ? { ...entry, artist: byId.get(entry.id)! } : entry)) })
+    },
     setSubmittedPlayerIds: (submittedPlayerIds) => set({ submittedPlayerIds }),
     setPendingReturnPlayerIds: (pendingReturnPlayerIds) => set({ pendingReturnPlayerIds }),
 

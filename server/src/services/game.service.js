@@ -60,6 +60,14 @@ const getOrCreate = (code) => {
             // l'hôte peut passer à la manche suivante (cf. advanceRound)
             manualAdvance: false,
             hostId: null,
+            // id de titre -> previewUrl | null, alimenté dès la soumission des
+            // musiques (cf. warmPreviewCache), pas seulement au lancement —
+            // survit à une partie relancée dans le même lobby (rejouer), donc
+            // ne se réinitialise jamais explicitement ici
+            previewCache: new Map(),
+            // évite d'empiler plusieurs passes de pré-chauffage concurrentes
+            // (une par joueur qui soumet ses musiques), cf. warmPreviewCache
+            previewWarming: false,
             rounds: [],
             currentRoundIndex: -1,
             timer: null,
@@ -158,6 +166,14 @@ export const submitTracks = (code, player, tracks, io) => {
         submittedPlayerIds: [...game.submittedTracks.keys()],
     })
 
+    // pré-chauffe les extraits en tâche de fond dès cet envoi plutôt que
+    // d'attendre le clic sur "Lancer" (cf. warmPreviewCache) : objectif, que
+    // le lancement ne fasse plus aucun aller-retour réseau une fois que tout
+    // le monde a soumis depuis un moment
+    warmPreviewCache(code, game).catch((err) => {
+        console.error('❌ Erreur lors du pré-chauffage des extraits :', err)
+    })
+
     return { accepted: true }
 }
 
@@ -208,6 +224,127 @@ const byCoverageDesc = (shuffledPool, activePlayerIds) =>
         return countB - countA
     })
 
+// nombre de résolutions d'extrait (cf. resolvePreviewUrl) menées en parallèle
+// lors du pré-chargement ci-dessous. Contrairement à DEEZER_ARTIST_BATCH_SIZE
+// (un seul GET /track/{id} par titre), une résolution d'extrait pour un titre
+// non-Deezer déclenche plusieurs requêtes de recherche en parallèle (cf.
+// searchDeezerPreview/searchItunesPreview, preview.service.js) — la valeur
+// ci-dessous vise donc un nombre de TITRES par lot plus prudent, à ajuster
+// selon le taux de succès observé en conditions réelles (cf. le log
+// "prefetchPreviews" plus bas) : si le taux chute quand on l'augmente, c'est
+// le signe qu'on cogne une limite de débit externe, pas un gain de vitesse
+const PREVIEW_PREFETCH_BATCH_SIZE = 16
+// marge de sécurité (nombre de succès visés au-delà de requestedRounds) avant
+// d'arrêter le pré-chargement : l'équité (cf. byFairness) ou les manches
+// "who_liked" sans recouvrement peuvent écarter des candidats qui ONT un
+// extrait, il en faut donc un peu plus que le strict nécessaire en réserve
+const PREVIEW_PREFETCH_SUCCESS_MARGIN = 1.2
+// plafond absolu (filet de sécurité si le taux de succès est mauvais) : sans
+// lui, un pool où peu de titres ont un extrait ferait pré-charger tout le pool
+const PREVIEW_PREFETCH_MAX_FACTOR = 3
+
+// pré-résout les extraits par lots EN PARALLÈLE pour un préfixe du pool
+// mélangé, plutôt qu'un par un au fil de la construction des manches
+// ci-dessous : avant ce cache, chaque manche attendait son propre
+// aller-retour réseau l'une après l'autre, donc le temps de lancement
+// grandissait linéairement avec le nombre de manches demandées (perceptible
+// dès qu'une partie en comptait beaucoup, même à 2 joueurs). S'arrête dès
+// qu'assez de candidats AVEC extrait ont été trouvés (cf.
+// PREVIEW_PREFETCH_SUCCESS_MARGIN) plutôt que de systématiquement interroger
+// un préfixe de taille fixe : sur un pool où la plupart des titres ont un
+// extrait (cas courant), ça évite de continuer à appeler les API externes une
+// fois la marge déjà couverte. `orderedPool` détermine l'ordre de
+// préchargement (le mélange déjà utilisé pour construire les manches) ; un
+// titre hors de ce qui a été pré-chargé (candidat au-delà de l'arrêt anticipé,
+// ou pool réduit avec beaucoup d'échecs) retombe simplement sur une
+// résolution à la demande, cf. resolvePreviewCached.
+// Utilise `game.previewCache`, déjà en grande partie chauffé par
+// warmPreviewCache pendant l'attente au lobby (cf. plus bas) : ne fait donc
+// un VRAI aller-retour réseau que pour ce qui manque encore au cache — dans
+// le cas courant (tout le monde a soumis ses musiques depuis un moment avant
+// que l'hôte clique sur "Lancer"), cette boucle ne fait plus rien du tout.
+const prefetchPreviews = async (game, orderedPool, requestedRounds) => {
+    const cache = game.previewCache
+    const code = game.code
+    const maxSize = Math.min(orderedPool.length, requestedRounds * PREVIEW_PREFETCH_MAX_FACTOR)
+    const successTarget = Math.ceil(requestedRounds * PREVIEW_PREFETCH_SUCCESS_MARGIN)
+    let successCount = 0
+    let tried = 0
+    let batchIndex = 0
+
+    for (let i = 0; i < maxSize && successCount < successTarget; i += PREVIEW_PREFETCH_BATCH_SIZE) {
+        const batch = orderedPool.slice(i, i + PREVIEW_PREFETCH_BATCH_SIZE)
+        tried += batch.length
+        const toFetch = batch.filter((t) => !cache.has(t.id))
+
+        if (toFetch.length > 0) {
+            batchIndex += 1
+            const batchStartMs = Date.now()
+            const previews = await Promise.all(toFetch.map((t) => resolvePreviewUrl(t)))
+            const batchSuccesses = previews.filter(Boolean).length
+            toFetch.forEach((t, index) => cache.set(t.id, previews[index]))
+            // instrumentation temporaire (cf. investigation lenteur au
+            // lancement) : une durée qui grimpe avec la taille du lot (par
+            // rapport aux lots précédents/à d'autres parties) signale une
+            // limite de débit externe plutôt qu'un gain de vitesse à
+            // agrandir encore le lot ; "déjà en cache" élevé signifie que le
+            // pré-chauffage pendant l'attente au lobby fait déjà son travail
+            console.log(
+                `⏱️ [${code}] prefetchPreviews lot ${batchIndex} : ${batchSuccesses}/${toFetch.length} résolus, ${batch.length - toFetch.length} déjà en cache, en ${Date.now() - batchStartMs}ms`
+            )
+        }
+        successCount += batch.filter((t) => cache.get(t.id)).length
+    }
+    console.log(
+        `⏱️ [${code}] prefetchPreviews : ${successCount}/${tried} extraits trouvés (cible ${successTarget}, plafond ${maxSize})`
+    )
+    return cache
+}
+
+const resolvePreviewCached = async (track, previewCache) => {
+    if (previewCache.has(track.id)) return previewCache.get(track.id)
+    const previewUrl = await resolvePreviewUrl(track)
+    previewCache.set(track.id, previewUrl)
+    return previewUrl
+}
+
+// pré-chauffe TOUT le pool courant en tâche de fond PENDANT l'attente au
+// lobby (déclenché à chaque soumission de musiques, cf. submitTracks) plutôt
+// qu'au moment où l'hôte clique sur "Lancer" : alimente le même
+// `game.previewCache` que prefetchPreviews, donc un lancement qui arrive
+// après que ce chauffage a eu le temps de tourner ne fait (idéalement) plus
+// aucun appel réseau. Volontairement sans plafond ni marge de succès
+// (contrairement à prefetchPreviews) : on ne sait pas encore à cet instant
+// quel mode/nombre de manches sera choisi au lancement, donc autant chauffer
+// tout ce qui peut l'être puisque c'est hors du chemin critique.
+//
+// Une seule passe à la fois par partie (cf. game.previewWarming) : `pool` est
+// recalculé à CHAQUE lot plutôt qu'une fois pour toutes en tête de fonction,
+// donc un nouveau joueur qui soumet ses musiques pendant que la boucle
+// tourne déjà voit son pool absorbé par la passe en cours (elle ne s'arrête
+// que quand `i` dépasse la taille du pool recalculé), sans qu'il soit besoin
+// d'empiler une seconde passe concurrente.
+const warmPreviewCache = async (code, game) => {
+    if (game.previewWarming) return
+    game.previewWarming = true
+    try {
+        let i = 0
+        while (games.get(code) === game) {
+            const pool = buildPool(game)
+            if (i >= pool.length) break
+
+            const batch = pool.slice(i, i + PREVIEW_PREFETCH_BATCH_SIZE).filter((t) => !game.previewCache.has(t.id))
+            i += PREVIEW_PREFETCH_BATCH_SIZE
+            if (batch.length === 0) continue
+
+            const previews = await Promise.all(batch.map((t) => resolvePreviewUrl(t)))
+            batch.forEach((t, index) => game.previewCache.set(t.id, previews[index]))
+        }
+    } finally {
+        game.previewWarming = false
+    }
+}
+
 // mode who_liked (Who Liked It) : le titre est toujours affiché (ce n'est pas
 // ce qu'on devine), on privilégie juste les musiques qui ont un extrait sans
 // que ce soit bloquant.
@@ -218,8 +355,9 @@ const byCoverageDesc = (shuffledPool, activePlayerIds) =>
 // les manches restantes avec le reste du pool mélangé, en privilégiant les
 // titres avec extrait comme avant — donc plus il y a de manches, plus les
 // joueurs ont de chances de voir plusieurs de leurs titres tirés.
-const buildWhoLikedRounds = async (pool, requestedRounds, activePlayerIds) => {
+const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds) => {
     const shuffledPool = shuffle(pool)
+    const previewCache = await prefetchPreviews(game, shuffledPool, requestedRounds)
     const used = new Set()
     const fairnessRounds = []
     const uncovered = new Set(activePlayerIds)
@@ -227,7 +365,7 @@ const buildWhoLikedRounds = async (pool, requestedRounds, activePlayerIds) => {
     const buildRound = async (track) => {
         const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
         if (likedBy.length === 0) return null
-        const previewUrl = await resolvePreviewUrl(track)
+        const previewUrl = await resolvePreviewCached(track, previewCache)
         return { round: { track: { ...track, previewUrl }, likedBy }, previewUrl, likedBy }
     }
 
@@ -265,13 +403,13 @@ const buildWhoLikedRounds = async (pool, requestedRounds, activePlayerIds) => {
 // extrait audio requis (repli vers le titre suivant sinon) ; `used` est
 // partagé entre tous les appels d'une même partie pour ne jamais reproposer
 // un titre déjà retenu pour une autre manche
-const takeRounds = async (candidates, count, used) => {
+const takeRounds = async (candidates, count, used, previewCache) => {
     const rounds = []
     for (const track of candidates) {
         if (rounds.length >= count) break
         if (used.has(track.id)) continue
 
-        const previewUrl = await resolvePreviewUrl(track)
+        const previewUrl = await resolvePreviewCached(track, previewCache)
         if (!previewUrl) continue
 
         used.add(track.id)
@@ -328,8 +466,9 @@ const byFairness = (candidates, activePlayerIds, ownerRoundCounts, fairnessMax, 
 // manche est donc choisie via pickFairestRound, qui priorise/écarte les
 // titres selon la part de manches déjà attribuées exclusivement à chaque
 // joueur (cf. byFairness).
-const buildBlindtestRounds = async (pool, requestedRounds, activePlayerIds) => {
+const buildBlindtestRounds = async (game, pool, requestedRounds, activePlayerIds) => {
     const shuffledPool = shuffle(pool)
+    const previewCache = await prefetchPreviews(game, shuffledPool, requestedRounds)
     const used = new Set()
 
     const fairnessMax = Math.ceil((requestedRounds / activePlayerIds.length) * FAIRNESS_MAX_SHARE_FACTOR)
@@ -339,10 +478,10 @@ const buildBlindtestRounds = async (pool, requestedRounds, activePlayerIds) => {
     for (let i = 0; i < requestedRounds; i += 1) {
         const order = (respectMax) => byFairness(shuffledPool, activePlayerIds, ownerRoundCounts, fairnessMax, respectMax)
 
-        let [picked] = await takeRounds(order(true), 1, used)
+        let [picked] = await takeRounds(order(true), 1, used, previewCache)
         // plafond intenable (pool exclusif de l'autre joueur épuisé) : on
         // retente sans le filtre plutôt que de laisser la manche vide
-        if (!picked) [picked] = await takeRounds(order(false), 1, used)
+        if (!picked) [picked] = await takeRounds(order(false), 1, used, previewCache)
 
         if (!picked) continue
         // sinon : plus aucun titre disponible avec extrait, cette manche est
@@ -364,20 +503,39 @@ const DEEZER_ARTIST_BATCH_SIZE = 8
 
 // catalogue de recherche du blindtest : tous les titres likés par le lobby,
 // envoyé une seule fois (le joueur cherche dedans plutôt que de choisir parmi
-// des options imposées). L'artiste de chaque titre Deezer est enrichi avec
-// les featurings (cf. resolveDeezerArtist) pour que "je cherche Pharrell
-// Williams" retrouve un titre de Tyler, The Creator feat. Pharrell Williams —
-// par lots plutôt que tout en parallèle d'un coup, pour ménager l'API Deezer.
-const buildCatalog = async (pool) => {
-    const entries = []
+// des options imposées). L'artiste est celui déjà transmis par le client (pas
+// encore enrichi des featurings) : aucun appel réseau ici, pour que la taille
+// du pool (qui grandit avec le nombre de joueurs) n'ait plus aucun impact sur
+// le temps de lancement — cf. enrichCatalogInBackground pour l'enrichissement.
+const buildCatalog = (pool) => pool.map((t) => ({ id: t.id, name: t.name, artist: t.artist, image: t.image ?? null }))
+
+// enrichit l'artiste de chaque titre Deezer avec les featurings (cf.
+// resolveDeezerArtist), pour que "je cherche Pharrell Williams" retrouve un
+// titre de Tyler, The Creator feat. Pharrell Williams. Volontairement mené
+// APRÈS "game:started"/le lancement de la première manche (jamais attendu par
+// startGame) : par lots (pour ménager l'API Deezer publique), donc
+// proportionnel à la taille du pool — bloquant le lancement, ce délai grandissait
+// avec le nombre de joueurs (chacun ajoutant ses titres likés au pool commun),
+// ce qui causait les débuts de partie de plus en plus lents rapportés à mesure
+// que les lobbys s'agrandissent.
+const enrichCatalogInBackground = async (code, game, pool, io) => {
     for (let i = 0; i < pool.length; i += DEEZER_ARTIST_BATCH_SIZE) {
+        // la partie a pu être relancée (rejouer) ou nettoyée entre-temps : ne
+        // diffuse plus rien dans ces cas, ce serait soit obsolète soit destiné
+        // à une room qui n'écoute plus cet enrichissement précis
+        if (games.get(code) !== game) return
+
         const batch = pool.slice(i, i + DEEZER_ARTIST_BATCH_SIZE)
         const artists = await Promise.all(batch.map((t) => resolveDeezerArtist(t)))
-        batch.forEach((t, index) => {
-            entries.push({ id: t.id, name: t.name, artist: artists[index], image: t.image ?? null })
-        })
+        const updates = batch
+            .map((t, index) => ({ id: t.id, artist: artists[index] }))
+            .filter((entry, index) => entry.artist !== batch[index].artist)
+
+        if (games.get(code) !== game) return
+        if (updates.length > 0) {
+            io.to(room(code)).emit('game:catalogEnriched', { updates })
+        }
     }
-    return entries
 }
 
 const publicRound = (game, round) => {
@@ -479,16 +637,24 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     game.manualAdvance = Boolean(lobby.manualAdvance)
     game.hostId = hostId
 
+    // instrumentation temporaire (cf. investigation lenteur au lancement) :
+    // à retirer une fois la cause confirmée en conditions réelles
+    const startedAtMs = Date.now()
     const pool = buildPool(game)
+    console.log(
+        `⏱️ [${code}] pool prêt en ${Date.now() - startedAtMs}ms (${pool.length} titres, ${activePlayerIds.length} joueurs, ${lobby.rounds} manches demandées)`
+    )
     if (pool.length === 0) {
         throw new GameError("Aucun titre liké n'a été reçu, impossible de lancer la partie")
     }
 
     const questionType = QUESTION_TYPES[game.gameMode]
+    const roundsStartMs = Date.now()
     const built =
         questionType === 'who_liked'
-            ? await buildWhoLikedRounds(pool, lobby.rounds, activePlayerIds)
-            : await buildBlindtestRounds(pool, lobby.rounds, activePlayerIds)
+            ? await buildWhoLikedRounds(game, pool, lobby.rounds, activePlayerIds)
+            : await buildBlindtestRounds(game, pool, lobby.rounds, activePlayerIds)
+    console.log(`⏱️ [${code}] manches construites en ${Date.now() - roundsStartMs}ms (${built.length}/${lobby.rounds})`)
 
     if (built.length < MIN_ROUNDS_PLAYABLE) {
         throw new GameError(
@@ -510,7 +676,9 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     }))
     game.currentRoundIndex = -1
 
-    const catalog = questionType === 'guess_track' ? await buildCatalog(pool) : undefined
+    const catalogStartMs = Date.now()
+    const catalog = questionType === 'guess_track' ? buildCatalog(pool) : undefined
+    console.log(`⏱️ [${code}] catalogue (non enrichi) prêt en ${Date.now() - catalogStartMs}ms`)
 
     io.to(room(code)).emit('game:started', {
         totalRounds: game.rounds.length,
@@ -518,6 +686,14 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         manualAdvance: game.manualAdvance,
         catalog,
     })
+
+    console.log(`⏱️ [${code}] game:started émis, ${Date.now() - startedAtMs}ms après le début de startGame`)
+
+    if (questionType === 'guess_track') {
+        enrichCatalogInBackground(code, game, pool, io).catch((err) => {
+            console.error('❌ Erreur lors de l\'enrichissement du catalogue :', err)
+        })
+    }
 
     await startNextRound(code, io)
 }
@@ -544,7 +720,9 @@ const startNextRound = async (code, io) => {
     // lente, beaucoup de manches) pouvait donc recevoir un lien déjà mort —
     // "le son ne se met juste pas". Ne remplace que si une résolution fraîche
     // aboutit : sinon on garde l'ancienne valeur plutôt que de perdre l'audio.
+    const freshPreviewStartMs = Date.now()
     const freshPreviewUrl = await resolvePreviewUrl(round.track)
+    console.log(`⏱️ [${code}] extrait de la manche ${round.index} re-résolu en ${Date.now() - freshPreviewStartMs}ms`)
     if (freshPreviewUrl) round.track.previewUrl = freshPreviewUrl
 
     // fixé ici (juste avant la diffusion, pas avant la résolution d'extrait

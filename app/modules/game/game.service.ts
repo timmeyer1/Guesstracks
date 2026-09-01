@@ -82,6 +82,9 @@ export const startWatchingGame = () => {
         onTracksProgress: (payload) => {
             useGameStore.getState().setSubmittedPlayerIds(payload.submittedPlayerIds)
         },
+        onCatalogEnriched: (payload) => {
+            useGameStore.getState().enrichCatalog(payload.updates)
+        },
         onReturnProgress: (payload) => {
             useGameStore.getState().setPendingReturnPlayerIds(payload.pendingPlayerIds)
         },

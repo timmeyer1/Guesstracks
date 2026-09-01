@@ -68,6 +68,11 @@ export type GameSocketHandlers = {
     // diffusé à la fin d'une partie puis à chaque joueur qui revient au lobby
     // (ou le quitte) : liste de ceux encore attendus avant de pouvoir relancer
     onReturnProgress: (payload: { pendingPlayerIds: string[] }) => void
+    // diffusé après "game:started" en mode blindtest, une ou plusieurs fois :
+    // artistes enrichis avec les featurings (cf. server/src/services/
+    // game.service.js enrichCatalogInBackground), à fusionner dans le
+    // catalogue déjà reçu par id plutôt que de le remplacer
+    onCatalogEnriched: (payload: { updates: { id: string; artist: string }[] }) => void
 }
 
 export const subscribeToGame = (handlers: GameSocketHandlers) => {
@@ -80,6 +85,7 @@ export const subscribeToGame = (handlers: GameSocketHandlers) => {
     s.on('game:state', handlers.onState)
     s.on('game:tracksProgress', handlers.onTracksProgress)
     s.on('game:returnProgress', handlers.onReturnProgress)
+    s.on('game:catalogEnriched', handlers.onCatalogEnriched)
 
     return () => {
         s.off('game:started', handlers.onStarted)
@@ -90,6 +96,7 @@ export const subscribeToGame = (handlers: GameSocketHandlers) => {
         s.off('game:state', handlers.onState)
         s.off('game:tracksProgress', handlers.onTracksProgress)
         s.off('game:returnProgress', handlers.onReturnProgress)
+        s.off('game:catalogEnriched', handlers.onCatalogEnriched)
     }
 }
 
