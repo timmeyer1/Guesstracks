@@ -386,24 +386,39 @@ const warmPreviewCache = async (code, game) => {
 // ce qu'on devine), on privilégie juste les musiques qui ont un extrait sans
 // que ce soit bloquant.
 //
-// Équité : une première passe (triée par couverture, cf. byCoverageDesc)
-// réserve un titre par joueur pas encore représenté ; ces manches "d'équité"
-// sont ensuite toujours conservées telles quelles. Une seconde passe complète
-// les manches restantes avec le reste du pool mélangé, en privilégiant les
-// titres avec extrait comme avant — donc plus il y a de manches, plus les
-// joueurs ont de chances de voir plusieurs de leurs titres tirés.
+// Équité, en deux temps :
+// 1. Couverture (triée par byCoverageDesc, inchangé) : réserve un titre par
+//    joueur pas encore représenté, pour que tout le monde apparaisse au moins
+//    une fois. Ces manches sont toujours conservées telles quelles.
+// 2. Part de manches (même mécanisme que buildBlindtestRounds/byFairness,
+//    cf. FAIRNESS_MAX_SHARE_FACTOR) : au-delà de cette couverture minimale,
+//    aucun joueur ne peut voir SES titres exclusifs (ceux qu'il est seul à
+//    avoir likés, cf. exclusiveOwner) dépasser FAIRNESS_MAX_SHARE_FACTOR × sa
+//    part "juste" des manches (~60% à 2 joueurs) — sans quoi un joueur à
+//    grosse bibliothèque finissait par y apparaître beaucoup plus souvent que
+//    les autres, alors que ce mode n'a même pas besoin d'un extrait pour
+//    tourner, ce qui accentuait encore l'effet à bibliothèques inégales.
 const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds) => {
     const shuffledPool = shuffle(pool)
     const previewCache = await prefetchPreviews(game, shuffledPool, requestedRounds)
     const used = new Set()
     const fairnessRounds = []
     const uncovered = new Set(activePlayerIds)
+    const fairnessMax = Math.ceil((requestedRounds / activePlayerIds.length) * FAIRNESS_MAX_SHARE_FACTOR)
+    const ownerRoundCounts = new Map(activePlayerIds.map((id) => [id, 0]))
 
     const buildRound = async (track) => {
         const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
         if (likedBy.length === 0) return null
         const previewUrl = await resolvePreviewCached(track, previewCache)
         return { round: { track: { ...track, previewUrl }, likedBy }, previewUrl, likedBy }
+    }
+
+    const registerPick = (track, likedBy) => {
+        used.add(track.id)
+        for (const id of likedBy) uncovered.delete(id)
+        const owner = exclusiveOwner(track, activePlayerIds)
+        if (owner) ownerRoundCounts.set(owner, (ownerRoundCounts.get(owner) ?? 0) + 1)
     }
 
     for (const track of byCoverageDesc(shuffledPool, activePlayerIds)) {
@@ -413,27 +428,47 @@ const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds)
         const result = await buildRound(track)
         if (!result) continue
 
-        used.add(track.id)
+        registerPick(track, result.likedBy)
         fairnessRounds.push(result.round)
-        for (const id of result.likedBy) uncovered.delete(id)
     }
 
+    // pour chaque manche restante, priorise les candidats dont le
+    // propriétaire exclusif a le moins de manches jusqu'ici (cf. byFairness) ;
+    // retente sans le plafond d'équité seulement si plus aucun candidat n'est
+    // éligible en-dessous (pool exclusif d'un joueur épuisé). La préférence
+    // pour un extrait ne coûte AUCUN appel réseau supplémentaire : elle ne
+    // regarde que ce qui est déjà en cache (cf. game.previewCache, chauffé en
+    // amont par prefetchPreviews/warmPreviewCache) — contrairement à
+    // buildBlindtestRounds, ce mode n'a pas besoin d'extrait pour tourner,
+    // donc pas question de faire une recherche réseau exhaustive juste pour
+    // en trouver un ; le premier candidat éligible fait l'affaire sinon.
     const remainingSlots = requestedRounds - fairnessRounds.length
-    const withPreview = []
-    const withoutPreview = []
+    const rounds = []
 
-    for (const track of shuffledPool) {
-        if (withPreview.length >= remainingSlots) break
-        if (used.has(track.id)) continue
+    for (let i = 0; i < remainingSlots; i += 1) {
+        const pick = async (respectMax) => {
+            const candidates = byFairness(
+                shuffledPool,
+                activePlayerIds,
+                ownerRoundCounts,
+                fairnessMax,
+                respectMax
+            ).filter((t) => !used.has(t.id))
+            if (candidates.length === 0) return null
 
-        const result = await buildRound(track)
-        if (!result) continue
+            const cachedWithPreview = candidates.find((t) => previewCache.get(t.id))
+            const result = await buildRound(cachedWithPreview ?? candidates[0])
+            return result ? { track: cachedWithPreview ?? candidates[0], result } : null
+        }
 
-        used.add(track.id)
-            ; (result.previewUrl ? withPreview : withoutPreview).push(result.round)
+        const picked = (await pick(true)) ?? (await pick(false))
+        if (!picked) break // plus aucun titre disponible, quel qu'il soit
+
+        registerPick(picked.track, picked.result.likedBy)
+        rounds.push(picked.result.round)
     }
 
-    return [...fairnessRounds, ...withPreview, ...withoutPreview].slice(0, requestedRounds)
+    return [...fairnessRounds, ...rounds].slice(0, requestedRounds)
 }
 
 // pioche jusqu'à `count` manches dans `candidates` (déjà mélangés/triés),
