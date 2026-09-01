@@ -87,33 +87,14 @@ const getOrCreate = (code) => {
     return game
 }
 
-// hash simple (FNV-1a) : pas besoin de cryptographiquement fort, juste stable
-// et bien réparti pour servir de tri pseudo-aléatoire déterministe ci-dessous
-const stableHash = (str) => {
-    let h = 2166136261
-    for (let i = 0; i < str.length; i += 1) {
-        h ^= str.charCodeAt(i)
-        h = Math.imul(h, 16777619)
+const shuffle = (items) => {
+    const copy = [...items]
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1))
+            ;[copy[i], copy[j]] = [copy[j], copy[i]]
     }
-    return h >>> 0
+    return copy
 }
-
-// équivalent d'un mélange aléatoire, mais STABLE pour une même partie (même
-// `seed`, ex: le code du lobby) : deux appels successifs avec le même pool
-// (même composition de titres) retombent sur exactement le même ordre. C'est
-// ce qui permet à warmPreviewCache (chauffage de fond pendant l'attente au
-// lobby) et à prefetchPreviews/buildWhoLikedRounds/buildBlindtestRounds (au
-// lancement) de viser LE MÊME préfixe de titres — avec un vrai
-// Math.random() (l'ancien `shuffle`), chaque appel retombait sur un ordre
-// différent, donc le travail de chauffage de fond ne recoupait presque
-// jamais ce qui était réellement nécessaire au lancement sur un gros pool
-// (constaté en conditions réelles : 0 titre déjà en cache sur un pool de
-// 3339, alors que le chauffage avait bien tourné pendant l'attente).
-const stableOrder = (items, seed) =>
-    [...items]
-        .map((item) => ({ item, key: stableHash(`${item.id}:${seed}`) }))
-        .sort((a, b) => a.key - b.key)
-        .map(({ item }) => item)
 
 export const submitTracks = (code, player, tracks, io) => {
     if (!player || typeof player.id !== 'string' || !player.id.trim()) {
@@ -381,11 +362,13 @@ const warmPreviewCache = async (code, game) => {
     try {
         let i = 0
         while (games.get(code) === game && !game.launching) {
-            // même ordre stable que prefetchPreviews/buildBlindtestRounds
-            // (cf. stableOrder) : sans ça, le chauffage vise un préfixe
-            // différent de celui réellement utilisé au lancement, et tout ce
-            // travail de fond est perdu sur un gros pool
-            const pool = stableOrder(buildPool(game), code)
+            // ordre de constitution du pool (pas mélangé) : le tirage réel au
+            // lancement, lui, reste un vrai hasard à chaque partie (cf.
+            // buildBlindtestRounds/buildWhoLikedRounds) — sur un gros pool, ce
+            // chauffage ne recoupe donc qu'une partie de ce qui sera
+            // nécessaire, mais on privilégie ici la variété des manches
+            // plutôt qu'un alignement parfait
+            const pool = buildPool(game)
             if (i >= pool.length || i >= PREVIEW_WARM_MAX_TRACKS) break
 
             const batch = pool.slice(i, i + PREVIEW_WARM_BATCH_SIZE).filter((t) => !game.previewCache.has(t.id))
@@ -412,7 +395,7 @@ const warmPreviewCache = async (code, game) => {
 // titres avec extrait comme avant — donc plus il y a de manches, plus les
 // joueurs ont de chances de voir plusieurs de leurs titres tirés.
 const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds) => {
-    const shuffledPool = stableOrder(pool, game.code)
+    const shuffledPool = shuffle(pool)
     const previewCache = await prefetchPreviews(game, shuffledPool, requestedRounds)
     const used = new Set()
     const fairnessRounds = []
@@ -523,7 +506,7 @@ const byFairness = (candidates, activePlayerIds, ownerRoundCounts, fairnessMax, 
 // titres selon la part de manches déjà attribuées exclusivement à chaque
 // joueur (cf. byFairness).
 const buildBlindtestRounds = async (game, pool, requestedRounds, activePlayerIds) => {
-    const shuffledPool = stableOrder(pool, game.code)
+    const shuffledPool = shuffle(pool)
     const previewCache = await prefetchPreviews(game, shuffledPool, requestedRounds)
     const used = new Set()
 
