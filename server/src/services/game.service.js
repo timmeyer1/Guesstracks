@@ -482,39 +482,75 @@ const allocateRoundsPerPlayer = (requestedRounds, activePlayerIds, requireCovera
 // MIN_ROUNDS_PLAYABLE côté appelant si même ce repli ne suffit pas.
 const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerIds, requireCoverage, requirePreview) => {
     const code = game.code
-    const shuffledPool = shuffle(pool)
-    const previewCache = await prefetchPreviews(game, shuffledPool, requestedRounds)
     const allocation = allocateRoundsPerPlayer(requestedRounds, activePlayerIds, requireCoverage)
     console.log(
         `🎯 [${code}] répartition par joueur (sur ${requestedRounds} manches) : ${JSON.stringify([...allocation.entries()])}`
     )
+
+    // bibliothèque exclusive de chaque joueur, mélangée UNE SEULE FOIS : le
+    // même ordre sert à la fois au pré-chauffage (cf. prefetchPreviews,
+    // enchaîné joueur par joueur — jamais en parallèle, pour ne pas taper
+    // Deezer/iTunes pour plusieurs joueurs à la fois, cf. warmPreviewCache)
+    // et au tirage juste après (cf. takeFrom). Chauffer un ordre et tirer
+    // dans un autre revient à ne quasiment jamais profiter du chauffage —
+    // déjà constaté une fois avec warmPreviewCache vs prefetchPreviews.
+    const exclusiveByPlayer = new Map(
+        activePlayerIds.map((id) => [id, shuffle(pool.filter((t) => exclusiveOwner(t, activePlayerIds) === id))])
+    )
+    for (const id of activePlayerIds) {
+        await prefetchPreviews(game, exclusiveByPlayer.get(id), allocation.get(id))
+    }
+    const previewCache = game.previewCache
     const used = new Set()
 
-    const tryBuild = async (track) => {
-        const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
-        if (likedBy.length === 0) return null
-        const previewUrl = await resolvePreviewCached(track, previewCache)
-        if (requirePreview && !previewUrl) return null
-        return { track: { ...track, previewUrl }, likedBy }
-    }
-
+    // tente `candidates` (déjà dans l'ordre voulu, pas remélangé ici) : si
+    // `requirePreview` est vrai (blindtest), un titre sans extrait est écarté
+    // purement et simplement, en essayant le suivant — c'était déjà le cas
+    // avant. Sinon (who_liked), un titre sans extrait n'est mis de côté que
+    // comme solution de repli : on privilégie d'abord tous les titres AVEC
+    // extrait disponibles, et on ne pioche dans les titres sans extrait que
+    // si ça ne suffit pas à combler `count` — pour qu'une manche silencieuse
+    // reste l'exception, pas la conséquence du premier titre sans extrait
+    // tombé au hasard.
     const takeFrom = async (candidates, count) => {
-        const taken = []
-        for (const track of shuffle(candidates)) {
-            if (taken.length >= count) break
+        const withPreview = []
+        const withoutPreview = []
+        // plafonne le nombre de candidats VRAIMENT scannés (comme
+        // prefetchPreviews, même facteur) : sans ça, quand `requirePreview`
+        // est faux (who_liked) et qu'aucun candidat n'a d'extrait, la
+        // recherche d'un titre AVEC extrait continuait jusqu'au bout d'une
+        // bibliothèque entière (des centaines/milliers de résolutions
+        // réseau une par une) avant de se rabattre sur le repli sans
+        // extrait — largement plus lent que d'accepter le repli plus tôt
+        const maxScan = Math.min(candidates.length, count * PREVIEW_PREFETCH_MAX_FACTOR)
+        for (let i = 0; i < maxScan; i += 1) {
+            if (withPreview.length >= count) break
+            const track = candidates[i]
             if (used.has(track.id)) continue
-            const built = await tryBuild(track)
-            if (!built) continue
+            const likedBy = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
+            if (likedBy.length === 0) continue
+
+            const previewUrl = await resolvePreviewCached(track, previewCache)
+            if (!previewUrl) {
+                if (!requirePreview) withoutPreview.push({ id: track.id, track: { ...track, previewUrl }, likedBy })
+                continue
+            }
             used.add(track.id)
-            taken.push(built)
+            withPreview.push({ track: { ...track, previewUrl }, likedBy })
         }
-        return taken
+        while (withPreview.length < count && withoutPreview.length > 0) {
+            const next = withoutPreview.shift()
+            if (used.has(next.id)) continue
+            used.add(next.id)
+            withPreview.push(next)
+        }
+        return withPreview
     }
 
     const rounds = []
     let shortfall = 0
     for (const id of activePlayerIds) {
-        const exclusive = pool.filter((t) => exclusiveOwner(t, activePlayerIds) === id)
+        const exclusive = exclusiveByPlayer.get(id)
         const taken = await takeFrom(exclusive, allocation.get(id))
         rounds.push(...taken)
         const missing = allocation.get(id) - taken.length
@@ -524,7 +560,7 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
         )
     }
     if (shortfall > 0) {
-        rounds.push(...(await takeFrom(pool, shortfall)))
+        rounds.push(...(await takeFrom(shuffle(pool), shortfall)))
     }
 
     // limite les séries d'affilée (cf. MAX_OWNER_STREAK) : le contenu des

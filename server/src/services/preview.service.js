@@ -131,11 +131,22 @@ const searchDeezerPreview = async (name, artist) => {
     return null
 }
 
+// le storefront iTunes interrogé dépend du paramètre `country` — sans lui,
+// l'API retombe sur le catalogue US par défaut, qui n'a pas forcément les
+// mêmes titres (droits différents par pays) que le catalogue FR. Codé en dur
+// pour l'instant (le public visé est francophone) plutôt que déduit du
+// compte/téléphone du joueur : demanderait de faire remonter sa région
+// jusqu'ici (payload de soumission des titres, cf. game.service.js) pour un
+// gain incertain tant qu'on n'a pas mesuré si ça change vraiment le taux de
+// succès en pratique.
+const ITUNES_STOREFRONT_COUNTRY = 'FR'
+
 const searchItunesOnce = async (term) => {
     if (!term) return []
     const url = new URL(ITUNES_SEARCH_URL)
     url.searchParams.set('term', term)
     url.searchParams.set('entity', 'song')
+    url.searchParams.set('country', ITUNES_STOREFRONT_COUNTRY)
     url.searchParams.set('limit', String(SEARCH_RESULT_LIMIT))
     const data = await fetchJson(url)
     return data?.results || []
