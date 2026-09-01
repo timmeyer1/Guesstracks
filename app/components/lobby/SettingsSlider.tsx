@@ -12,7 +12,11 @@ export type SettingsSliderProps = {
     accentColor: string
 }
 
-const THUMB_SIZE = 28
+export const THUMB_SIZE = 28
+// padding autour de la piste (cf. className "p-1" plus bas) : extrait en
+// constante pour que StepRuler (LobbySettingsModal.tsx) puisse aligner ses
+// graduations exactement sur la course réelle du curseur
+export const SLIDER_PADDING = 4
 const TRACK_HEIGHT = 40
 const LINE_HEIGHT = 6
 
@@ -77,7 +81,7 @@ export const SettingsSlider = ({ min, max, step, value, onValueChange, accentCol
     })
 
     return (
-        <View className="bg-offwhite rounded-full p-1">
+        <View className="bg-offwhite rounded-full" style={{ padding: SLIDER_PADDING }}>
             <GestureDetector gesture={pan}>
                 <View onLayout={onLayout} style={{ height: TRACK_HEIGHT, justifyContent: "center" }}>
                     <View

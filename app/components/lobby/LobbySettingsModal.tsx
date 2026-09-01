@@ -6,7 +6,7 @@ import { GameMode, PhaseSpeed } from "../../core/types"
 import { SectionTitle } from "../SectionTitle"
 import { CustomButton } from "../Button"
 import { GAME_MODE_ICONS } from "./GameModeCard"
-import { SettingsSlider } from "./SettingsSlider"
+import { SettingsSlider, THUMB_SIZE, SLIDER_PADDING } from "./SettingsSlider"
 
 // tous les paliers atteignables du curseur (ex. 5, 10, 15, 20, 25, 30)
 const stepValues = (min: number, max: number, step: number) => {
@@ -15,8 +15,17 @@ const stepValues = (min: number, max: number, step: number) => {
     return values
 }
 
+// largeur allouée à chaque étiquette pour son centrage horizontal (cf. plus
+// bas) : suffisant pour les libellés attendus ("5" à "30s")
+const TICK_LABEL_WIDTH = 28
+
 // règle graduée sous la piste : un trait + un nombre par palier, pour
-// visualiser chaque valeur possible
+// visualiser chaque valeur possible. Alignée sur la course réelle du curseur
+// de SettingsSlider (et non sur la largeur totale du composant) : le centre
+// du curseur ne balaie que [SLIDER_PADDING + THUMB_SIZE/2, largeur -
+// (SLIDER_PADDING + THUMB_SIZE/2)], jamais les bords 0 et largeur — sans quoi
+// les graduations extrêmes paraissent décalées vers l'extérieur par rapport
+// aux positions atteignables du curseur.
 type StepRulerProps = {
     min: number
     max: number
@@ -24,16 +33,35 @@ type StepRulerProps = {
     suffix?: string
 }
 
-const StepRuler = ({ min, max, step, suffix = "" }: StepRulerProps) => (
-    <View className="flex-row justify-between mt-2">
-        {stepValues(min, max, step).map((value) => (
-            <View key={value} className="items-center">
-                <View className="w-px h-1.5 bg-darkgray mb-1" />
-                <Text className="text-darkgray text-xs">{value}{suffix}</Text>
-            </View>
-        ))}
-    </View>
-)
+const StepRuler = ({ min, max, step, suffix = "" }: StepRulerProps) => {
+    const [width, setWidth] = useState(0)
+    const values = stepValues(min, max, step)
+    const inset = SLIDER_PADDING + THUMB_SIZE / 2
+    const travel = Math.max(1, width - inset * 2)
+
+    return (
+        <View
+            className="mt-2"
+            style={{ height: 24 }}
+            onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        >
+            {width > 0 && values.map((value, index) => {
+                const fraction = values.length > 1 ? index / (values.length - 1) : 0
+                const center = inset + fraction * travel
+                return (
+                    <View
+                        key={value}
+                        className="absolute items-center"
+                        style={{ left: center - TICK_LABEL_WIDTH / 2, width: TICK_LABEL_WIDTH }}
+                    >
+                        <View className="w-px h-1.5 bg-darkgray mb-1" />
+                        <Text className="text-darkgray text-xs">{value}{suffix}</Text>
+                    </View>
+                )
+            })}
+        </View>
+    )
+}
 
 export type LobbySettings = {
     gameMode: GameMode
