@@ -469,11 +469,18 @@ const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds)
     }
 
     // byCoverageDesc (passe 1) trie systématiquement les titres partagés en
-    // tête (ils couvrent les deux joueurs d'un coup) : sans ce mélange final,
-    // la manche 1 était donc quasi toujours un titre partagé, prévisible à
-    // chaque partie. Le contenu des manches (déjà décidé ci-dessus) ne
-    // change pas, seul l'ORDRE dans lequel elles sont jouées est randomisé.
-    return shuffle([...fairnessRounds, ...rounds]).slice(0, requestedRounds)
+    // tête (ils couvrent les deux joueurs d'un coup) : sans réordonnancement
+    // final, la manche 1 était donc quasi toujours un titre partagé,
+    // prévisible à chaque partie — et sans plafond de série, rien
+    // n'empêchait non plus une longue suite de manches d'affilée pour le
+    // même joueur (cf. MAX_OWNER_STREAK/sequenceWithMaxStreak). Le CONTENU
+    // des manches (déjà décidé ci-dessus) ne change pas, seul l'ORDRE dans
+    // lequel elles sont jouées est réordonné.
+    return sequenceWithMaxStreak(
+        [...fairnessRounds, ...rounds],
+        MAX_OWNER_STREAK,
+        (r) => (r.likedBy.length === 1 ? r.likedBy[0] : null)
+    ).slice(0, requestedRounds)
 }
 
 // pioche jusqu'à `count` manches dans `candidates` (déjà mélangés/triés),
@@ -550,6 +557,52 @@ const byFairness = (candidates, activePlayerIds, playerCredit, fairnessMax, resp
         return likedBy.every((id) => (playerCredit.get(id) ?? 0) + share <= fairnessMax)
     })
 
+// nombre maximal de manches d'affilée pour un même propriétaire exclusif,
+// tous modes et tout nombre de joueurs confondus : au-delà, on force un
+// changement même si le plafond global (cf. FAIRNESS_MAX_SHARE_FACTOR) est
+// encore loin d'être atteint. À 2 joueurs, ce plafond global (~60%) laisse
+// largement la place à de longues séries d'affilée (8-10 manches
+// constatées) — trop prévisible/répétitif d'une partie à l'autre (toujours
+// une grosse série du compte à la plus grosse bibliothèque en premier, puis
+// l'autre compte en dernier une fois son plafond de crédit atteint).
+const MAX_OWNER_STREAK = 5
+
+// réordonne `items` (contenu déjà décidé par l'appelant, cf.
+// buildWhoLikedRounds/buildBlindtestRounds) pour qu'aucun propriétaire
+// exclusif n'enchaîne plus de MAX_OWNER_STREAK manches d'affilée, en restant
+// sinon aussi aléatoire que possible. `ownerOf` retourne l'id du
+// propriétaire exclusif d'un item, ou null pour un item partagé/sans
+// propriétaire unique — un item sans propriétaire ne prolonge ni ne compte
+// dans AUCUNE série, il la coupe systématiquement. Généralisé à N joueurs :
+// ne connaît aucun propriétaire particulier, se contente de suivre le
+// dernier posé et depuis combien de temps.
+//
+// Glouton : part d'un ordre déjà mélangé, et à chaque position choisit le
+// premier item restant qui ne prolongerait pas une série déjà à son maximum ;
+// si TOUS les items restants prolongeraient une série trop longue (ne
+// devrait arriver que si le plafond global lui-même autorise un unique
+// propriétaire sur la quasi-totalité des manches, ex. très peu de joueurs
+// actifs), prend le premier quand même plutôt que de rester bloqué.
+const sequenceWithMaxStreak = (items, maxStreak, ownerOf) => {
+    const remaining = shuffle(items)
+    const result = []
+    let streakOwner = null
+    let streakLen = 0
+
+    while (remaining.length > 0) {
+        const index = remaining.findIndex((item) => {
+            const owner = ownerOf(item)
+            return !(owner && owner === streakOwner && streakLen >= maxStreak)
+        })
+        const [picked] = remaining.splice(index === -1 ? 0 : index, 1)
+        const owner = ownerOf(picked)
+        streakLen = owner && owner === streakOwner ? streakLen + 1 : owner ? 1 : 0
+        streakOwner = owner
+        result.push(picked)
+    }
+    return result
+}
+
 // mode blindtest : on devine le titre, donc un extrait est indispensable ;
 // le tirage est complètement aléatoire dans le pool, sans autre contrainte.
 // Un tirage naïf dans le pool mélangé reflète directement la taille des
@@ -584,7 +637,15 @@ const buildBlindtestRounds = async (game, pool, requestedRounds, activePlayerIds
         rounds.push(picked)
     }
 
-    return rounds
+    // même limite de série qu'en who_liked (cf. MAX_OWNER_STREAK) : le
+    // plafond global (~60% à 2 joueurs) laissait largement la place à de
+    // longues suites de manches d'affilée pour le compte à la plus grosse
+    // bibliothèque, avant de basculer sur l'autre compte une fois son crédit
+    // épuisé — prévisible d'une partie à l'autre
+    return sequenceWithMaxStreak(rounds, MAX_OWNER_STREAK, (r) => {
+        const likedBy = [...r.track.likedBy].filter((id) => activePlayerIds.includes(id))
+        return likedBy.length === 1 ? likedBy[0] : null
+    })
 }
 
 // nombre d'enrichissements Deezer (cf. resolveDeezerArtist) menés en
