@@ -468,7 +468,12 @@ const buildWhoLikedRounds = async (game, pool, requestedRounds, activePlayerIds)
         rounds.push(picked.result.round)
     }
 
-    return [...fairnessRounds, ...rounds].slice(0, requestedRounds)
+    // byCoverageDesc (passe 1) trie systématiquement les titres partagés en
+    // tête (ils couvrent les deux joueurs d'un coup) : sans ce mélange final,
+    // la manche 1 était donc quasi toujours un titre partagé, prévisible à
+    // chaque partie. Le contenu des manches (déjà décidé ci-dessus) ne
+    // change pas, seul l'ORDRE dans lequel elles sont jouées est randomisé.
+    return shuffle([...fairnessRounds, ...rounds]).slice(0, requestedRounds)
 }
 
 // pioche jusqu'à `count` manches dans `candidates` (déjà mélangés/triés),
