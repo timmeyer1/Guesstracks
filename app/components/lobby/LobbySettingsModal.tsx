@@ -1,33 +1,39 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView, Switch } from "react-native"
-import Slider from "@react-native-community/slider"
 import { GAME_MODES, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
 import { GameMode, PhaseSpeed } from "../../core/types"
 import { SectionTitle } from "../SectionTitle"
 import { CustomButton } from "../Button"
 import { GAME_MODE_ICONS } from "./GameModeCard"
+import { SettingsSlider } from "./SettingsSlider"
 
-// dérive la valeur "affichée/confirmée" (multiples de 5) à partir de la
-// position continue du curseur natif. `min` et `max` restent chacun un
-// palier à part, tout seuls à leur extrémité respective (ex. seul 5 pile
-// donne "5", seul 30 pile donne "30") ; l'espace restant de la piste est
-// réparti à parts ÉGALES entre les paliers intermédiaires (10, 15, 20, 25)
-// plutôt que de tout déverser sur le dernier d'entre eux (25 prenait sinon
-// une place disproportionnée) — chacun occupe donc la même largeur visuelle.
-// Sans prop `step` sur le <Slider> plus bas, le drag reste 100% fluide et
-// natif (iOS/Android) — aucun arrondi n'intervient sur la position du
-// curseur lui-même, qui reste exactement là où le doigt l'a laissé ; seul le
-// nombre affiché/envoyé au serveur est calculé à partir de cette position.
-const bucketToStep = (raw: number, min: number, max: number, step: number) => {
-    if (raw <= min) return min
-    if (raw >= max) return max
-    const interiorSteps = Math.round((max - min) / step) - 1
-    if (interiorSteps <= 0) return raw - min < max - raw ? min : max
-    const bucketWidth = (max - min) / interiorSteps
-    const index = Math.min(interiorSteps - 1, Math.floor((raw - min) / bucketWidth))
-    return min + (index + 1) * step
+// tous les paliers atteignables du curseur (ex. 5, 10, 15, 20, 25, 30)
+const stepValues = (min: number, max: number, step: number) => {
+    const values: number[] = []
+    for (let value = min; value <= max; value += step) values.push(value)
+    return values
 }
+
+// règle graduée sous la piste : un trait + un nombre par palier, pour
+// visualiser chaque valeur possible
+type StepRulerProps = {
+    min: number
+    max: number
+    step: number
+    suffix?: string
+}
+
+const StepRuler = ({ min, max, step, suffix = "" }: StepRulerProps) => (
+    <View className="flex-row justify-between mt-2">
+        {stepValues(min, max, step).map((value) => (
+            <View key={value} className="items-center">
+                <View className="w-px h-1.5 bg-darkgray mb-1" />
+                <Text className="text-darkgray text-xs">{value}{suffix}</Text>
+            </View>
+        ))}
+    </View>
+)
 
 export type LobbySettings = {
     gameMode: GameMode
@@ -54,24 +60,23 @@ export const LobbySettingsModal = ({
     const [gameMode, setGameMode] = useState<GameMode>(
         initialSettings?.gameMode ?? DEFAULT_LOBBY_SETTINGS.gameMode
     )
-    // position brute (continue) du curseur — cf. bucketToStep plus haut : ce
-    // n'est pas forcément un multiple de 5, seul son "bucket" l'est
-    const [roundsPosition, setRoundsPosition] = useState(
+    const [rounds, setRounds] = useState(
         initialSettings?.rounds ?? DEFAULT_LOBBY_SETTINGS.rounds
     )
-    const [phaseSpeedPosition, setPhaseSpeedPosition] = useState<PhaseSpeed>(
+    const [phaseSpeed, setPhaseSpeed] = useState<PhaseSpeed>(
         initialSettings?.phaseSpeed ?? DEFAULT_LOBBY_SETTINGS.phaseSpeed
-    )
-    const rounds = bucketToStep(roundsPosition, LOBBY_LIMITS.MIN_ROUNDS, LOBBY_LIMITS.MAX_ROUNDS, LOBBY_LIMITS.ROUNDS_STEP)
-    const phaseSpeed = bucketToStep(
-        phaseSpeedPosition,
-        LOBBY_LIMITS.MIN_PHASE_SPEED,
-        LOBBY_LIMITS.MAX_PHASE_SPEED,
-        LOBBY_LIMITS.PHASE_SPEED_STEP
     )
     const [manualAdvance, setManualAdvance] = useState(
         initialSettings?.manualAdvance ?? DEFAULT_LOBBY_SETTINGS.manualAdvance
     )
+
+    // le scroll n'est activé que si le contenu dépasse réellement la hauteur
+    // visible de la carte : sans ça, la ScrollView réagissait au moindre
+    // glisser-déposer (rebond/déplacement visuel) même quand tout tient déjà
+    // à l'écran, donnant l'impression que la modale "bouge" pour rien
+    const [scrollViewHeight, setScrollViewHeight] = useState(0)
+    const [contentHeight, setContentHeight] = useState(0)
+    const scrollEnabled = contentHeight > scrollViewHeight
 
     // couleur d'accent des réglages (curseurs, contours, switch...) : celle du
     // mode de jeu actuellement sélectionné (violet who_liked / orange
@@ -91,8 +96,8 @@ export const LobbySettingsModal = ({
     useEffect(() => {
         if (visible && !wasVisible.current && initialSettings) {
             setGameMode(initialSettings.gameMode)
-            setRoundsPosition(initialSettings.rounds)
-            setPhaseSpeedPosition(initialSettings.phaseSpeed)
+            setRounds(initialSettings.rounds)
+            setPhaseSpeed(initialSettings.phaseSpeed)
             setManualAdvance(initialSettings.manualAdvance)
         }
         wasVisible.current = visible
@@ -107,13 +112,13 @@ export const LobbySettingsModal = ({
         // reset aux valeurs initiales ou par défaut
         if (initialSettings) {
             setGameMode(initialSettings.gameMode)
-            setRoundsPosition(initialSettings.rounds)
-            setPhaseSpeedPosition(initialSettings.phaseSpeed)
+            setRounds(initialSettings.rounds)
+            setPhaseSpeed(initialSettings.phaseSpeed)
             setManualAdvance(initialSettings.manualAdvance)
         } else {
             setGameMode(DEFAULT_LOBBY_SETTINGS.gameMode)
-            setRoundsPosition(DEFAULT_LOBBY_SETTINGS.rounds)
-            setPhaseSpeedPosition(DEFAULT_LOBBY_SETTINGS.phaseSpeed)
+            setRounds(DEFAULT_LOBBY_SETTINGS.rounds)
+            setPhaseSpeed(DEFAULT_LOBBY_SETTINGS.phaseSpeed)
             setManualAdvance(DEFAULT_LOBBY_SETTINGS.manualAdvance)
         }
         onClose()
@@ -150,6 +155,9 @@ export const LobbySettingsModal = ({
                     <ScrollView
                         className="mb-6"
                         showsVerticalScrollIndicator={false}
+                        scrollEnabled={scrollEnabled}
+                        onLayout={(e) => setScrollViewHeight(e.nativeEvent.layout.height)}
+                        onContentSizeChange={(_, height) => setContentHeight(height)}
                     >
                         <View className="mb-6">
                             <SectionTitle title="Mode de jeu" align="center" titleSize="sm" className="mb-3" />
@@ -186,22 +194,19 @@ export const LobbySettingsModal = ({
                                 titleSize="sm"
                                 className="mb-3"
                             />
-                            <View className="bg-offwhite rounded-full p-1">
-                                <Slider
-                                    style={{ width: "100%", height: 40 }}
-                                    minimumValue={LOBBY_LIMITS.MIN_ROUNDS}
-                                    maximumValue={LOBBY_LIMITS.MAX_ROUNDS}
-                                    value={roundsPosition}
-                                    onValueChange={setRoundsPosition}
-                                    minimumTrackTintColor={accentColor}
-                                    maximumTrackTintColor="transparent"
-                                    thumbTintColor={accentColor}
-                                />
-                            </View>
-                            <View className="flex-row justify-between mt-2">
-                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MIN_ROUNDS}</Text>
-                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MAX_ROUNDS}</Text>
-                            </View>
+                            <SettingsSlider
+                                min={LOBBY_LIMITS.MIN_ROUNDS}
+                                max={LOBBY_LIMITS.MAX_ROUNDS}
+                                step={LOBBY_LIMITS.ROUNDS_STEP}
+                                value={rounds}
+                                onValueChange={setRounds}
+                                accentColor={accentColor}
+                            />
+                            <StepRuler
+                                min={LOBBY_LIMITS.MIN_ROUNDS}
+                                max={LOBBY_LIMITS.MAX_ROUNDS}
+                                step={LOBBY_LIMITS.ROUNDS_STEP}
+                            />
                         </View>
 
                         <View className="mb-4">
@@ -211,22 +216,20 @@ export const LobbySettingsModal = ({
                                 titleSize="sm"
                                 className="mb-3"
                             />
-                            <View className="bg-offwhite rounded-full p-1">
-                                <Slider
-                                    style={{ width: "100%", height: 40 }}
-                                    minimumValue={LOBBY_LIMITS.MIN_PHASE_SPEED}
-                                    maximumValue={LOBBY_LIMITS.MAX_PHASE_SPEED}
-                                    value={phaseSpeedPosition}
-                                    onValueChange={setPhaseSpeedPosition}
-                                    minimumTrackTintColor={accentColor}
-                                    maximumTrackTintColor="transparent"
-                                    thumbTintColor={accentColor}
-                                />
-                            </View>
-                            <View className="flex-row justify-between mt-2">
-                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MIN_PHASE_SPEED}s</Text>
-                                <Text className="text-darkgray text-xs">{LOBBY_LIMITS.MAX_PHASE_SPEED}s</Text>
-                            </View>
+                            <SettingsSlider
+                                min={LOBBY_LIMITS.MIN_PHASE_SPEED}
+                                max={LOBBY_LIMITS.MAX_PHASE_SPEED}
+                                step={LOBBY_LIMITS.PHASE_SPEED_STEP}
+                                value={phaseSpeed}
+                                onValueChange={setPhaseSpeed}
+                                accentColor={accentColor}
+                            />
+                            <StepRuler
+                                min={LOBBY_LIMITS.MIN_PHASE_SPEED}
+                                max={LOBBY_LIMITS.MAX_PHASE_SPEED}
+                                step={LOBBY_LIMITS.PHASE_SPEED_STEP}
+                                suffix="s"
+                            />
                         </View>
 
                         <View className="mb-2 flex-row items-center justify-between bg-offwhite rounded-2xl px-4 py-3">
