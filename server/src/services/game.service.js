@@ -68,6 +68,11 @@ const getOrCreate = (code) => {
             // évite d'empiler plusieurs passes de pré-chauffage concurrentes
             // (une par joueur qui soumet ses musiques), cf. warmPreviewCache
             previewWarming: false,
+            // true dès que startGame a validé le lancement et commence à
+            // résoudre les extraits lui-même : stoppe warmPreviewCache pour
+            // que les deux ne tapent plus Deezer/iTunes en même temps (cf.
+            // warmPreviewCache) — remis à false une fois la partie terminée
+            launching: false,
             rounds: [],
             currentRoundIndex: -1,
             timer: null,
@@ -232,8 +237,13 @@ const byCoverageDesc = (shuffledPool, activePlayerIds) =>
 // ci-dessous vise donc un nombre de TITRES par lot plus prudent, à ajuster
 // selon le taux de succès observé en conditions réelles (cf. le log
 // "prefetchPreviews" plus bas) : si le taux chute quand on l'augmente, c'est
-// le signe qu'on cogne une limite de débit externe, pas un gain de vitesse
-const PREVIEW_PREFETCH_BATCH_SIZE = 16
+// le signe qu'on cogne une limite de débit externe, pas un gain de vitesse.
+// Abaissé de 16 à 8 après un cas réel (pool de 3339 titres) où des lots de 16
+// — chacun capable de déclencher jusqu'à ~4 requêtes par titre non-Deezer,
+// donc potentiellement 64 requêtes HTTP simultanées — ont fait chuter le taux
+// de succès à quasi zéro sur plusieurs lots d'affilée, signe net de rate
+// limiting Deezer/iTunes plutôt que d'un manque d'extraits disponibles.
+const PREVIEW_PREFETCH_BATCH_SIZE = 8
 // marge de sécurité (nombre de succès visés au-delà de requestedRounds) avant
 // d'arrêter le pré-chargement : l'équité (cf. byFairness) ou les manches
 // "who_liked" sans recouvrement peuvent écarter des candidats qui ONT un
@@ -308,37 +318,60 @@ const resolvePreviewCached = async (track, previewCache) => {
     return previewUrl
 }
 
-// pré-chauffe TOUT le pool courant en tâche de fond PENDANT l'attente au
+// chauffage de fond : lot plus PETIT que PREVIEW_PREFETCH_BATCH_SIZE (aucune
+// urgence ici, contrairement au lancement) + pause entre les lots, pour ne
+// jamais consommer à lui seul le débit externe disponible pendant que les
+// joueurs patientent — un lobby peut rester ouvert plusieurs minutes, la
+// somme des requêtes envoyées compte autant que leur simultanéité
+const PREVIEW_WARM_BATCH_SIZE = 5
+const PREVIEW_WARM_BATCH_DELAY_MS = 200
+// plafond : inutile de chauffer un pool de plusieurs milliers de titres
+// (bibliothèques Deezer réelles) quand une partie n'en retient jamais plus
+// qu'un petit multiple du nombre de manches maximum — cf. la même logique de
+// plafond que prefetchPreviews (PREVIEW_PREFETCH_MAX_FACTOR), mais calculée
+// sur LOBBY_LIMITS.MAX_ROUNDS puisque le nombre de manches réel n'est pas
+// encore connu pendant l'attente au lobby (l'hôte peut encore le changer)
+const PREVIEW_WARM_MAX_TRACKS = LOBBY_LIMITS.MAX_ROUNDS * PREVIEW_PREFETCH_MAX_FACTOR
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// pré-chauffe un préfixe borné du pool en tâche de fond PENDANT l'attente au
 // lobby (déclenché à chaque soumission de musiques, cf. submitTracks) plutôt
 // qu'au moment où l'hôte clique sur "Lancer" : alimente le même
 // `game.previewCache` que prefetchPreviews, donc un lancement qui arrive
 // après que ce chauffage a eu le temps de tourner ne fait (idéalement) plus
-// aucun appel réseau. Volontairement sans plafond ni marge de succès
-// (contrairement à prefetchPreviews) : on ne sait pas encore à cet instant
-// quel mode/nombre de manches sera choisi au lancement, donc autant chauffer
-// tout ce qui peut l'être puisque c'est hors du chemin critique.
+// aucun appel réseau pour ce préfixe.
+//
+// S'arrête dès que `game.launching` passe à true (cf. startGame) : sans ça,
+// un pool volumineux pas encore entièrement chauffé au moment du clic sur
+// "Lancer" continuait de tourner EN MÊME TEMPS que prefetchPreviews — deux
+// boucles tapant Deezer/iTunes en parallèle, qui se marchaient dessus et
+// déclenchaient un vrai rate limiting externe (constaté en conditions
+// réelles : des lots entiers à 0 succès alors que les titres avaient bien un
+// extrait disponible). Le chemin critique du lancement doit être seul à
+// consommer le débit externe à ce moment précis.
 //
 // Une seule passe à la fois par partie (cf. game.previewWarming) : `pool` est
 // recalculé à CHAQUE lot plutôt qu'une fois pour toutes en tête de fonction,
 // donc un nouveau joueur qui soumet ses musiques pendant que la boucle
-// tourne déjà voit son pool absorbé par la passe en cours (elle ne s'arrête
-// que quand `i` dépasse la taille du pool recalculé), sans qu'il soit besoin
-// d'empiler une seconde passe concurrente.
+// tourne déjà voit son pool absorbé par la passe en cours, sans qu'il soit
+// besoin d'empiler une seconde passe concurrente.
 const warmPreviewCache = async (code, game) => {
-    if (game.previewWarming) return
+    if (game.previewWarming || game.launching) return
     game.previewWarming = true
     try {
         let i = 0
-        while (games.get(code) === game) {
+        while (games.get(code) === game && !game.launching) {
             const pool = buildPool(game)
-            if (i >= pool.length) break
+            if (i >= pool.length || i >= PREVIEW_WARM_MAX_TRACKS) break
 
-            const batch = pool.slice(i, i + PREVIEW_PREFETCH_BATCH_SIZE).filter((t) => !game.previewCache.has(t.id))
-            i += PREVIEW_PREFETCH_BATCH_SIZE
+            const batch = pool.slice(i, i + PREVIEW_WARM_BATCH_SIZE).filter((t) => !game.previewCache.has(t.id))
+            i += PREVIEW_WARM_BATCH_SIZE
             if (batch.length === 0) continue
 
             const previews = await Promise.all(batch.map((t) => resolvePreviewUrl(t)))
             batch.forEach((t, index) => game.previewCache.set(t.id, previews[index]))
+            await sleep(PREVIEW_WARM_BATCH_DELAY_MS)
         }
     } finally {
         game.previewWarming = false
@@ -627,6 +660,14 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         )
     }
 
+    // à partir d'ici le lancement est acté : stoppe le pré-chauffage de fond
+    // (cf. warmPreviewCache) avant de faire nous-mêmes des appels réseau pour
+    // les extraits, sans quoi les deux tapent Deezer/iTunes en parallèle et
+    // se marchent dessus (constaté en conditions réelles : rate limiting
+    // externe, extraits qui ne se résolvent plus du tout pendant plusieurs
+    // lots alors qu'ils existent bel et bien)
+    game.launching = true
+
     for (const p of lobby.players) {
         game.playersInfo.set(p.id, { id: p.id, name: p.name, img: p.img ?? null })
         if (!game.scores.has(p.id)) game.scores.set(p.id, emptyScore())
@@ -903,6 +944,11 @@ const finishGame = (code, io) => {
     clearTimeout(game.timer)
     game.timer = null
     game.status = 'finished'
+    // rouvre la fenêtre de pré-chauffage pour l'attente avant un éventuel
+    // "rejouer" (cf. game.launching, startGame) : plus rien ne le
+    // redéclenchera tant qu'un joueur ne renvoie pas ses musiques (cf.
+    // submitTracks), mais au moins ça ne reste pas bloqué à true pour rien
+    game.launching = false
 
     const totalRounds = game.rounds.length
     const leaderboard = buildLeaderboard(game).map((entry) => {
