@@ -481,9 +481,13 @@ const allocateRoundsPerPlayer = (requestedRounds, activePlayerIds, requireCovera
 // (partagé compris) plutôt que de laisser des manches vides — cf.
 // MIN_ROUNDS_PLAYABLE côté appelant si même ce repli ne suffit pas.
 const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerIds, requireCoverage, requirePreview) => {
+    const code = game.code
     const shuffledPool = shuffle(pool)
     const previewCache = await prefetchPreviews(game, shuffledPool, requestedRounds)
     const allocation = allocateRoundsPerPlayer(requestedRounds, activePlayerIds, requireCoverage)
+    console.log(
+        `🎯 [${code}] répartition par joueur (sur ${requestedRounds} manches) : ${JSON.stringify([...allocation.entries()])}`
+    )
     const used = new Set()
 
     const tryBuild = async (track) => {
@@ -513,7 +517,11 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
         const exclusive = pool.filter((t) => exclusiveOwner(t, activePlayerIds) === id)
         const taken = await takeFrom(exclusive, allocation.get(id))
         rounds.push(...taken)
-        shortfall += allocation.get(id) - taken.length
+        const missing = allocation.get(id) - taken.length
+        shortfall += missing
+        console.log(
+            `🎯 [${code}] ${id} : ${taken.length}/${allocation.get(id)} pioché(es) dans sa bibliothèque exclusive (${exclusive.length} titres dispo)${missing > 0 ? ` — ${missing} manquante(s), comblée(s) via le reste du pool` : ''}`
+        )
     }
     if (shortfall > 0) {
         rounds.push(...(await takeFrom(pool, shortfall)))
@@ -522,7 +530,13 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
     // limite les séries d'affilée (cf. MAX_OWNER_STREAK) : le contenu des
     // manches (déjà décidé ci-dessus) ne change pas, seul l'ORDRE dans lequel
     // elles sont jouées est réordonné
-    return sequenceWithMaxStreak(rounds, MAX_OWNER_STREAK, (r) => (r.likedBy.length === 1 ? r.likedBy[0] : null))
+    const ordered = sequenceWithMaxStreak(rounds, MAX_OWNER_STREAK, (r) => (r.likedBy.length === 1 ? r.likedBy[0] : null))
+    console.log(
+        `🎯 [${code}] séquence finale (${ordered.length}/${requestedRounds}) : ${ordered
+            .map((r) => (r.likedBy.length === 1 ? r.likedBy[0] : 'partagé'))
+            .join(', ')}`
+    )
+    return ordered
 }
 
 // mode who_liked (Who Liked It) : le titre est toujours affiché (ce n'est pas
