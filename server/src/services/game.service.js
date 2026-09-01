@@ -499,36 +499,28 @@ const exclusiveOwner = (track, activePlayerIds) => {
     return likers.length === 1 ? likers[0] : null
 }
 
-// réordonne `candidates` (déjà mélangés) pour l'équité inter-comptes (cf.
-// FAIRNESS_MAX_SHARE_FACTOR, constants.js) : vrai tourniquet — le titre dont
-// le propriétaire exclusif a le moins de manches jusqu'ici passe en tête, ce
-// qui tend naturellement vers une répartition égale plutôt qu'un seuil
-// binaire "sous X% -> priorité, sinon -> ordre de mélange brut" (ce dernier
-// laissait la partie mélangée décider des dernières manches une fois le
-// plancher atteint par tout le monde, ce qui retombait presque toujours sur
-// le plafond haut plutôt que sur un vrai 50/50, même à bibliothèques
-// égales). Si `respectMax` est vrai, un titre dont le propriétaire a déjà
-// atteint son plafond est carrément écarté (l'appelant retente ensuite sans
-// ce filtre plutôt que de laisser une manche vide, cf. pickFairestRound). Un
-// titre partagé (owner null) n'est ni favorisé ni pénalisé : il est traité
-// comme s'il appartenait à un joueur "dans la moyenne" des manches déjà
-// jouées ; le tri étant stable, l'ordre de mélange d'origine sert de
-// départage entre titres à égalité de priorité.
-const byFairness = (candidates, activePlayerIds, ownerRoundCounts, fairnessMax, respectMax) => {
-    const meanCount =
-        [...ownerRoundCounts.values()].reduce((sum, count) => sum + count, 0) / activePlayerIds.length
-
-    const eligible = candidates.filter((track) => {
+// filtre `candidates` (déjà mélangés) pour l'équité inter-comptes (cf.
+// FAIRNESS_MAX_SHARE_FACTOR, constants.js) : écarte seulement un titre dont
+// le propriétaire exclusif a déjà atteint son plafond de manches (si
+// `respectMax` est vrai — l'appelant retente ensuite sans ce filtre plutôt
+// que de laisser une manche vide, cf. pickFairestRound), SANS reclasser le
+// reste par priorité. Une première version triait par "propriétaire le moins
+// représenté d'abord" (un vrai tourniquet) : ça respectait bien le plafond,
+// mais produisait un ping-pong strict et prévisible à chaque manche (1, 2, 1,
+// 2, 1, 2...) — repéré en conditions réelles sur un lobby à 2 comptes très
+// déséquilibrés (1800 vs 600 titres likés), où l'alternance était
+// systématique malgré l'écart de bibliothèque. En ne filtrant QUE par le
+// plafond et en laissant l'ordre du mélange d'origine (`candidates`) décider
+// qui vient ensuite, l'enchaînement redevient imprévisible (des séries de
+// plusieurs manches d'affilée pour un même compte sont possibles) tout en
+// gardant la même garantie dure : personne ne peut dépasser
+// FAIRNESS_MAX_SHARE_FACTOR × sa part "juste" sur l'ensemble de la partie. Un
+// titre partagé (owner null) n'est jamais écarté par ce filtre.
+const byFairness = (candidates, activePlayerIds, ownerRoundCounts, fairnessMax, respectMax) =>
+    candidates.filter((track) => {
         const owner = exclusiveOwner(track, activePlayerIds)
         return !owner || !respectMax || (ownerRoundCounts.get(owner) ?? 0) < fairnessMax
     })
-
-    const priority = (track) => {
-        const owner = exclusiveOwner(track, activePlayerIds)
-        return owner ? ownerRoundCounts.get(owner) ?? 0 : meanCount
-    }
-    return [...eligible].sort((a, b) => priority(a) - priority(b))
-}
 
 // mode blindtest : on devine le titre, donc un extrait est indispensable ;
 // le tirage est complètement aléatoire dans le pool, sans autre contrainte.
