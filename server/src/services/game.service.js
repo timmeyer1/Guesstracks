@@ -280,7 +280,6 @@ const prefetchPreviews = async (game, orderedPool, requestedRounds) => {
     const successTarget = Math.ceil(requestedRounds * PREVIEW_PREFETCH_SUCCESS_MARGIN)
     let successCount = 0
     let tried = 0
-    let batchIndex = 0
 
     for (let i = 0; i < maxSize && successCount < successTarget; i += PREVIEW_PREFETCH_BATCH_SIZE) {
         const batch = orderedPool.slice(i, i + PREVIEW_PREFETCH_BATCH_SIZE)
@@ -288,23 +287,13 @@ const prefetchPreviews = async (game, orderedPool, requestedRounds) => {
         const toFetch = batch.filter((t) => !cache.has(t.id))
 
         if (toFetch.length > 0) {
-            batchIndex += 1
-            const batchStartMs = Date.now()
             const previews = await Promise.all(toFetch.map((t) => resolvePreviewUrl(t)))
-            const batchSuccesses = previews.filter(Boolean).length
             toFetch.forEach((t, index) => cache.set(t.id, previews[index]))
-            // instrumentation temporaire (cf. investigation lenteur au
-            // lancement) : une durée qui grimpe avec la taille du lot (par
-            // rapport aux lots précédents/à d'autres parties) signale une
-            // limite de débit externe plutôt qu'un gain de vitesse à
-            // agrandir encore le lot ; "déjà en cache" élevé signifie que le
-            // pré-chauffage pendant l'attente au lobby fait déjà son travail
-            console.log(
-                `⏱️ [${code}] prefetchPreviews lot ${batchIndex} : ${batchSuccesses}/${toFetch.length} résolus, ${batch.length - toFetch.length} déjà en cache, en ${Date.now() - batchStartMs}ms`
-            )
         }
         successCount += batch.filter((t) => cache.get(t.id)).length
     }
+    // signal utile pour un futur diagnostic (rate limiting externe, pool sans
+    // assez d'extraits...) sans le détail par lot, trop verbeux au quotidien
     console.log(
         `⏱️ [${code}] prefetchPreviews : ${successCount}/${tried} extraits trouvés (cible ${successTarget}, plafond ${maxSize})`
     )
@@ -361,14 +350,23 @@ const warmPreviewCache = async (code, game) => {
     game.previewWarming = true
     try {
         let i = 0
+        // ne reconstruit le pool que quand le nombre de joueurs ayant soumis
+        // a changé (une nouvelle soumission peut arriver pendant que la
+        // boucle tourne déjà, cf. plus haut) : évite de refaire le merge
+        // à chaque lot pour rien sur un gros pool
+        let pool = buildPool(game)
+        let trackedSubmissionCount = game.submittedTracks.size
         while (games.get(code) === game && !game.launching) {
-            // ordre de constitution du pool (pas mélangé) : le tirage réel au
-            // lancement, lui, reste un vrai hasard à chaque partie (cf.
-            // buildBlindtestRounds/buildWhoLikedRounds) — sur un gros pool, ce
-            // chauffage ne recoupe donc qu'une partie de ce qui sera
-            // nécessaire, mais on privilégie ici la variété des manches
-            // plutôt qu'un alignement parfait
-            const pool = buildPool(game)
+            if (game.submittedTracks.size !== trackedSubmissionCount) {
+                // ordre de constitution du pool (pas mélangé) : le tirage réel
+                // au lancement, lui, reste un vrai hasard à chaque partie (cf.
+                // buildBlindtestRounds/buildWhoLikedRounds) — sur un gros
+                // pool, ce chauffage ne recoupe donc qu'une partie de ce qui
+                // sera nécessaire, mais on privilégie ici la variété des
+                // manches plutôt qu'un alignement parfait
+                pool = buildPool(game)
+                trackedSubmissionCount = game.submittedTracks.size
+            }
             if (i >= pool.length || i >= PREVIEW_WARM_MAX_TRACKS) break
 
             const batch = pool.slice(i, i + PREVIEW_WARM_BATCH_SIZE).filter((t) => !game.previewCache.has(t.id))
@@ -684,24 +682,16 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     game.manualAdvance = Boolean(lobby.manualAdvance)
     game.hostId = hostId
 
-    // instrumentation temporaire (cf. investigation lenteur au lancement) :
-    // à retirer une fois la cause confirmée en conditions réelles
-    const startedAtMs = Date.now()
     const pool = buildPool(game)
-    console.log(
-        `⏱️ [${code}] pool prêt en ${Date.now() - startedAtMs}ms (${pool.length} titres, ${activePlayerIds.length} joueurs, ${lobby.rounds} manches demandées)`
-    )
     if (pool.length === 0) {
         throw new GameError("Aucun titre liké n'a été reçu, impossible de lancer la partie")
     }
 
     const questionType = QUESTION_TYPES[game.gameMode]
-    const roundsStartMs = Date.now()
     const built =
         questionType === 'who_liked'
             ? await buildWhoLikedRounds(game, pool, lobby.rounds, activePlayerIds)
             : await buildBlindtestRounds(game, pool, lobby.rounds, activePlayerIds)
-    console.log(`⏱️ [${code}] manches construites en ${Date.now() - roundsStartMs}ms (${built.length}/${lobby.rounds})`)
 
     if (built.length < MIN_ROUNDS_PLAYABLE) {
         throw new GameError(
@@ -723,9 +713,7 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     }))
     game.currentRoundIndex = -1
 
-    const catalogStartMs = Date.now()
     const catalog = questionType === 'guess_track' ? buildCatalog(pool) : undefined
-    console.log(`⏱️ [${code}] catalogue (non enrichi) prêt en ${Date.now() - catalogStartMs}ms`)
 
     io.to(room(code)).emit('game:started', {
         totalRounds: game.rounds.length,
@@ -733,8 +721,6 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         manualAdvance: game.manualAdvance,
         catalog,
     })
-
-    console.log(`⏱️ [${code}] game:started émis, ${Date.now() - startedAtMs}ms après le début de startGame`)
 
     if (questionType === 'guess_track') {
         enrichCatalogInBackground(code, game, pool, io).catch((err) => {
@@ -767,9 +753,7 @@ const startNextRound = async (code, io) => {
     // lente, beaucoup de manches) pouvait donc recevoir un lien déjà mort —
     // "le son ne se met juste pas". Ne remplace que si une résolution fraîche
     // aboutit : sinon on garde l'ancienne valeur plutôt que de perdre l'audio.
-    const freshPreviewStartMs = Date.now()
     const freshPreviewUrl = await resolvePreviewUrl(round.track)
-    console.log(`⏱️ [${code}] extrait de la manche ${round.index} re-résolu en ${Date.now() - freshPreviewStartMs}ms`)
     if (freshPreviewUrl) round.track.previewUrl = freshPreviewUrl
 
     // fixé ici (juste avant la diffusion, pas avant la résolution d'extrait
