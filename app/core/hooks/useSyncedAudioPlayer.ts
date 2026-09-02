@@ -58,10 +58,17 @@ const FORCE_PLAY_TIMEOUT_MS = 1500
 // AU MOMENT où il finit (cf. game.screen.tsx), une logique propre à la partie
 // qui n'a pas sa place dans ce hook générique.
 export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }: UseSyncedAudioPlayerOptions) => {
-    // updateInterval par défaut (500ms) : ni la position ni la durée ne sont
-    // affichées, seulement isLoaded/playing (qui remontent immédiatement via
-    // leurs propres listeners natifs, indépendamment de cet intervalle) — 1s
-    // suffit largement et divise par 2 la fréquence de re-render pendant la lecture.
+    // updateInterval : ni la position ni la durée ne sont affichées, seulement
+    // isLoaded/playing. isLoaded remonte immédiatement (event natif dédié),
+    // mais PAS playing sur iOS (confirmé dans le code source d'expo-audio,
+    // AudioPlayer.swift) : contrairement à Android (listener natif dédié,
+    // immédiat), iOS ne renvoie "playing" que via le tick périodique cadencé
+    // par cet intervalle — donc status.playing peut rester figé à false
+    // jusqu'à updateInterval ms après un play() qui a pourtant déjà démarré.
+    // C'était la vraie cause de la désynchro entre iPhones : le filet de
+    // rattrapage plus bas se basait sur ce status.playing en retard et
+    // relançait play()/seekTo() en double alors que la lecture avait déjà
+    // bien commencé (cf. le check sur player.playing, en direct, plus bas).
     const player = useAudioPlayer(previewUrl ?? null, { updateInterval: 1000 })
     const status = useAudioPlayerStatus(player)
 
@@ -177,6 +184,19 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
         if (retryAttempt >= AUTOPLAY_MAX_RETRIES) return
 
         const timeout = setTimeout(() => {
+            // `player.playing` = état natif EN DIRECT (property native, pas
+            // l'event périodique) — contrairement à status.playing (utilisé
+            // seulement pour déclencher cet effet), il n'a pas le retard
+            // décrit plus haut. Sans ce re-check, ce filet relançait play()
+            // (voire seekTo(0)+play(), qui redémarre l'extrait depuis 0) sur
+            // un iPhone où la lecture avait déjà bien démarré mais où
+            // status.playing n'était pas encore remonté — désynchronisant
+            // cet appareil des autres pour rien.
+            if (player.playing) {
+                setRetryAttempt((n) => n + 1)
+                return
+            }
+
             // toutes les 3 tentatives, un rattrapage plus "dur" (seekTo(0)
             // avant play()) plutôt qu'un simple play() : un lecteur parfois
             // coincé dans un état où rappeler play() seul ne suffit pas à
