@@ -30,22 +30,20 @@ type UseSyncedAudioPlayerOptions = {
 const AUTOPLAY_MAX_RETRIES = 20
 const AUTOPLAY_RETRY_DELAY_MS = 800
 
-// délai avant de forcer un premier play() SANS attendre status.isLoaded (cf.
-// plus bas) : confirmé par l'utilisateur, allonger la fenêtre de rattrapage
-// ci-dessus n'a rien changé pour les extraits qui restaient bloqués, alors
-// que le bouton play manuel (qui n'attend pas isLoaded, lui) fonctionne à
-// chaque fois — ce n'était donc pas un problème de délai de rattrapage, mais
-// le rattrapage qui ne se déclenchait JAMAIS : tout le mécanisme ci-dessus
-// (et donc AUTOPLAY_MAX_RETRIES) est gardé par hasAttempted, lui-même gardé
-// par status.isLoaded, qui ne passe apparemment jamais à true pour certains
-// extraits sur certains Android, sans qu'aucune erreur ne remonte.
-// Compromis à ajuster ici si besoin : plus bas = les extraits qui buguent
-// démarrent plus vite, mais un extrait normal juste un peu lent à charger a
-// plus de chances de se faire doubler par ce filet avant que le chemin
-// normal (synchronisé sur startedAt, cf. l'effet précédent) n'ait fini —
-// dans ce cas il démarre quand même, juste un peu désynchronisé par rapport
-// aux autres joueurs le temps que le rattrapage de position le recale.
-const FORCE_PLAY_TIMEOUT_MS = 1200
+// délai avant de tenter la synchro SANS attendre status.isLoaded (cf.
+// attemptSyncedPlay plus bas) : confirmé par l'utilisateur, allonger la
+// fenêtre de rattrapage ci-dessus n'a rien changé pour les extraits qui
+// restaient bloqués, alors que le bouton play manuel (qui n'attend pas
+// isLoaded, lui) fonctionne à chaque fois — ce n'était donc pas un problème
+// de délai de rattrapage, mais le rattrapage qui ne se déclenchait JAMAIS :
+// isLoaded ne passe apparemment jamais à true pour certains extraits sur
+// certains Android, sans qu'aucune erreur ne remonte. Ce filet exécute
+// exactement la MÊME logique de synchro sur startedAt que le chemin normal
+// (jamais un simple play() immédiat) — abaisser ce délai fait juste
+// démarrer les extraits bloqués plus tôt, sans jamais désynchroniser
+// personne : contrairement à une version antérieure de ce fichier, la
+// synchro ne dépend plus de laquelle des deux sources déclenche l'appel.
+const FORCE_PLAY_TIMEOUT_MS = 300
 
 // `useAudioPlayer` ne recrée l'instance native QUE si `previewUrl` change
 // (et libère l'ancienne automatiquement, cf. expo-audio) : appeler ce hook
@@ -93,59 +91,66 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
         setRetryAttempt(0)
     }, [previewUrl])
 
+    // déclenché par DEUX sources : dès que status.isLoaded passe à true (cas
+    // normal), OU après FORCE_PLAY_TIMEOUT_MS si isLoaded n'a toujours pas
+    // bougé (cf. plus haut : n'arrive jamais pour certains extraits sur
+    // certains Android, sans erreur remontée) — quelle que soit la source,
+    // c'est TOUJOURS la même logique de synchro sur startedAt qui s'exécute
+    // (attemptSyncedPlay ci-dessous), jamais un simple play() immédiat :
+    // sans ça, le filet de secours démarrait l'extrait dès qu'il le pouvait,
+    // chacun à son rythme, ce qui désynchronisait le son perçu d'un appareil
+    // à l'autre — précisément ce que ce hook est censé éviter.
     useEffect(() => {
-        if (!autoPlay || !status.isLoaded || syncedForUrlRef.current === previewUrl) return
-        syncedForUrlRef.current = previewUrl
+        if (!autoPlay || syncedForUrlRef.current === previewUrl) return
 
-        if (startedAt === undefined) {
-            player.play()
-            setHasAttempted(true)
-            return
-        }
+        let innerTimeout: ReturnType<typeof setTimeout> | undefined
 
-        const delayMs = startedAt - Date.now()
-        if (delayMs <= 0) {
-            // le buffer a fini après l'instant de synchro commun (réseau
-            // lent) : on rejoint directement à la bonne position plutôt que
-            // de repartir de 0, ce qui laisserait cet appareil décalé pour
-            // tout le reste de l'extrait par rapport à ceux qui ont démarré
-            // à l'heure
-            const offsetSeconds = -delayMs / 1000
-            const clamped =
-                player.duration > 0 ? Math.min(offsetSeconds, Math.max(0, player.duration - 0.1)) : offsetSeconds
-            player.seekTo(clamped).then(() => {
+        const attemptSyncedPlay = () => {
+            if (syncedForUrlRef.current === previewUrl) return
+            syncedForUrlRef.current = previewUrl
+
+            if (startedAt === undefined) {
                 player.play()
                 setHasAttempted(true)
-            })
-            return
+                return
+            }
+
+            const delayMs = startedAt - Date.now()
+            if (delayMs <= 0) {
+                // le buffer a fini après l'instant de synchro commun (réseau
+                // lent) : on rejoint directement à la bonne position plutôt
+                // que de repartir de 0, ce qui laisserait cet appareil
+                // décalé pour tout le reste de l'extrait par rapport à ceux
+                // qui ont démarré à l'heure
+                const offsetSeconds = -delayMs / 1000
+                const clamped =
+                    player.duration > 0 ? Math.min(offsetSeconds, Math.max(0, player.duration - 0.1)) : offsetSeconds
+                player.seekTo(clamped).then(() => {
+                    player.play()
+                    setHasAttempted(true)
+                })
+                return
+            }
+
+            innerTimeout = setTimeout(() => {
+                player.play()
+                setHasAttempted(true)
+            }, delayMs)
         }
 
-        const timeout = setTimeout(() => {
-            player.play()
-            setHasAttempted(true)
-        }, delayMs)
-        return () => clearTimeout(timeout)
+        let forceTimeout: ReturnType<typeof setTimeout> | undefined
+        if (status.isLoaded) {
+            attemptSyncedPlay()
+        } else {
+            forceTimeout = setTimeout(attemptSyncedPlay, FORCE_PLAY_TIMEOUT_MS)
+        }
+
+        return () => {
+            if (innerTimeout) clearTimeout(innerTimeout)
+            if (forceTimeout) clearTimeout(forceTimeout)
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status.isLoaded, startedAt, previewUrl])
-
-    // filet pour le cas où status.isLoaded ne passe JAMAIS à true (cf.
-    // FORCE_PLAY_TIMEOUT_MS ci-dessus) : sans lui, l'effet précédent ne
-    // déclenche jamais rien, hasAttempted reste bloqué à false, et le filet
-    // de rattrapage suivant ne se déclenche jamais non plus (il est gardé
-    // par hasAttempted). Après ce délai, si la lecture n'a toujours pas été
-    // tentée, on force un play() sans plus attendre isLoaded — exactement ce
-    // que fait le bouton play manuel, qui lui fonctionne. Annulé sans effet
-    // si l'effet précédent a fini par se déclencher entre-temps (hasAttempted
-    // passe à true, ce qui redéclenche celui-ci et le fait ressortir tout de
-    // suite sans reprogrammer de timeout).
-    useEffect(() => {
-        if (!autoPlay || hasAttempted) return
-        const timeout = setTimeout(() => {
-            player.play()
-            setHasAttempted(true)
-        }, FORCE_PLAY_TIMEOUT_MS)
-        return () => clearTimeout(timeout)
-    }, [autoPlay, hasAttempted, previewUrl, player])
 
     // filet de rattrapage (cf. AUTOPLAY_MAX_RETRIES/AUTOPLAY_RETRY_DELAY_MS
     // en haut de fichier) : si la lecture a bien été demandée (hasAttempted)
