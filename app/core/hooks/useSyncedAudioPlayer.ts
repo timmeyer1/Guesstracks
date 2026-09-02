@@ -31,19 +31,18 @@ const AUTOPLAY_MAX_RETRIES = 20
 const AUTOPLAY_RETRY_DELAY_MS = 800
 
 // délai avant de tenter la synchro SANS attendre status.isLoaded (cf.
-// attemptSyncedPlay plus bas) : confirmé par l'utilisateur, allonger la
-// fenêtre de rattrapage ci-dessus n'a rien changé pour les extraits qui
-// restaient bloqués, alors que le bouton play manuel (qui n'attend pas
-// isLoaded, lui) fonctionne à chaque fois — ce n'était donc pas un problème
-// de délai de rattrapage, mais le rattrapage qui ne se déclenchait JAMAIS :
-// isLoaded ne passe apparemment jamais à true pour certains extraits sur
-// certains Android, sans qu'aucune erreur ne remonte. Ce filet exécute
-// exactement la MÊME logique de synchro sur startedAt que le chemin normal
-// (jamais un simple play() immédiat) — abaisser ce délai fait juste
-// démarrer les extraits bloqués plus tôt, sans jamais désynchroniser
-// personne : contrairement à une version antérieure de ce fichier, la
-// synchro ne dépend plus de laquelle des deux sources déclenche l'appel.
-const FORCE_PLAY_TIMEOUT_MS = 300
+// attemptSyncedPlay plus bas). Ce filet exécute exactement la MÊME logique
+// de synchro sur startedAt que le chemin normal (jamais un simple play()
+// immédiat), donc l'abaisser ne désynchronise plus personne — MAIS l'avoir
+// baissé trop bas (300ms) s'est révélé une mauvaise idée dans l'autre sens :
+// ça forçait play() avant que le buffer Android (confirmé plus lent à
+// charger que sur iPhone) soit vraiment prêt, pour BEAUCOUP d'extraits, pas
+// seulement les rares vraiment bloqués — et forcer trop tôt semble mettre le
+// lecteur dans un état que même les tentatives suivantes ne rattrapent plus.
+// Remonté à une valeur plus proche de ce qui marchait avant la fusion des
+// deux chemins (cf. commit précédent), le temps de mesurer le bon compromis
+// en conditions réelles.
+const FORCE_PLAY_TIMEOUT_MS = 1500
 
 // `useAudioPlayer` ne recrée l'instance native QUE si `previewUrl` change
 // (et libère l'ancienne automatiquement, cf. expo-audio) : appeler ce hook
@@ -105,11 +104,22 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
 
         let innerTimeout: ReturnType<typeof setTimeout> | undefined
 
+        // marque `previewUrl` comme synchronisé SEULEMENT au moment où
+        // player.play() est réellement appelé, jamais avant de programmer un
+        // timer qui pourrait encore être annulé (cf. plus bas) : sinon, si
+        // status.isLoaded passe à true PENDANT qu'un timer de rattrapage
+        // (innerTimeout, programmé sur startedAt) est déjà en attente,
+        // l'effet se redéclenche (isLoaded a changé), son nettoyage annule
+        // ce timer en attente — et comme le garde-fou du haut de cet effet
+        // voyait déjà syncedForUrlRef marqué, le nouvel effet ressortait
+        // aussitôt SANS rien reprogrammer. Ce marquage prématuré a été
+        // repéré comme la cause d'un extrait qui ne se lançait plus du tout
+        // (constaté en conditions réelles) plutôt que rarement.
         const attemptSyncedPlay = () => {
             if (syncedForUrlRef.current === previewUrl) return
-            syncedForUrlRef.current = previewUrl
 
             if (startedAt === undefined) {
+                syncedForUrlRef.current = previewUrl
                 player.play()
                 setHasAttempted(true)
                 return
@@ -122,6 +132,7 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
                 // que de repartir de 0, ce qui laisserait cet appareil
                 // décalé pour tout le reste de l'extrait par rapport à ceux
                 // qui ont démarré à l'heure
+                syncedForUrlRef.current = previewUrl
                 const offsetSeconds = -delayMs / 1000
                 const clamped =
                     player.duration > 0 ? Math.min(offsetSeconds, Math.max(0, player.duration - 0.1)) : offsetSeconds
@@ -133,6 +144,7 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
             }
 
             innerTimeout = setTimeout(() => {
+                syncedForUrlRef.current = previewUrl
                 player.play()
                 setHasAttempted(true)
             }, delayMs)
