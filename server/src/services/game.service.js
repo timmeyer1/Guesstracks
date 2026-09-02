@@ -277,7 +277,15 @@ const prefetchPreviews = async (game, orderedPool, requestedRounds) => {
 
         if (toFetch.length > 0) {
             const previews = await Promise.all(toFetch.map((t) => resolvePreviewUrl(t)))
-            toFetch.forEach((t, index) => cache.set(t.id, previews[index]))
+            // ne mémorise que les succès (cf. resolvePreviewCached) : un
+            // échec pendant CE lot parallèle est souvent dû au lot lui-même
+            // (rate limiting externe), pas à une vraie absence d'extrait —
+            // le laisser hors cache permet à un lot ULTÉRIEUR (ou au
+            // chauffage de fond, ou à la ré-résolution juste avant la
+            // manche) de retrouver l'extrait au lieu de rester bloqué dessus
+            toFetch.forEach((t, index) => {
+                if (previews[index]) cache.set(t.id, previews[index])
+            })
         }
         successCount += batch.filter((t) => cache.get(t.id)).length
     }
@@ -292,7 +300,14 @@ const prefetchPreviews = async (game, orderedPool, requestedRounds) => {
 const resolvePreviewCached = async (track, previewCache) => {
     if (previewCache.has(track.id)) return previewCache.get(track.id)
     const previewUrl = await resolvePreviewUrl(track)
-    previewCache.set(track.id, previewUrl)
+    // ne mémorise que les succès (cf. même choix dans preview.service.js) :
+    // un échec ici vient souvent d'une rafale de résolutions en parallèle
+    // (prefetchPreviews/warmPreviewCache juste en dessous), pas d'une vraie
+    // absence d'extrait — ne pas le mettre en cache laisse une chance de
+    // retrouver l'extrait à la prochaine tentative (lot suivant, chauffage
+    // suivant, ou ré-résolution juste avant la manche, cf. startNextRound)
+    // au lieu de le condamner pour le reste de la partie.
+    if (previewUrl) previewCache.set(track.id, previewUrl)
     return previewUrl
 }
 
@@ -363,7 +378,14 @@ const warmPreviewCache = async (code, game) => {
             if (batch.length === 0) continue
 
             const previews = await Promise.all(batch.map((t) => resolvePreviewUrl(t)))
-            batch.forEach((t, index) => game.previewCache.set(t.id, previews[index]))
+            // ne mémorise que les succès (cf. resolvePreviewCached) : un
+            // titre resté sans extrait ici reste ainsi candidat aux passages
+            // suivants de cette boucle (nouvelle soumission déclenchant un
+            // nouveau chauffage), plutôt que d'être condamné dès le premier
+            // échec transitoire
+            batch.forEach((t, index) => {
+                if (previews[index]) game.previewCache.set(t.id, previews[index])
+            })
             await sleep(PREVIEW_WARM_BATCH_DELAY_MS)
         }
     } finally {

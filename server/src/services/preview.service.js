@@ -218,6 +218,14 @@ export const resolvePreviewUrl = async (track) => {
 
     const url =
         (await searchDeezerPreview(track.name, track.artist)) ?? (await searchItunesPreview(track.name, track.artist))
-    cache.set(key, { url, resolvedAt: Date.now() })
+    // ne met en cache qu'un VRAI extrait trouvé : un échec est souvent
+    // temporaire (rate limiting Deezer/iTunes pendant une rafale de
+    // résolutions en parallèle, cf. prefetchPreviews/warmPreviewCache côté
+    // game.service.js — déjà constaté en conditions réelles), alors que la
+    // même recherche, retentée un peu plus tard sans la même charge, retrouve
+    // souvent l'extrait sans problème. Mettre un échec en cache l'aurait
+    // gravé pour CACHE_TTL_MS (10 min) même quand le titre est bel et bien
+    // disponible, condamnant la manche à rester muette pour rien.
+    if (url) cache.set(key, { url, resolvedAt: Date.now() })
     return url
 }
