@@ -20,13 +20,14 @@ type UseSyncedAudioPlayerOptions = {
 // remonte. Confirmé en conditions réelles : le son fonctionne bien sur ces
 // téléphones (le bouton play manuel marche), c'est bien une question de
 // délai — le buffer n'est parfois pas encore vraiment prêt à jouer au
-// moment du premier essai, même si isLoaded est déjà passé à true. Fenêtre
-// large (~8s) plutôt que quelques tentatives rapprochées : mieux vaut
-// continuer à réessayer discrètement en arrière-plan qu'abandonner trop tôt
-// et laisser la manche silencieuse jusqu'à ce que quelqu'un remarque et
-// appuie sur play lui-même — qui reste le filet de secours ultime si même
-// ça ne suffit pas (cf. AudioPlayerButton).
-const AUTOPLAY_MAX_RETRIES = 10
+// moment du premier essai, même si isLoaded est déjà passé à true. Constaté
+// avec des manches de 5s : la fenêtre doit largement dépasser la durée
+// d'une manche courte, puisque ce filet doit continuer à essayer même après
+// la bascule sur l'écran de résultat (qui peut rester affiché plus
+// longtemps qu'une manche, cf. manualAdvance) si l'extrait n'a toujours pas
+// démarré à ce moment-là — le bouton play/pause manuel reste le filet de
+// secours ultime si même ça ne suffit pas (cf. AudioPlayerButton).
+const AUTOPLAY_MAX_RETRIES = 20
 const AUTOPLAY_RETRY_DELAY_MS = 800
 
 // `useAudioPlayer` ne recrée l'instance native QUE si `previewUrl` change
@@ -123,7 +124,16 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
         if (retryAttempt >= AUTOPLAY_MAX_RETRIES) return
 
         const timeout = setTimeout(() => {
-            player.play()
+            // toutes les 3 tentatives, un rattrapage plus "dur" (seekTo(0)
+            // avant play()) plutôt qu'un simple play() : un lecteur parfois
+            // coincé dans un état où rappeler play() seul ne suffit pas à
+            // relancer le buffer — même repli que restartPreview
+            // (game.screen.tsx) pour un souci de même famille
+            if (retryAttempt > 0 && retryAttempt % 3 === 0) {
+                player.seekTo(0).then(() => player.play())
+            } else {
+                player.play()
+            }
             setRetryAttempt((n) => n + 1)
         }, AUTOPLAY_RETRY_DELAY_MS)
         return () => clearTimeout(timeout)
