@@ -39,7 +39,13 @@ const AUTOPLAY_RETRY_DELAY_MS = 800
 // (et donc AUTOPLAY_MAX_RETRIES) est gardé par hasAttempted, lui-même gardé
 // par status.isLoaded, qui ne passe apparemment jamais à true pour certains
 // extraits sur certains Android, sans qu'aucune erreur ne remonte.
-const FORCE_PLAY_TIMEOUT_MS = 2500
+// Compromis à ajuster ici si besoin : plus bas = les extraits qui buguent
+// démarrent plus vite, mais un extrait normal juste un peu lent à charger a
+// plus de chances de se faire doubler par ce filet avant que le chemin
+// normal (synchronisé sur startedAt, cf. l'effet précédent) n'ait fini —
+// dans ce cas il démarre quand même, juste un peu désynchronisé par rapport
+// aux autres joueurs le temps que le rattrapage de position le recale.
+const FORCE_PLAY_TIMEOUT_MS = 1200
 
 // `useAudioPlayer` ne recrée l'instance native QUE si `previewUrl` change
 // (et libère l'ancienne automatiquement, cf. expo-audio) : appeler ce hook
