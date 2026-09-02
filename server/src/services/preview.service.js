@@ -57,13 +57,23 @@ const normalize = normalizeTrackText
 // reste strictement validé, seul l'artiste n'est plus une condition
 // bloquante. Risque assumé : jouer occasionnellement le mauvais extrait sur
 // un titre homonyme ambigu, en échange de moins de manches sans aucun son.
+// en dessous de cette longueur (normalisée), un titre est trop générique pour
+// que "l'un contient l'autre" veuille dire quoi que ce soit : "LA" (Aminé)
+// est une sous-chaîne de bien trop de titres pour que ça prouve une
+// correspondance — vécu en conditions réelles, "LA" d'Aminé a fait remonter
+// "Elle est là" d'un artiste homonyme sans accent ("Amine"), un titre
+// totalement différent. En dessous du seuil, on exige une égalité stricte.
+const MIN_FUZZY_TITLE_LENGTH = 4
+
 const isRealMatch = (name, artist, gotName, gotArtist, { requireArtist = true } = {}) => {
     const wantedName = normalize(name)
     const normGotName = normalize(gotName || '')
 
     if (!normGotName || !wantedName) return false
+    const canFuzzyMatch = wantedName.length >= MIN_FUZZY_TITLE_LENGTH && normGotName.length >= MIN_FUZZY_TITLE_LENGTH
     const nameMatches =
-        normGotName === wantedName || normGotName.includes(wantedName) || wantedName.includes(normGotName)
+        normGotName === wantedName ||
+        (canFuzzyMatch && (normGotName.includes(wantedName) || wantedName.includes(normGotName)))
     if (!nameMatches) return false
 
     if (!requireArtist) return true
