@@ -49,18 +49,28 @@ const normalize = normalizeTrackText
 // version "nettoyée" utilisée pour la requête, cf. searchTermVariants) : les
 // variantes de requête ci-dessous ne peuvent donc jamais faire remonter un
 // mauvais extrait, seulement en trouver un que la requête brute aurait raté.
-const isRealMatch = (name, artist, gotName, gotArtist) => {
+// `requireArtist: false` (cf. searchDeezerPreview/searchItunesPreview) :
+// dernier recours quand aucun résultat ne passe la validation stricte —
+// une collaboration peut être cataloguée par Deezer/iTunes sous un artiste
+// différent de celui sous lequel le joueur l'a likée (ex: "Lean On" listé
+// sous "Major Lazer", liké par un joueur sous "DJ Snake" seul) ; le titre
+// reste strictement validé, seul l'artiste n'est plus une condition
+// bloquante. Risque assumé : jouer occasionnellement le mauvais extrait sur
+// un titre homonyme ambigu, en échange de moins de manches sans aucun son.
+const isRealMatch = (name, artist, gotName, gotArtist, { requireArtist = true } = {}) => {
     const wantedName = normalize(name)
-    const wantedArtist = normalize(artist)
     const normGotName = normalize(gotName || '')
-    const normGotArtist = normalize(gotArtist || '')
 
     if (!normGotName || !wantedName) return false
     const nameMatches =
         normGotName === wantedName || normGotName.includes(wantedName) || wantedName.includes(normGotName)
     if (!nameMatches) return false
 
+    if (!requireArtist) return true
+
+    const wantedArtist = normalize(artist)
     if (!wantedArtist) return true
+    const normGotArtist = normalize(gotArtist || '')
     return normGotArtist.includes(wantedArtist) || wantedArtist.includes(normGotArtist)
 }
 
@@ -128,6 +138,15 @@ const searchDeezerPreview = async (name, artist) => {
         const match = results.find((candidate) => isRealMatch(name, artist, candidate.title, candidate.artist?.name))
         if (match?.preview) return match.preview
     }
+    // dernier recours, sur les MÊMES résultats déjà récupérés (aucune requête
+    // réseau de plus) : titre seul, sans exiger la correspondance d'artiste
+    // (cf. isRealMatch)
+    for (const results of resultSets) {
+        const match = results.find((candidate) =>
+            isRealMatch(name, artist, candidate.title, candidate.artist?.name, { requireArtist: false })
+        )
+        if (match?.preview) return match.preview
+    }
     return null
 }
 
@@ -163,6 +182,15 @@ const searchItunesPreview = async (name, artist) => {
     const resultSets = await Promise.all(queries.map(searchItunesOnce))
     for (const results of resultSets) {
         const match = results.find((candidate) => isRealMatch(name, artist, candidate.trackName, candidate.artistName))
+        if (match?.previewUrl) return match.previewUrl
+    }
+    // dernier recours, sur les MÊMES résultats déjà récupérés (aucune requête
+    // réseau de plus) : titre seul, sans exiger la correspondance d'artiste
+    // (cf. isRealMatch)
+    for (const results of resultSets) {
+        const match = results.find((candidate) =>
+            isRealMatch(name, artist, candidate.trackName, candidate.artistName, { requireArtist: false })
+        )
         if (match?.previewUrl) return match.previewUrl
     }
     return null
