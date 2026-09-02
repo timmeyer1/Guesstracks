@@ -10,7 +10,7 @@ import { Modal, View, Text, TouchableOpacity, Pressable, Switch } from "react-na
 // par défaut). Celle de gesture-handler participe au même système
 // d'arbitrage de gestes que le curseur, ce qui permet à Android de
 // distinguer correctement scroll vertical et glissement horizontal.
-import { ScrollView } from "react-native-gesture-handler"
+import { ScrollView, GestureHandlerRootView } from "react-native-gesture-handler"
 import { GAME_MODES, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
 import { GameMode, PhaseSpeed } from "../../core/types"
@@ -165,23 +165,32 @@ export const LobbySettingsModal = ({
 
     return (
         <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
-            {/* backdrop en sibling absolu de la carte (pas un Pressable ancêtre qui
-                l'englobe) : une Pressable ancêtre de la ScrollView capte le geste dès
-                qu'on touche un espace vide de la carte, et une ScrollView ne peut
-                reprendre la main que sur un DESCENDANT (bouton, slider), jamais sur un
-                ancêtre — d'où un scroll qui ne fonctionnait qu'en posant le doigt sur
-                un "module" et jamais sur le vide entre eux. En sibling, le tap sur le
-                fond noir (hors carte) ferme la modale normalement, et la carte ne
-                capte plus rien au niveau ancêtre de la ScrollView */}
-            <Pressable
-                className="absolute top-0 left-0 right-0 bottom-0 bg-black/60"
-                onPress={handleClose}
-            />
-            <View
-                className="flex-1 justify-center items-center px-8"
-                pointerEvents="box-none"
-            >
-                <View className="bg-white w-full rounded-3xl p-6" style={{ maxHeight: '85%' }}>
+            {/* Modal (react-native) ouvre sa propre fenêtre native, séparée de celle
+                de l'app — donc HORS de la zone que le GestureHandlerRootView posé à la
+                racine de App.tsx surveille. Sur Android, ça empêchait les gestes
+                (curseurs, ScrollView gesture-handler) de fonctionner à l'intérieur de
+                cette modale, quel que soit le réglage du geste lui-même : il fallait un
+                second GestureHandlerRootView, dédié à cette fenêtre-ci. C'est un piège
+                documenté de react-native-gesture-handler avec Modal, pas quelque chose
+                de spécifique à ce composant. */}
+            <GestureHandlerRootView style={{ flex: 1 }}>
+                {/* backdrop en sibling absolu de la carte (pas un Pressable ancêtre qui
+                    l'englobe) : une Pressable ancêtre de la ScrollView capte le geste dès
+                    qu'on touche un espace vide de la carte, et une ScrollView ne peut
+                    reprendre la main que sur un DESCENDANT (bouton, slider), jamais sur un
+                    ancêtre — d'où un scroll qui ne fonctionnait qu'en posant le doigt sur
+                    un "module" et jamais sur le vide entre eux. En sibling, le tap sur le
+                    fond noir (hors carte) ferme la modale normalement, et la carte ne
+                    capte plus rien au niveau ancêtre de la ScrollView */}
+                <Pressable
+                    className="absolute top-0 left-0 right-0 bottom-0 bg-black/60"
+                    onPress={handleClose}
+                />
+                <View
+                    className="flex-1 justify-center items-center px-8"
+                    pointerEvents="box-none"
+                >
+                    <View className="bg-white w-full rounded-3xl p-6" style={{ maxHeight: '85%' }}>
                     <SectionTitle
                         title={mode === "create" ? "Créer une partie" : "Paramètres"}
                         subtitle={mode === "create" ? "Configure ta partie !" : "Modifie les règles"}
@@ -301,6 +310,7 @@ export const LobbySettingsModal = ({
                     </View>
                 </View>
             </View>
+            </GestureHandlerRootView>
         </Modal>
     )
 }
