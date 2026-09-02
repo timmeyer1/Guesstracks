@@ -17,10 +17,12 @@ type UseSyncedAudioPlayerOptions = {
 // délai entre chacune : sur certains Android peu puissants, l'appel play()
 // initial peut ne jamais démarrer réellement la lecture (le lecteur reste
 // chargé, status.playing ne passe jamais à true), sans qu'aucune erreur ne
-// remonte — un souci connu des lecteurs audio/vidéo Android sous charge. Il
-// n'y a plus de bouton play manuel pour rattraper ça (cf. AudioPlayerButton,
-// remplacé par un bouton muet) : ce filet est désormais le seul recours pour
-// que l'extrait finisse par se lancer tout seul.
+// remonte — un souci connu des lecteurs audio/vidéo Android sous charge
+// (parfois juste le temps que le buffer soit vraiment prêt à jouer, pas
+// seulement "chargé" au sens d'isLoaded). Le bouton play/pause manuel (cf.
+// AudioPlayerButton) reste le filet de secours ultime si même ça ne suffit
+// pas ; ce rattrapage automatique vise juste à ce qu'on n'en ait besoin que
+// rarement.
 const AUTOPLAY_MAX_RETRIES = 4
 const AUTOPLAY_RETRY_DELAY_MS = 600
 
@@ -58,20 +60,12 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
     // très vite.
     const syncedForUrlRef = useRef<string | null | undefined>(undefined)
 
-    // son coupé : préférence de l'utilisateur, PAS réinitialisée entre les
-    // manches (contrairement à hasAttempted/retryAttempt ci-dessous) —
-    // persiste tant qu'il ne la désactive pas lui-même.
-    const [muted, setMuted] = useState(false)
     // passe à true dès que player.play() a été RÉELLEMENT appelé (pas
     // seulement programmé, cf. le setTimeout plus bas) pour le previewUrl
     // courant : sert de départ au filet de rattrapage plus bas, pour ne
     // jamais le déclencher pendant l'attente légitime de startedAt.
     const [hasAttempted, setHasAttempted] = useState(false)
     const [retryAttempt, setRetryAttempt] = useState(0)
-
-    useEffect(() => {
-        player.muted = muted
-    }, [player, muted])
 
     useEffect(() => {
         setHasAttempted(false)
@@ -122,7 +116,7 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
     // tentative redéclenche cet effet, qui revérifie alors si la lecture a
     // fini par démarrer entre-temps avant de retenter ou d'abandonner.
     useEffect(() => {
-        if (!autoPlay || muted || !hasAttempted || status.playing) return
+        if (!autoPlay || !hasAttempted || status.playing) return
         if (retryAttempt >= AUTOPLAY_MAX_RETRIES) return
 
         const timeout = setTimeout(() => {
@@ -130,9 +124,12 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
             setRetryAttempt((n) => n + 1)
         }, AUTOPLAY_RETRY_DELAY_MS)
         return () => clearTimeout(timeout)
-    }, [autoPlay, muted, hasAttempted, status.playing, retryAttempt, player])
+    }, [autoPlay, hasAttempted, status.playing, retryAttempt, player])
 
-    const toggleMute = () => setMuted((m) => !m)
+    const toggle = () => {
+        if (status.playing) player.pause()
+        else player.play()
+    }
 
-    return { player, status, muted, toggleMute }
+    return { player, status, toggle }
 }

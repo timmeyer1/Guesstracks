@@ -1,15 +1,12 @@
 import React from 'react'
 import { View, Text, TouchableOpacity } from 'react-native'
-import { Volume2, VolumeX, Music } from 'lucide-react-native'
+import { Play, Pause, Music } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 
 type AudioPlayerButtonProps = {
     previewUrl?: string | null
-    // son coupé ou non — PAS un état "en lecture/en pause" : l'extrait se
-    // lance toujours tout seul (cf. useSyncedAudioPlayer), il n'y a plus de
-    // contrôle manuel de la lecture, seulement du son
-    muted: boolean
-    onToggleMute: () => void
+    playing: boolean
+    onToggle: () => void
     // couleur de fond du bouton, claire par défaut (comme la pastille
     // StatusPill "Temps restant" à côté de laquelle il est souvent affiché)
     color?: string
@@ -18,24 +15,22 @@ type AudioPlayerButtonProps = {
     compact?: boolean
 }
 
-// Partie purement visuelle du lecteur (bouton muet/son + état "pas
-// d'extrait"), sans état audio propre : reçoit `muted`/`onToggleMute` d'un
+// Partie purement visuelle du lecteur (bouton play/pause + état "pas
+// d'extrait"), sans état audio propre : reçoit `playing`/`onToggle` d'un
 // lecteur partagé (cf. useSyncedAudioPlayer) — permet à game.screen.tsx
 // d'afficher ce bouton à plusieurs endroits (question, résultat de manche)
 // tout en gardant une seule instance audio native derrière, pour ne jamais
 // interrompre/recharger l'extrait au changement d'écran.
 //
-// Pas de bouton play/pause manuel (ancienne version) : sur certains Android
-// peu puissants, la lecture automatique pouvait rater silencieusement, et le
-// bouton play servait alors de rattrapage manuel. Ce rattrapage se fait
-// désormais tout seul (cf. useSyncedAudioPlayer, qui retente automatiquement
-// si la lecture n'a pas démarré) — le seul contrôle qui reste au joueur est
-// de couper le son, une préférence qui reste active manche après manche
-// jusqu'à ce qu'il la désactive lui-même.
+// Un bouton muet (sans play/pause) a été essayé un temps, en s'appuyant
+// uniquement sur le rattrapage automatique de useSyncedAudioPlayer : sur
+// certains Android, l'extrait n'a pas toujours le temps de charger avant
+// que ce rattrapage abandonne, laissant le joueur sans aucun recours. Le
+// bouton play/pause manuel reste donc le filet de secours ultime.
 export const AudioPlayerButton: React.FC<AudioPlayerButtonProps> = ({
     previewUrl,
-    muted,
-    onToggleMute,
+    playing,
+    onToggle,
     color = COLORS.offwhite,
     compact = false,
 }) => {
@@ -70,14 +65,14 @@ export const AudioPlayerButton: React.FC<AudioPlayerButtonProps> = ({
     return (
         <View className="items-center">
             <TouchableOpacity
-                onPress={onToggleMute}
+                onPress={onToggle}
                 className={`rounded-full ${buttonSizeClass} items-center justify-center`}
                 style={{ backgroundColor: color }}
             >
-                {muted ? (
-                    <VolumeX size={iconSize} color={COLORS.dark} />
+                {playing ? (
+                    <Pause size={iconSize} color={COLORS.dark} fill={COLORS.dark} />
                 ) : (
-                    <Volume2 size={iconSize} color={COLORS.dark} />
+                    <Play size={iconSize} color={COLORS.dark} fill={COLORS.dark} />
                 )}
             </TouchableOpacity>
         </View>

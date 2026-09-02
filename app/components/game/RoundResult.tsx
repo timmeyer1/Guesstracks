@@ -75,8 +75,8 @@ type RoundResultProps = {
     // useSyncedAudioPlayer dans game.screen.tsx) : ce composant n'a plus sa
     // propre instance audio, pour que l'extrait continue sans coupure/rechute
     // au changement d'écran plutôt que d'être rechargé
-    audioMuted: boolean
-    onToggleAudioMute: () => void
+    audioPlaying: boolean
+    onToggleAudio: () => void
     // catalogue de recherche du mode blindtest (cf. game.store.ts) : nécessaire
     // pour retrouver le nom du titre cherché par chaque joueur à partir de son
     // selectedIds, absent du payload "round:end" comme previewUrl ci-dessus
@@ -89,8 +89,8 @@ export const RoundResult: React.FC<RoundResultProps> = ({
     myPlayerId,
     totalRounds,
     previewUrl,
-    audioMuted,
-    onToggleAudioMute,
+    audioPlaying,
+    onToggleAudio,
     catalog = [],
 }) => {
     const nameOf = (id: string) => result.leaderboard.find((entry) => entry.playerId === id)?.name ?? '???'
@@ -180,7 +180,7 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                     />
                     {previewUrl && (
                         <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, justifyContent: 'center' }}>
-                            <AudioPlayerButton previewUrl={previewUrl} muted={audioMuted} onToggleMute={onToggleAudioMute} compact />
+                            <AudioPlayerButton previewUrl={previewUrl} playing={audioPlaying} onToggle={onToggleAudio} compact />
                         </View>
                     )}
                 </View>
