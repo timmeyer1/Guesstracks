@@ -30,6 +30,17 @@ type UseSyncedAudioPlayerOptions = {
 const AUTOPLAY_MAX_RETRIES = 20
 const AUTOPLAY_RETRY_DELAY_MS = 800
 
+// délai avant de forcer un premier play() SANS attendre status.isLoaded (cf.
+// plus bas) : confirmé par l'utilisateur, allonger la fenêtre de rattrapage
+// ci-dessus n'a rien changé pour les extraits qui restaient bloqués, alors
+// que le bouton play manuel (qui n'attend pas isLoaded, lui) fonctionne à
+// chaque fois — ce n'était donc pas un problème de délai de rattrapage, mais
+// le rattrapage qui ne se déclenchait JAMAIS : tout le mécanisme ci-dessus
+// (et donc AUTOPLAY_MAX_RETRIES) est gardé par hasAttempted, lui-même gardé
+// par status.isLoaded, qui ne passe apparemment jamais à true pour certains
+// extraits sur certains Android, sans qu'aucune erreur ne remonte.
+const FORCE_PLAY_TIMEOUT_MS = 2500
+
 // `useAudioPlayer` ne recrée l'instance native QUE si `previewUrl` change
 // (et libère l'ancienne automatiquement, cf. expo-audio) : appeler ce hook
 // une seule fois, monté en permanence tant que la manche est affichée (que ce
@@ -110,6 +121,25 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
         return () => clearTimeout(timeout)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status.isLoaded, startedAt, previewUrl])
+
+    // filet pour le cas où status.isLoaded ne passe JAMAIS à true (cf.
+    // FORCE_PLAY_TIMEOUT_MS ci-dessus) : sans lui, l'effet précédent ne
+    // déclenche jamais rien, hasAttempted reste bloqué à false, et le filet
+    // de rattrapage suivant ne se déclenche jamais non plus (il est gardé
+    // par hasAttempted). Après ce délai, si la lecture n'a toujours pas été
+    // tentée, on force un play() sans plus attendre isLoaded — exactement ce
+    // que fait le bouton play manuel, qui lui fonctionne. Annulé sans effet
+    // si l'effet précédent a fini par se déclencher entre-temps (hasAttempted
+    // passe à true, ce qui redéclenche celui-ci et le fait ressortir tout de
+    // suite sans reprogrammer de timeout).
+    useEffect(() => {
+        if (!autoPlay || hasAttempted) return
+        const timeout = setTimeout(() => {
+            player.play()
+            setHasAttempted(true)
+        }, FORCE_PLAY_TIMEOUT_MS)
+        return () => clearTimeout(timeout)
+    }, [autoPlay, hasAttempted, previewUrl, player])
 
     // filet de rattrapage (cf. AUTOPLAY_MAX_RETRIES/AUTOPLAY_RETRY_DELAY_MS
     // en haut de fichier) : si la lecture a bien été demandée (hasAttempted)
