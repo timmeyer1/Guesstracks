@@ -112,6 +112,18 @@ const GameScreen = () => {
         startedAt: round?.startedAt,
     })
 
+    // pour comparer manuellement l'extrait reçu au titre affiché à l'écran
+    // (diagnostic) : name/artist restent undefined ici en blindtest pendant
+    // la question (cf. publicRound côté serveur, qui cache l'identité tant
+    // que ce n'est pas ce qu'on devine) — normal, pas un bug de ce log
+    useEffect(() => {
+        if (!round) return
+        console.log(
+            `🎵 manche ${round.roundIndex} : "${round.track.name ?? '(caché, blindtest)'}" — ${round.track.artist ?? '(caché, blindtest)'} -> ${round.track.previewUrl ?? 'AUCUN EXTRAIT'}`
+        )
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [round?.roundIndex, round?.track.previewUrl])
+
     // RESTART_GUARD_MS après un redémarrage, on ignore tout nouveau
     // déclenchement (cf. les deux effets plus bas, qui appellent tous les
     // deux restartPreview) : sans ce garde-fou, deux redémarrages quasi
