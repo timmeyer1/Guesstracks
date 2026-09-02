@@ -62,7 +62,17 @@ export const SettingsSlider = ({ min, max, step, value, onValueChange, accentCol
         }
     }
 
+    // activeOffsetX/failOffsetY : déclare explicitement ce geste comme
+    // horizontal (s'active dès ±5px horizontaux, abandonne au profit du
+    // scroll vertical englobant dès ±10px verticaux) — sans ça, un doigt qui
+    // dévie même très légèrement à la verticale en posant le doigt pouvait
+    // laisser la ScrollView (cf. LobbySettingsModal.tsx) intercepter le
+    // geste en premier sur Android, empêchant le curseur de bouger. onBegin
+    // n'est pas concerné par ce seuil (il se déclenche dès la pose du doigt,
+    // pour le comportement "toucher pour sauter à cette position").
     const pan = Gesture.Pan()
+        .activeOffsetX([-5, 5])
+        .failOffsetY([-10, 10])
         .onBegin((e) => updateFromX(e.x))
         .onUpdate((e) => updateFromX(e.x))
 

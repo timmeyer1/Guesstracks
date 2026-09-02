@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Modal, View, Text, TouchableOpacity, Pressable, ScrollView, Switch } from "react-native"
+import { Modal, View, Text, TouchableOpacity, Pressable, Switch } from "react-native"
+// ScrollView de gesture-handler (pas celle de react-native) : sur Android,
+// une ScrollView "react-native" classique capte le geste dès qu'un
+// mouvement est détecté et ne le relâche jamais à un geste
+// react-native-gesture-handler imbriqué (ici le curseur de SettingsSlider),
+// même quand celui-ci ne bouge qu'à l'horizontale — la ScrollView gagnait
+// systématiquement, rendant les curseurs inutilisables au toucher sur
+// Android (fonctionnait sur iOS, dont l'arbitrage de gestes coexiste mieux
+// par défaut). Celle de gesture-handler participe au même système
+// d'arbitrage de gestes que le curseur, ce qui permet à Android de
+// distinguer correctement scroll vertical et glissement horizontal.
+import { ScrollView } from "react-native-gesture-handler"
 import { GAME_MODES, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
 import { GameMode, PhaseSpeed } from "../../core/types"
