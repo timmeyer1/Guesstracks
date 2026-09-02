@@ -21,8 +21,8 @@ type FinalResultsProps = {
     // composant n'a plus sa propre instance audio, pour que l'extrait
     // continue sans coupure/rechute au changement d'écran plutôt que d'être
     // rechargé (et donc réentendu deux fois)
-    audioPlaying: boolean
-    onToggleAudio: () => void
+    audioMuted: boolean
+    onToggleAudioMute: () => void
 }
 
 // ordre d'affichage du podium : 2e, 1er, 3e (au centre, en hauteur)
@@ -35,8 +35,8 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
     onStayInLobby,
     onBackToHome,
     lastPreviewUrl,
-    audioPlaying,
-    onToggleAudio,
+    audioMuted,
+    onToggleAudioMute,
 }) => {
     const podium = leaderboard.slice(0, 3)
     const rest = leaderboard.slice(3)
@@ -94,7 +94,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
 
             {lastPreviewUrl && (
                 <View className="mb-4">
-                    <AudioPlayerButton previewUrl={lastPreviewUrl} playing={audioPlaying} onToggle={onToggleAudio} compact />
+                    <AudioPlayerButton previewUrl={lastPreviewUrl} muted={audioMuted} onToggleMute={onToggleAudioMute} compact />
                 </View>
             )}
 

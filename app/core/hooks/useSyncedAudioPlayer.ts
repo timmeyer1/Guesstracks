@@ -1,5 +1,5 @@
 // app/core/hooks/useSyncedAudioPlayer.ts
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio'
 
 type UseSyncedAudioPlayerOptions = {
@@ -12,6 +12,17 @@ type UseSyncedAudioPlayerOptions = {
     // appareil à l'autre.
     startedAt?: number
 }
+
+// nombre de tentatives de rattrapage (cf. plus bas) avant d'abandonner, et
+// délai entre chacune : sur certains Android peu puissants, l'appel play()
+// initial peut ne jamais démarrer réellement la lecture (le lecteur reste
+// chargé, status.playing ne passe jamais à true), sans qu'aucune erreur ne
+// remonte — un souci connu des lecteurs audio/vidéo Android sous charge. Il
+// n'y a plus de bouton play manuel pour rattraper ça (cf. AudioPlayerButton,
+// remplacé par un bouton muet) : ce filet est désormais le seul recours pour
+// que l'extrait finisse par se lancer tout seul.
+const AUTOPLAY_MAX_RETRIES = 4
+const AUTOPLAY_RETRY_DELAY_MS = 600
 
 // `useAudioPlayer` ne recrée l'instance native QUE si `previewUrl` change
 // (et libère l'ancienne automatiquement, cf. expo-audio) : appeler ce hook
@@ -47,12 +58,33 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
     // très vite.
     const syncedForUrlRef = useRef<string | null | undefined>(undefined)
 
+    // son coupé : préférence de l'utilisateur, PAS réinitialisée entre les
+    // manches (contrairement à hasAttempted/retryAttempt ci-dessous) —
+    // persiste tant qu'il ne la désactive pas lui-même.
+    const [muted, setMuted] = useState(false)
+    // passe à true dès que player.play() a été RÉELLEMENT appelé (pas
+    // seulement programmé, cf. le setTimeout plus bas) pour le previewUrl
+    // courant : sert de départ au filet de rattrapage plus bas, pour ne
+    // jamais le déclencher pendant l'attente légitime de startedAt.
+    const [hasAttempted, setHasAttempted] = useState(false)
+    const [retryAttempt, setRetryAttempt] = useState(0)
+
+    useEffect(() => {
+        player.muted = muted
+    }, [player, muted])
+
+    useEffect(() => {
+        setHasAttempted(false)
+        setRetryAttempt(0)
+    }, [previewUrl])
+
     useEffect(() => {
         if (!autoPlay || !status.isLoaded || syncedForUrlRef.current === previewUrl) return
         syncedForUrlRef.current = previewUrl
 
         if (startedAt === undefined) {
             player.play()
+            setHasAttempted(true)
             return
         }
 
@@ -66,19 +98,41 @@ export const useSyncedAudioPlayer = ({ previewUrl, autoPlay = true, startedAt }:
             const offsetSeconds = -delayMs / 1000
             const clamped =
                 player.duration > 0 ? Math.min(offsetSeconds, Math.max(0, player.duration - 0.1)) : offsetSeconds
-            player.seekTo(clamped).then(() => player.play())
+            player.seekTo(clamped).then(() => {
+                player.play()
+                setHasAttempted(true)
+            })
             return
         }
 
-        const timeout = setTimeout(() => player.play(), delayMs)
+        const timeout = setTimeout(() => {
+            player.play()
+            setHasAttempted(true)
+        }, delayMs)
         return () => clearTimeout(timeout)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status.isLoaded, startedAt, previewUrl])
 
-    const toggle = () => {
-        if (status.playing) player.pause()
-        else player.play()
-    }
+    // filet de rattrapage (cf. AUTOPLAY_MAX_RETRIES/AUTOPLAY_RETRY_DELAY_MS
+    // en haut de fichier) : si la lecture a bien été demandée (hasAttempted)
+    // mais que status.playing ne passe jamais à true, on retente nous-mêmes,
+    // un nombre de fois limité, avant d'abandonner. Ce n'est volontairement
+    // PAS gardé par un seul essai (contrairement à syncedForUrlRef ci-dessus,
+    // qui protège le rattrapage de startedAt) : bumper retryAttempt à chaque
+    // tentative redéclenche cet effet, qui revérifie alors si la lecture a
+    // fini par démarrer entre-temps avant de retenter ou d'abandonner.
+    useEffect(() => {
+        if (!autoPlay || muted || !hasAttempted || status.playing) return
+        if (retryAttempt >= AUTOPLAY_MAX_RETRIES) return
 
-    return { player, status, toggle }
+        const timeout = setTimeout(() => {
+            player.play()
+            setRetryAttempt((n) => n + 1)
+        }, AUTOPLAY_RETRY_DELAY_MS)
+        return () => clearTimeout(timeout)
+    }, [autoPlay, muted, hasAttempted, status.playing, retryAttempt, player])
+
+    const toggleMute = () => setMuted((m) => !m)
+
+    return { player, status, muted, toggleMute }
 }

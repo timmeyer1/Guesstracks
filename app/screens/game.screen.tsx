@@ -214,8 +214,8 @@ const GameScreen = () => {
                     onStayInLobby={handleStayInLobby}
                     onBackToHome={handleBackToHome}
                     lastPreviewUrl={round?.track.previewUrl}
-                    audioPlaying={roundAudio.status.playing}
-                    onToggleAudio={roundAudio.toggle}
+                    audioMuted={roundAudio.muted}
+                    onToggleAudioMute={roundAudio.toggleMute}
                 />
             </ScreenLayout>
         )
@@ -230,8 +230,8 @@ const GameScreen = () => {
                     myPlayerId={user.id}
                     totalRounds={totalRounds}
                     previewUrl={round.track.previewUrl}
-                    audioPlaying={roundAudio.status.playing}
-                    onToggleAudio={roundAudio.toggle}
+                    audioMuted={roundAudio.muted}
+                    onToggleAudioMute={roundAudio.toggleMute}
                     catalog={catalog}
                 />
             </ScreenLayout>
@@ -275,8 +275,8 @@ const GameScreen = () => {
                                 <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, justifyContent: 'center' }}>
                                     <AudioPlayerButton
                                         previewUrl={round.track.previewUrl}
-                                        playing={roundAudio.status.playing}
-                                        onToggle={roundAudio.toggle}
+                                        muted={roundAudio.muted}
+                                        onToggleMute={roundAudio.toggleMute}
                                         compact
                                     />
                                 </View>
@@ -320,8 +320,8 @@ const GameScreen = () => {
                                 <View className="flex-row items-center justify-center gap-3 mb-3">
                                     <AudioPlayerButton
                                         previewUrl={round.track.previewUrl}
-                                        playing={roundAudio.status.playing}
-                                        onToggle={roundAudio.toggle}
+                                        muted={roundAudio.muted}
+                                        onToggleMute={roundAudio.toggleMute}
                                         compact
                                     />
                                     <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
