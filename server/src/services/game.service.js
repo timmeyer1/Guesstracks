@@ -480,28 +480,42 @@ const allocateRoundsPerPlayer = (requestedRounds, activePlayerIds, requireCovera
 // manque est comblé en dernier recours par n'importe quel titre du pool
 // (partagé compris) plutôt que de laisser des manches vides — cf.
 // MIN_ROUNDS_PLAYABLE côté appelant si même ce repli ne suffit pas.
+// part de manches réservée à des titres likés par PLUSIEURS joueurs actifs
+// (2 minimum) plutôt que puisée dans la bibliothèque exclusive d'un seul :
+// une fraction aléatoire (entre les deux bornes ci-dessous) du nombre de
+// manches demandées, tirée à chaque partie. Sans ça, un titre partagé
+// n'apparaissait quasiment jamais (cf. allocateRoundsPerPlayer, qui ne
+// pioche que dans les bibliothèques exclusives) — seulement en dernier
+// recours si un joueur manquait de titres à lui pour combler son quota.
+const SHARED_ROUNDS_MIN_RATIO = 0.1
+const SHARED_ROUNDS_MAX_RATIO = 0.3
+
 const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerIds, requireCoverage, requirePreview) => {
     const code = game.code
-    const allocation = allocateRoundsPerPlayer(requestedRounds, activePlayerIds, requireCoverage)
-    console.log(
-        `🎯 [${code}] répartition par joueur (sur ${requestedRounds} manches) : ${JSON.stringify([...allocation.entries()])}`
-    )
+    const used = new Set()
 
-    // bibliothèque exclusive de chaque joueur, mélangée UNE SEULE FOIS : le
+    // bibliothèque exclusive de chaque joueur + pool des titres partagés
+    // (likés par 2+ joueurs actifs), mélangés UNE SEULE FOIS chacun : le
     // même ordre sert à la fois au pré-chauffage (cf. prefetchPreviews,
-    // enchaîné joueur par joueur — jamais en parallèle, pour ne pas taper
-    // Deezer/iTunes pour plusieurs joueurs à la fois, cf. warmPreviewCache)
+    // enchaîné UN À LA FOIS — jamais en parallèle, pour ne pas taper
+    // Deezer/iTunes pour plusieurs sources à la fois, cf. warmPreviewCache)
     // et au tirage juste après (cf. takeFrom). Chauffer un ordre et tirer
     // dans un autre revient à ne quasiment jamais profiter du chauffage —
     // déjà constaté une fois avec warmPreviewCache vs prefetchPreviews.
     const exclusiveByPlayer = new Map(
         activePlayerIds.map((id) => [id, shuffle(pool.filter((t) => exclusiveOwner(t, activePlayerIds) === id))])
     )
+    const sharedPool = shuffle(pool.filter((t) => exclusiveOwner(t, activePlayerIds) === null))
+
+    // taille de pré-chauffage approximative (part "juste" par joueur, et
+    // plafond haut de la réserve de titres partagés) : pas besoin d'être
+    // pile exact, prefetchPreviews a déjà sa propre marge interne
+    const fairSharePerPlayer = Math.ceil(requestedRounds / activePlayerIds.length)
     for (const id of activePlayerIds) {
-        await prefetchPreviews(game, exclusiveByPlayer.get(id), allocation.get(id))
+        await prefetchPreviews(game, exclusiveByPlayer.get(id), fairSharePerPlayer)
     }
+    await prefetchPreviews(game, sharedPool, Math.ceil(requestedRounds * SHARED_ROUNDS_MAX_RATIO))
     const previewCache = game.previewCache
-    const used = new Set()
 
     // tente `candidates` (déjà dans l'ordre voulu, pas remélangé ici) : si
     // `requirePreview` est vrai (blindtest), un titre sans extrait est écarté
@@ -547,7 +561,26 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
         return withPreview
     }
 
-    const rounds = []
+    // réserve d'abord les manches "titres partagés" (cf.
+    // SHARED_ROUNDS_MIN_RATIO/MAX_RATIO) — AVANT la répartition par joueur
+    // juste après, qui ne pioche elle que dans les bibliothèques EXCLUSIVES
+    const sharedTarget = Math.round(
+        requestedRounds * (SHARED_ROUNDS_MIN_RATIO + Math.random() * (SHARED_ROUNDS_MAX_RATIO - SHARED_ROUNDS_MIN_RATIO))
+    )
+    const sharedTaken = await takeFrom(sharedPool, sharedTarget)
+    console.log(
+        `🎯 [${code}] titres partagés : ${sharedTaken.length}/${sharedTarget} visé(es) (${sharedPool.length} dispo, cible ${Math.round(SHARED_ROUNDS_MIN_RATIO * 100)}-${Math.round(SHARED_ROUNDS_MAX_RATIO * 100)}% de ${requestedRounds})`
+    )
+
+    // le reste des manches est réparti entre joueurs comme avant, mais sur
+    // le nombre de manches RESTANT une fois les titres partagés retirés
+    const remainingForPlayers = requestedRounds - sharedTaken.length
+    const allocation = allocateRoundsPerPlayer(remainingForPlayers, activePlayerIds, requireCoverage)
+    console.log(
+        `🎯 [${code}] répartition par joueur (sur ${remainingForPlayers} manches restantes) : ${JSON.stringify([...allocation.entries()])}`
+    )
+
+    const rounds = [...sharedTaken]
     let shortfall = 0
     for (const id of activePlayerIds) {
         const exclusive = exclusiveByPlayer.get(id)
