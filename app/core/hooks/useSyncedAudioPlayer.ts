@@ -17,14 +17,17 @@ type UseSyncedAudioPlayerOptions = {
 // délai entre chacune : sur certains Android peu puissants, l'appel play()
 // initial peut ne jamais démarrer réellement la lecture (le lecteur reste
 // chargé, status.playing ne passe jamais à true), sans qu'aucune erreur ne
-// remonte — un souci connu des lecteurs audio/vidéo Android sous charge
-// (parfois juste le temps que le buffer soit vraiment prêt à jouer, pas
-// seulement "chargé" au sens d'isLoaded). Le bouton play/pause manuel (cf.
-// AudioPlayerButton) reste le filet de secours ultime si même ça ne suffit
-// pas ; ce rattrapage automatique vise juste à ce qu'on n'en ait besoin que
-// rarement.
-const AUTOPLAY_MAX_RETRIES = 4
-const AUTOPLAY_RETRY_DELAY_MS = 600
+// remonte. Confirmé en conditions réelles : le son fonctionne bien sur ces
+// téléphones (le bouton play manuel marche), c'est bien une question de
+// délai — le buffer n'est parfois pas encore vraiment prêt à jouer au
+// moment du premier essai, même si isLoaded est déjà passé à true. Fenêtre
+// large (~8s) plutôt que quelques tentatives rapprochées : mieux vaut
+// continuer à réessayer discrètement en arrière-plan qu'abandonner trop tôt
+// et laisser la manche silencieuse jusqu'à ce que quelqu'un remarque et
+// appuie sur play lui-même — qui reste le filet de secours ultime si même
+// ça ne suffit pas (cf. AudioPlayerButton).
+const AUTOPLAY_MAX_RETRIES = 10
+const AUTOPLAY_RETRY_DELAY_MS = 800
 
 // `useAudioPlayer` ne recrée l'instance native QUE si `previewUrl` change
 // (et libère l'ancienne automatiquement, cf. expo-audio) : appeler ce hook
