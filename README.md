@@ -155,9 +155,84 @@ vous y compris. L'URL ngrok **change à chaque redémarrage de `ngrok`** (plan
 gratuit) : il faut alors répéter l'étape "copier l'URL dans `.env`, relancer
 Expo".
 
+### Ami sur un autre réseau (alternative recommandée : Cloudflare Tunnel)
+
+`expo start --tunnel` (ngrok intégré à Expo) est peu fiable : il utilise un
+compte ngrok partagé par tous les utilisateurs d'Expo, codé en dur dans
+`@expo/cli`, régulièrement saturé — erreur typique :
+`TypeError: Cannot read properties of undefined (reading 'body')`. Un tunnel
+Cloudflare sur ton propre nom de domaine évite ce problème, et est plus
+rapide que le tunnel ngrok "quick" anonyme (`cloudflared tunnel --url`, lui
+aussi lent).
+
+**Prérequis (une seule fois)** — un domaine géré par Cloudflare :
+
+```bash
+brew install cloudflared
+cloudflared tunnel login          # ouvre le navigateur, choisir le domaine
+cloudflared tunnel create guesstracks
+```
+
+Créer `~/.cloudflared/config.yml` :
+
+```yaml
+tunnel: guesstracks
+credentials-file: /Users/<toi>/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: metro.<TON_DOMAINE>
+    service: http://localhost:8081
+  - hostname: server.<TON_DOMAINE>
+    service: http://localhost:4000
+  - service: http_status:404
+```
+
+Puis créer les enregistrements DNS (une seule fois) :
+
+```bash
+cloudflared tunnel route dns guesstracks metro.<TON_DOMAINE>
+cloudflared tunnel route dns guesstracks server.<TON_DOMAINE>
+```
+
+**À chaque session avec un ami distant**, 3 terminaux :
+
+```bash
+# terminal 1 : le serveur
+cd server && npm run dev
+
+# terminal 2 : le tunnel (sert les deux sous-domaines à la fois)
+cloudflared tunnel run guesstracks
+
+# terminal 3 : l'app — EXPO_PACKAGER_PROXY_URL est indispensable, sinon le
+# QR code généré pointe vers le port local 8081 (inexistant publiquement)
+# au lieu du tunnel, et l'app timeout à l'ouverture (REACT_NATIVE_PACKAGER_
+# HOSTNAME seul ne suffit pas : il change le nom d'hôte mais garde le port)
+EXPO_PACKAGER_PROXY_URL=https://metro.<TON_DOMAINE> npx expo start -c
+```
+
+Dans `.env` (racine) :
+
+```bash
+EXPO_PUBLIC_LOBBY_SERVER_URL=https://server.<TON_DOMAINE>
+```
+
+Scanner le QR affiché dans le terminal 3 avec Expo Go — l'URL ne change pas
+d'une session à l'autre (contrairement à ngrok), donc pas besoin de retoucher
+`.env` ou le dashboard Spotify à chaque fois.
+
+⚠️ Si l'app ne se relance pas après un changement côté serveur : Expo Go
+garde en cache la dernière manifest ouverte dans *Recently opened* — la
+supprimer avant de rescanner plutôt que de rescanner par-dessus.
+
 ## Dépannage
 
 - **"Impossible de joindre le serveur de jeu"** → `EXPO_PUBLIC_LOBBY_SERVER_URL` mal configuré, ou serveur/MongoDB éteints
 - **Connexion Spotify en boucle / écran bleu** → redirect URI non whitelistée dans le dashboard Spotify
 - **"Aucun titre liké trouvé" côté Deezer** → le profil Deezer entré est privé (Réglages → Confidentialité → rendre "Titres likés" public), ou l'ID/lien collé est invalide
 - **Serveur ne démarre pas** → MongoDB éteint ou `MONGODB_URI` invalide
+- **"The request timed out" à l'ouverture dans Expo Go (via tunnel)** → le QR
+  pointe vers `<hôte>:8081` au lieu du tunnel ; relancer avec
+  `EXPO_PACKAGER_PROXY_URL` (cf. section Cloudflare Tunnel ci-dessus)
+- **Rien ne change après une correction côté serveur, aucun log** → Expo Go a
+  rouvert l'entrée en cache dans *Recently opened* sans repasser par le
+  réseau ; la supprimer puis rescanner le QR
