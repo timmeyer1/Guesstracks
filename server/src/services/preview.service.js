@@ -124,9 +124,24 @@ const searchDeezerOnce = async (query) => {
     url.searchParams.set('q', query)
     url.searchParams.set('limit', String(SEARCH_RESULT_LIMIT))
     const data = await fetchJson(url)
-    return data?.data || []
+    // `null` distingue un échec réseau/timeout (cf. fetchJson) d'une réponse
+    // reçue avec zéro résultat : sert à savoir si searchDeezerPreview doit
+    // retenter (cf. juste en dessous), pas à retenter pour un titre
+    // légitimement absent du catalogue Deezer
+    return data ? data.data || [] : null
 }
 
+// retente une fois les requêtes Deezer en échec réseau (timeout, rate
+// limiting externe — déjà documenté comme fréquent pendant une rafale de
+// résolutions en parallèle, cf. prefetchPreviews/warmPreviewCache) avant de
+// se rabattre sur iTunes : un échec Deezer pur et simple prive le titre de
+// son résultat le plus fiable et fait retomber sur le repli iTunes
+// `requireArtist: false` (cf. isRealMatch), qui peut alors valider un titre
+// homonyme sans rapport. Vécu en conditions réelles : "Reel It In" d'Aminé
+// (bien présent sur Deezer sous l'orthographe "Amine", vérifié manuellement)
+// a joué l'extrait de "reel it in" par "home alone.", un résultat iTunes sans
+// rapport, après un échec Deezer. Ne retente PAS quand Deezer a répondu avec
+// zéro résultat (titre légitimement absent) — seulement sur échec réseau.
 const searchDeezerPreview = async (name, artist) => {
     if (!name && !artist) return null
 
@@ -143,15 +158,20 @@ const searchDeezerPreview = async (name, artist) => {
     })
     if (queries.length === 0) return null
 
-    const resultSets = await Promise.all(queries.map(searchDeezerOnce))
-    for (const results of resultSets) {
+    let resultSets = await Promise.all(queries.map(searchDeezerOnce))
+    if (resultSets.some((r) => r === null)) {
+        resultSets = await Promise.all(queries.map(searchDeezerOnce))
+    }
+    const safeResultSets = resultSets.map((r) => r || [])
+
+    for (const results of safeResultSets) {
         const match = results.find((candidate) => isRealMatch(name, artist, candidate.title, candidate.artist?.name))
         if (match?.preview) return match.preview
     }
     // dernier recours, sur les MÊMES résultats déjà récupérés (aucune requête
     // réseau de plus) : titre seul, sans exiger la correspondance d'artiste
     // (cf. isRealMatch)
-    for (const results of resultSets) {
+    for (const results of safeResultSets) {
         const match = results.find((candidate) =>
             isRealMatch(name, artist, candidate.title, candidate.artist?.name, { requireArtist: false })
         )
@@ -212,12 +232,19 @@ export const resolvePreviewUrl = async (track) => {
     // toujours en récupérer un extrait tout frais directement, plutôt que de
     // faire confiance à track.previewUrl (celui que le client a transmis à sa
     // connexion, potentiellement déjà périmé, cf. deezer.service.js) ou à un
-    // extrait mis en cache par une résolution précédente.
+    // extrait mis en cache par une résolution précédente. On valide quand
+    // même titre+artiste (comme pour toute autre source, cf. isRealMatch) :
+    // un id peut avoir été réassigné à une autre fiche côté Deezer entre la
+    // soumission du joueur et maintenant — vécu en conditions réelles,
+    // "METAMORPHOSIS - Sped Up" d'INTERWORLD a joué l'extrait de "Freaking
+    // Out A Bit" de Goldfinger, un titre sans aucun rapport, en faisant
+    // confiance à l'id sans vérifier ce qu'il désignait vraiment.
     if (track.provider === 'deezer' && track.id) {
         const fresh = await fetchFreshDeezerPreview(track.id)
-        if (fresh) return fresh
-        // repli si le titre a disparu du catalogue Deezer entre-temps —
-        // continue vers previewUrl/le cache/la recherche ci-dessous
+        if (fresh && isRealMatch(track.name, track.artist, fresh.title, fresh.artist)) return fresh.preview
+        // repli si le titre a disparu du catalogue Deezer entre-temps, ou si
+        // l'id ne correspond plus au bon titre — continue vers
+        // previewUrl/le cache/la recherche ci-dessous
     }
 
     if (track.previewUrl) return track.previewUrl

@@ -57,7 +57,16 @@ export const resolveDeezerArtist = async (track) => {
 // totale de cache ici, volontaire : chaque appel renvoie un extrait
 // fraîchement valide. À n'appeler qu'au moment de réellement envoyer la
 // manche au client (cf. game.service.js), jamais en amont.
+//
+// Renvoie aussi le titre/artiste Deezer de cet id (pas seulement l'extrait) :
+// preview.service.js les compare au titre/artiste attendus avant de faire
+// confiance à l'extrait, plutôt que de faire confiance à l'id aveuglément —
+// un id soumis par le client peut avoir été réassigné à une autre fiche côté
+// Deezer entre-temps (fusion/réédition de catalogue), ce qui renvoyait alors
+// l'extrait d'un titre totalement différent sans qu'aucune validation ne
+// l'attrape (contrairement à isRealMatch, appliqué à toute autre source).
 export const fetchFreshDeezerPreview = async (trackId) => {
     const data = await fetchTrackDetails(trackId)
-    return data?.preview || null
+    if (!data?.preview) return null
+    return { preview: data.preview, title: data.title, artist: data.artist?.name }
 }
