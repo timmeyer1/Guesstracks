@@ -79,6 +79,16 @@ export const registerGameSockets = (io) => {
             socket.emit('game:state', gameService.getSnapshot(identity.code))
         })
 
+        // "Pas le bon extrait ?" sur l'écran de résultat (cf. RoundResult.tsx) :
+        // alimente la base globale de correspondances vérifiées (cf.
+        // previewMatch.service.js), sans effet sur la manche déjà jouée
+        socket.on('game:reportWrongPreview', (payload = {}) => {
+            const { code, roundIndex } = payload
+            const identity = identityFor(code)
+            if (!identity || typeof roundIndex !== 'number') return
+            gameService.reportWrongPreview({ code: identity.code, playerId: identity.playerId, roundIndex })
+        })
+
         // envoyé quand l'écran de lobby regagne le focus (retour depuis les
         // résultats finaux, ou simple arrivée dans le lobby) : sort le joueur
         // de la liste d'attente ouverte par la fin d'une partie précédente

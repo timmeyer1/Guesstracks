@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, ScrollView, Animated } from 'react-native'
+import { View, Text, ScrollView, Animated, Pressable } from 'react-native'
 import Reanimated, { LinearTransition } from 'react-native-reanimated'
 import { Image } from 'expo-image'
+import { Flag, CircleCheck } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
 import { StatusPill } from '../StatusPill'
@@ -10,7 +11,7 @@ import { AudioPlayerButton } from './AudioPlayer'
 import { useGameStore } from '../../stores/game.store'
 import { useLobbyStore } from '../../stores/lobby.store'
 import { useAuthStore } from '../../stores/auth.store'
-import { advanceRound } from '../../modules/game/game.service'
+import { advanceRound, reportWrongPreview } from '../../modules/game/game.service'
 import type { GameRoundEnd, GameRoundPlayerResult, QuestionType, CatalogEntry } from '../../core/types'
 
 const SCORE_COUNT_UP_MS = 900
@@ -112,11 +113,21 @@ export const RoundResult: React.FC<RoundResultProps> = ({
     const isHost = lobbyUsers[0]?.id === authUser?.id
     const isLastRound = result.roundIndex === totalRounds - 1
     const [isAdvancing, setIsAdvancing] = useState(false)
+    // pas de reset explicite au changement de manche : RoundResult est
+    // démonté et remonté à chaque manche (cf. le commentaire sur
+    // REORDER_DELAY_MS plus haut), ce qui réinitialise déjà cet état
+    const [wrongPreviewReported, setWrongPreviewReported] = useState(false)
 
     const handleNextRound = () => {
         if (isAdvancing) return
         setIsAdvancing(true)
         advanceRound()
+    }
+
+    const handleReportWrongPreview = () => {
+        if (wrongPreviewReported) return
+        setWrongPreviewReported(true)
+        reportWrongPreview(result.roundIndex)
     }
 
     // reconstitue ce que chaque joueur a répondu à partir de son
@@ -184,6 +195,33 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                         </View>
                     )}
                 </View>
+                {/* seulement si un extrait a vraiment été joué (previewUrl) :
+                    signaler l'absence de son se ferait de toute façon voir
+                    tout seul, inutile d'ajouter un bouton pour ça */}
+                {previewUrl && (
+                    <Pressable
+                        onPress={handleReportWrongPreview}
+                        disabled={wrongPreviewReported}
+                        hitSlop={8}
+                        className="flex-row items-center gap-1 mt-2"
+                    >
+                        {wrongPreviewReported ? (
+                            <>
+                                <CircleCheck size={13} color={COLORS.darkgray} />
+                                <Text className="text-darkgray" style={{ fontSize: 11 }}>
+                                    Signalé, merci !
+                                </Text>
+                            </>
+                        ) : (
+                            <>
+                                <Flag size={13} color={COLORS.darkgray} />
+                                <Text className="text-darkgray" style={{ fontSize: 11 }}>
+                                    Pas le bon extrait ?
+                                </Text>
+                            </>
+                        )}
+                    </Pressable>
+                )}
             </View>
 
             <View className="bg-offwhite rounded-3xl p-4 mb-4 items-center">

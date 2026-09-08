@@ -11,6 +11,7 @@ import {
 } from '../constants.js'
 import { resolvePreviewUrl, normalizeTrackText } from './preview.service.js'
 import { resolveDeezerArtist } from './deezer.service.js'
+import { flagMatch } from './previewMatch.service.js'
 import * as lobbyService from './lobby.service.js'
 
 export class GameError extends Error {
@@ -231,7 +232,13 @@ const buildPool = (game) => {
 // donc potentiellement 64 requêtes HTTP simultanées — ont fait chuter le taux
 // de succès à quasi zéro sur plusieurs lots d'affilée, signe net de rate
 // limiting Deezer/iTunes plutôt que d'un manque d'extraits disponibles.
-const PREVIEW_PREFETCH_BATCH_SIZE = 8
+// Abaissé à nouveau de 8 à 4 après un autre cas réel ("Laptop" de Sto, bien
+// présent sur Deezer, quota Deezer dépassé pendant un lot de 8 — cf.
+// preview.service.js) : le quota public Deezer (~50 requêtes/5s par IP,
+// mesuré empiriquement) laisse peu de marge une fois qu'un lot de titres
+// déclenche des dizaines de requêtes en simultané, d'autant que plusieurs
+// parties peuvent partager la même IP serveur en même temps.
+const PREVIEW_PREFETCH_BATCH_SIZE = 4
 // marge de sécurité (nombre de succès visés au-delà de requestedRounds) avant
 // d'arrêter le pré-chargement : la répartition par joueur (cf.
 // allocateRoundsPerPlayer) peut écarter des candidats qui ONT un extrait
@@ -839,6 +846,11 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         duration: game.phaseSpeed,
         startedAt: null,
         answers: new Map(),
+        // ids des joueurs ayant déjà signalé un mauvais extrait sur CETTE
+        // manche (cf. reportWrongPreview) — un signalement par joueur et par
+        // manche, pour éviter qu'un clic répété ne compte plusieurs fois dans
+        // le seuil global d'invalidation (cf. previewMatch.service.js)
+        wrongPreviewReportedBy: new Set(),
     }))
     game.currentRoundIndex = -1
 
@@ -1055,6 +1067,40 @@ export const advanceRound = ({ code, playerId, io }) => {
     startNextRound(code, io).catch((err) => {
         console.error('❌ Erreur au démarrage de la manche suivante (manuel) :', err)
     })
+}
+
+// déclenché par le bouton "Pas le bon extrait ?" de l'écran de résultat (cf.
+// RoundResult.tsx) : ne fait jamais confiance à un titre/artiste envoyé par
+// le client (falsifiable), seulement au round CONNU du serveur pour ce code
+// de partie — même garde que submitAnswer/advanceRound (round courant,
+// joueur actif de cette partie). N'affecte que la base globale de
+// correspondances vérifiées (cf. previewMatch.service.js) : sans effet
+// immédiat sur la manche déjà jouée, seulement sur les résolutions futures
+// (cette partie ou une autre) du même titre+artiste.
+export const reportWrongPreview = ({ code, playerId, roundIndex }) => {
+    const game = games.get(code)
+    if (!game || game.status !== 'round_result') return
+
+    const round = game.rounds[game.currentRoundIndex]
+    if (!round || round.index !== roundIndex) return
+    if (!game.activePlayerIds.includes(playerId)) return
+    // un signalement par joueur et par manche (cf. la déclaration de
+    // wrongPreviewReportedBy, plus haut dans startGame) : évite qu'un clic
+    // répété ne compte plusieurs fois dans le seuil global d'invalidation
+    if (round.wrongPreviewReportedBy.has(playerId)) return
+    round.wrongPreviewReportedBy.add(playerId)
+
+    flagMatch(round.track.name, round.track.artist)
+        .then((invalidated) => {
+            if (invalidated) {
+                console.log(
+                    `🚩 [${code}] extrait invalidé après signalements répétés : "${round.track.name}" — ${round.track.artist}`
+                )
+            }
+        })
+        .catch(() => {})
+    // pas de diffusion à toute la room : un signalement est individuel, les
+    // autres joueurs n'ont pas besoin de le savoir
 }
 
 const finishGame = (code, io) => {

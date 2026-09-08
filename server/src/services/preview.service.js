@@ -11,6 +11,13 @@
 // donc pas de risque de dépasser les conditions d'usage de Spotify ou Deezer
 // dans les deux cas. Si rien n'est trouvé, la manche se joue sans audio.
 import { fetchFreshDeezerPreview } from './deezer.service.js'
+import { normalizeTrackText } from '../utils/normalizeTrackText.js'
+import { getVerifiedMatch, saveVerifiedMatch } from './previewMatch.service.js'
+
+// ré-exportée telle quelle pour game.service.js (regroupement du pool par
+// identité nom+artiste, cf. poolKey) — définie dans utils/normalizeTrackText.js
+// pour éviter un import circulaire avec previewMatch.service.js ci-dessus
+export { normalizeTrackText }
 
 const DEEZER_SEARCH_URL = 'https://api.deezer.com/search'
 const ITUNES_SEARCH_URL = 'https://itunes.apple.com/search'
@@ -26,17 +33,6 @@ const CACHE_TTL_MS = 10 * 60 * 1000
 const cache = new Map() // clé "titre::artiste" -> { url, resolvedAt } | { url: null, resolvedAt }
 
 const cacheKey = (name, artist) => `${name}`.trim().toLowerCase() + '::' + `${artist}`.trim().toLowerCase()
-
-const DIACRITICS_RANGE = new RegExp('[\\u0300-\\u036f]', 'g')
-// exportée pour game.service.js : sert aussi à regrouper les titres du pool
-// par identité (nom + artiste) plutôt que par id fournisseur (cf. buildPool)
-export const normalizeTrackText = (value) =>
-    `${value}`
-        .normalize('NFD')
-        .replace(DIACRITICS_RANGE, '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, ' ')
-        .trim()
 
 const normalize = normalizeTrackText
 
@@ -70,7 +66,16 @@ const isRealMatch = (name, artist, gotName, gotArtist, { requireArtist = true } 
     const normGotName = normalize(gotName || '')
 
     if (!normGotName || !wantedName) return false
-    const canFuzzyMatch = wantedName.length >= MIN_FUZZY_TITLE_LENGTH && normGotName.length >= MIN_FUZZY_TITLE_LENGTH
+    // quand l'artiste n'est PAS vérifié (requireArtist: false, cf. plus bas),
+    // on exige une égalité STRICTE du titre plutôt que la correspondance
+    // floue habituelle (contenu l'un dans l'autre) : un titre déjà flou
+    // combiné à un artiste totalement ignoré cumule deux sources d'erreur à
+    // la fois, ce que le cas légitime (duo mal catalogué, cf. plus bas) n'a
+    // jamais besoin — son titre y correspond déjà exactement.
+    const canFuzzyMatch =
+        requireArtist &&
+        wantedName.length >= MIN_FUZZY_TITLE_LENGTH &&
+        normGotName.length >= MIN_FUZZY_TITLE_LENGTH
     const nameMatches =
         normGotName === wantedName ||
         (canFuzzyMatch && (normGotName.includes(wantedName) || wantedName.includes(normGotName)))
@@ -105,6 +110,16 @@ const searchTermVariants = (name) => {
 
 const SEARCH_RESULT_LIMIT = 10
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+// délais avant de retenter Deezer après un quota dépassé (cf. searchDeezerOnce
+// / searchDeezerPreview), croissants : un seul retry à délai court s'est
+// avéré insuffisant en conditions de charge réelle (vérifié : une rafale de
+// 60 requêtes simultanées laisse le quota encore dépassé 1.2s plus tard, le
+// retry échouait alors lui aussi et retombait sur iTunes, moins fiable). On
+// préfère patienter davantage plutôt que de risquer un mauvais extrait —
+// Deezer reste la source la plus fiable (cf. tête de fichier).
+const RETRY_DELAYS_MS = [1200, 3000]
+
 const fetchJson = async (url) => {
     try {
         const controller = new AbortController()
@@ -124,11 +139,20 @@ const searchDeezerOnce = async (query) => {
     url.searchParams.set('q', query)
     url.searchParams.set('limit', String(SEARCH_RESULT_LIMIT))
     const data = await fetchJson(url)
-    // `null` distingue un échec réseau/timeout (cf. fetchJson) d'une réponse
-    // reçue avec zéro résultat : sert à savoir si searchDeezerPreview doit
-    // retenter (cf. juste en dessous), pas à retenter pour un titre
-    // légitimement absent du catalogue Deezer
-    return data ? data.data || [] : null
+    // `null` distingue un échec à retenter (réseau/timeout, cf. fetchJson —
+    // ou quota Deezer dépassé, cf. juste en dessous) d'une réponse reçue avec
+    // zéro résultat : sert à savoir si searchDeezerPreview doit retenter (cf.
+    // juste en dessous), pas à retenter pour un titre légitimement absent du
+    // catalogue Deezer.
+    // Deezer répond en HTTP 200 (donc `fetchJson` ne le traite PAS comme un
+    // échec) avec `{ error: { message: "Quota limit exceeded", ... } }` en
+    // cas de rate limiting — vérifié empiriquement (60 requêtes en parallèle
+    // suffisent à le déclencher). Sans ce contrôle, une réponse de quota
+    // dépassé était comptée comme "zéro résultat légitime" et ne déclenchait
+    // JAMAIS le retry ci-dessous, aussi fréquente soit la cause réelle du
+    // rate limiting.
+    if (!data || data.error) return null
+    return data.data || []
 }
 
 // retente une fois les requêtes Deezer en échec réseau (timeout, rate
@@ -159,14 +183,35 @@ const searchDeezerPreview = async (name, artist) => {
     if (queries.length === 0) return null
 
     let resultSets = await Promise.all(queries.map(searchDeezerOnce))
-    if (resultSets.some((r) => r === null)) {
+    for (const delayMs of RETRY_DELAYS_MS) {
+        if (!resultSets.some((r) => r === null)) break
+        // laisse passer un peu de temps avant de retenter : le quota Deezer
+        // (cf. searchDeezerOnce) se rouvre sur une fenêtre glissante de
+        // quelques secondes — retenter immédiatement retombe souvent dans la
+        // même fenêtre encore pleine et échoue à nouveau pour rien
+        await sleep(delayMs)
         resultSets = await Promise.all(queries.map(searchDeezerOnce))
     }
     const safeResultSets = resultSets.map((r) => r || [])
 
+    // `strict: true` <-> le match a passé isRealMatch AVEC vérification de
+    // l'artiste (première boucle) ; distingue les deux boucles ci-dessous pour
+    // resolvePreviewUrl, qui n'enregistre en base permanente (cf.
+    // previewMatch.service.js/saveVerifiedMatch) que les matches stricts —
+    // jamais ceux du repli `requireArtist: false`, déjà risqués au moment même
+    // où ils sont trouvés
     for (const results of safeResultSets) {
         const match = results.find((candidate) => isRealMatch(name, artist, candidate.title, candidate.artist?.name))
-        if (match?.preview) return match.preview
+        if (match?.preview) {
+            return {
+                preview: match.preview,
+                provider: 'deezer',
+                providerId: match.id,
+                title: match.title,
+                artist: match.artist?.name,
+                strict: true,
+            }
+        }
     }
     // dernier recours, sur les MÊMES résultats déjà récupérés (aucune requête
     // réseau de plus) : titre seul, sans exiger la correspondance d'artiste
@@ -175,7 +220,16 @@ const searchDeezerPreview = async (name, artist) => {
         const match = results.find((candidate) =>
             isRealMatch(name, artist, candidate.title, candidate.artist?.name, { requireArtist: false })
         )
-        if (match?.preview) return match.preview
+        if (match?.preview) {
+            return {
+                preview: match.preview,
+                provider: 'deezer',
+                providerId: match.id,
+                title: match.title,
+                artist: match.artist?.name,
+                strict: false,
+            }
+        }
     }
     return null
 }
@@ -212,7 +266,16 @@ const searchItunesPreview = async (name, artist) => {
     const resultSets = await Promise.all(queries.map(searchItunesOnce))
     for (const results of resultSets) {
         const match = results.find((candidate) => isRealMatch(name, artist, candidate.trackName, candidate.artistName))
-        if (match?.previewUrl) return match.previewUrl
+        if (match?.previewUrl) {
+            return {
+                preview: match.previewUrl,
+                provider: 'itunes',
+                providerId: match.trackId,
+                title: match.trackName,
+                artist: match.artistName,
+                strict: true,
+            }
+        }
     }
     // dernier recours, sur les MÊMES résultats déjà récupérés (aucune requête
     // réseau de plus) : titre seul, sans exiger la correspondance d'artiste
@@ -221,8 +284,44 @@ const searchItunesPreview = async (name, artist) => {
         const match = results.find((candidate) =>
             isRealMatch(name, artist, candidate.trackName, candidate.artistName, { requireArtist: false })
         )
-        if (match?.previewUrl) return match.previewUrl
+        if (match?.previewUrl) {
+            return {
+                preview: match.previewUrl,
+                provider: 'itunes',
+                providerId: match.trackId,
+                title: match.trackName,
+                artist: match.artistName,
+                strict: false,
+            }
+        }
     }
+    return null
+}
+
+// contrepartie iTunes de fetchFreshDeezerPreview (deezer.service.js) : un
+// lookup par id direct coûte 1 requête, sans recherche floue — utilisée par
+// resolvePreviewUrl pour rafraîchir un match iTunes déjà vérifié (cf.
+// previewMatch.service.js), au lieu de repartir sur searchItunesPreview.
+// Revalidée comme toute autre source (cf. isRealMatch côté appelant) : un id
+// peut en théorie lui aussi avoir été réattribué entre-temps.
+const ITUNES_LOOKUP_URL = 'https://itunes.apple.com/lookup'
+
+const fetchFreshItunesPreview = async (trackId) => {
+    const url = new URL(ITUNES_LOOKUP_URL)
+    url.searchParams.set('id', String(trackId))
+    url.searchParams.set('country', ITUNES_STOREFRONT_COUNTRY)
+    const data = await fetchJson(url)
+    const result = data?.results?.[0]
+    if (!result?.previewUrl) return null
+    return { preview: result.previewUrl, title: result.trackName, artist: result.artistName }
+}
+
+// dispatcher provider-agnostique utilisé par resolvePreviewUrl pour
+// rafraîchir un match déjà vérifié (cf. previewMatch.service.js) : 1 requête
+// par id, jamais de recherche floue
+const fetchFreshByProviderId = async (provider, providerId) => {
+    if (provider === 'deezer') return fetchFreshDeezerPreview(providerId)
+    if (provider === 'itunes') return fetchFreshItunesPreview(providerId)
     return null
 }
 
@@ -253,8 +352,27 @@ export const resolvePreviewUrl = async (track) => {
     const cached = cache.get(key)
     if (cached && Date.now() - cached.resolvedAt < CACHE_TTL_MS) return cached.url
 
-    const url =
+    // base globale (partagée entre TOUTES les parties, cf.
+    // previewMatch.service.js) de correspondances déjà vérifiées par une
+    // résolution précédente, potentiellement dans une autre partie : 1 seule
+    // requête (par id, pas de recherche floue) au lieu des ~4 d'une recherche
+    // complète ci-dessous. Revalidée comme toute autre source (cf.
+    // isRealMatch) : un id peut avoir été réattribué entre-temps.
+    const verified = await getVerifiedMatch(track.name, track.artist)
+    if (verified) {
+        const fresh = await fetchFreshByProviderId(verified.provider, verified.providerId)
+        if (fresh && isRealMatch(track.name, track.artist, fresh.title, fresh.artist)) {
+            cache.set(key, { url: fresh.preview, resolvedAt: Date.now() })
+            return fresh.preview
+        }
+        // entrée périmée (titre disparu du catalogue, id réattribué...) :
+        // retombe sur la recherche complète ci-dessous, qui écrasera cette
+        // entrée avec un nouveau match si elle réussit
+    }
+
+    const result =
         (await searchDeezerPreview(track.name, track.artist)) ?? (await searchItunesPreview(track.name, track.artist))
+    const url = result?.preview ?? null
     // ne met en cache qu'un VRAI extrait trouvé : un échec est souvent
     // temporaire (rate limiting Deezer/iTunes pendant une rafale de
     // résolutions en parallèle, cf. prefetchPreviews/warmPreviewCache côté
@@ -263,6 +381,17 @@ export const resolvePreviewUrl = async (track) => {
     // souvent l'extrait sans problème. Mettre un échec en cache l'aurait
     // gravé pour CACHE_TTL_MS (10 min) même quand le titre est bel et bien
     // disponible, condamnant la manche à rester muette pour rien.
-    if (url) cache.set(key, { url, resolvedAt: Date.now() })
+    if (url) {
+        cache.set(key, { url, resolvedAt: Date.now() })
+        // n'enregistre en base PERMANENTE (partagée entre toutes les parties
+        // futures) que les matches stricts (cf. searchDeezerPreview/
+        // searchItunesPreview) — jamais ceux du repli sans artiste, déjà
+        // risqués au moment même où on les trouve (cf. isRealMatch). Ni
+        // attendue ni bloquante : un hoquet Mongo ne doit jamais retarder la
+        // manche (cf. previewMatch.service.js).
+        if (result.strict) {
+            saveVerifiedMatch(track.name, track.artist, result.provider, result.providerId, result.title, result.artist)
+        }
+    }
     return url
 }

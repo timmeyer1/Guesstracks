@@ -132,3 +132,10 @@ export const emitConfirmReturn = (code: string) => {
 export const emitNextRound = (code: string) => {
     getSocket().emit('game:nextRound', { code })
 }
+
+// "Pas le bon extrait ?" (cf. RoundResult.tsx) : le titre/artiste ne sont
+// jamais envoyés, le serveur retrouve la manche concernée à partir de
+// roundIndex (cf. server/src/services/game.service.js, reportWrongPreview)
+export const emitReportWrongPreview = (code: string, roundIndex: number) => {
+    getSocket().emit('game:reportWrongPreview', { code, roundIndex })
+}

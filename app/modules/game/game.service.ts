@@ -10,6 +10,7 @@ import {
     emitGameSync,
     emitConfirmReturn,
     emitNextRound,
+    emitReportWrongPreview,
     type GameStatePayload,
 } from '../../core/socket'
 import type { GameRoundStart, GameRoundEnd, GameEnd, GameStarted } from '../../core/types'
@@ -157,6 +158,16 @@ export const advanceRound = () => {
     const { lobby } = useLobbyStore.getState()
     if (!lobby) return
     emitNextRound(lobby.code)
+}
+
+// bouton "Pas le bon extrait ?" de l'écran de résultat (cf. RoundResult.tsx) :
+// n'a aucun effet sur la manche déjà jouée, alimente seulement la base de
+// correspondances vérifiées côté serveur pour les résolutions futures (cf.
+// server/src/services/previewMatch.service.js)
+export const reportWrongPreview = (roundIndex: number) => {
+    const { lobby } = useLobbyStore.getState()
+    if (!lobby) return
+    emitReportWrongPreview(lobby.code, roundIndex)
 }
 
 // à appeler après une reconnexion pour rattraper l'état de partie en cours
