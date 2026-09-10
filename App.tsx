@@ -6,6 +6,7 @@ import {SafeAreaProvider} from "react-native-safe-area-context";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { setAudioModeAsync } from 'expo-audio';
 import { ErrorBoundary } from './app/components/ErrorBoundary';
+import { StandaloneGate } from './app/components/StandaloneGate';
 
 
 export default function App() {
@@ -33,7 +34,9 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ErrorBoundary>
-          <AuthNavigator />
+          <StandaloneGate>
+            <AuthNavigator />
+          </StandaloneGate>
         </ErrorBoundary>
         <StatusBar style="dark" />
       </SafeAreaProvider>
