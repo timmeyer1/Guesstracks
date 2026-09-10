@@ -56,15 +56,65 @@
       simple height:100% ci-dessus, sans plus jamais avoir besoin d'un calcul
       approximatif nulle part.
     -->
+    <!--
+      react-native-safe-area-context (utilisé côté app pour l'encoche/île
+      dynamique) mesure ses insets via une sonde CSS insérée dans le DOM avec
+      son padding déjà à sa valeur finale (env(safe-area-inset-*)) : comme
+      aucune transition ne se produit jamais après l'insertion, son détecteur
+      "transitionend" ne se déclenche jamais, et la seule lecture de secours
+      (synchrone, juste après l'insertion) arrive trop tôt pour que WebKit
+      ait résolu env() — confirmé en conditions réelles en mode standalone
+      iOS : insets.top restait bloqué à 0, contenu masqué sous l'encoche.
+      On mesure donc nous-mêmes, avec un double requestAnimationFrame qui
+      laisse au moins un cycle de rendu complet avant de lire la valeur.
+    -->
     <script>
       (function () {
         function setRealViewportHeight() {
           var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
           document.documentElement.style.height = h + 'px';
         }
+
+        function measureSafeAreaInsets() {
+          var probe = document.createElement('div');
+          var style = probe.style;
+          style.position = 'fixed';
+          style.left = '0';
+          style.right = '0';
+          style.top = '0';
+          style.visibility = 'hidden';
+          style.pointerEvents = 'none';
+          style.paddingTop = 'env(safe-area-inset-top, 0px)';
+          style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
+          document.body.appendChild(probe);
+
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              var computed = window.getComputedStyle(probe);
+              var insets = {
+                top: parseFloat(computed.paddingTop) || 0,
+                bottom: parseFloat(computed.paddingBottom) || 0,
+              };
+              document.body.removeChild(probe);
+              window.__webSafeAreaInsets = insets;
+              window.dispatchEvent(new CustomEvent('webSafeAreaInsetsChange', { detail: insets }));
+            });
+          });
+        }
+
         setRealViewportHeight();
+        // ce <script> s'exécute dans <head>, avant que <body> n'existe encore
+        // dans le DOM (contrairement à documentElement, déjà présent) : la
+        // toute première mesure doit attendre qu'il soit là.
+        if (document.body) {
+          measureSafeAreaInsets();
+        } else {
+          document.addEventListener('DOMContentLoaded', measureSafeAreaInsets, { once: true });
+        }
         window.addEventListener('resize', setRealViewportHeight);
+        window.addEventListener('resize', measureSafeAreaInsets);
         window.addEventListener('orientationchange', setRealViewportHeight);
+        window.addEventListener('orientationchange', measureSafeAreaInsets);
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', setRealViewportHeight);
         }

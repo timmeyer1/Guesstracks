@@ -5,6 +5,7 @@ import { Image } from 'expo-image'
 import { useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useShallow } from 'zustand/react/shallow'
+import { useWebSafeAreaInsets } from '../core/hooks/useWebSafeAreaInsets'
 
 import { useGameStore } from '../stores/game.store'
 import { useAuthStore } from '../stores/auth.store'
@@ -58,7 +59,13 @@ const GAME_SHAPES = (
 
 const GameScreen = () => {
     const navigation = useNavigation()
-    const insets = useSafeAreaInsets()
+    // sur web, react-native-safe-area-context reste bloqué à insets.top === 0
+    // en mode standalone iOS (cf. public/index.html pour le détail exact) :
+    // useWebSafeAreaInsets mesure la vraie valeur nous-mêmes. Le natif garde
+    // useSafeAreaInsets, jamais concerné par ce bug.
+    const nativeInsets = useSafeAreaInsets()
+    const webInsets = useWebSafeAreaInsets()
+    const insets = Platform.OS === 'web' ? webInsets : nativeInsets
     const { height: windowHeight } = useWindowDimensions()
     const user = useAuthStore((s) => s.user)
     const {

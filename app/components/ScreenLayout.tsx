@@ -1,6 +1,13 @@
 // ScreenLayout.tsx
 import { Platform, View, ScrollView } from 'react-native';
 import React, { ReactNode } from 'react';
+import { useWebSafeAreaInsets } from '../core/hooks/useWebSafeAreaInsets';
+
+// espace sous la zone de sécurité (encoche/île dynamique) sur web, EN PLUS de
+// l'inset réel mesuré par useWebSafeAreaInsets — le natif garde son py-20
+// flat, inchangé (jamais concerné par le bug de mesure que ce hook contourne,
+// cf. ce fichier).
+const WEB_TOP_SAFE_AREA_GAP = 16;
 
 interface ScreenLayoutProps {
     children: ReactNode;
@@ -23,6 +30,7 @@ export const ScreenLayout = ({
     shapes,
 }: ScreenLayoutProps) => {
     const Container = scrollable ? ScrollView : View;
+    const webInsets = useWebSafeAreaInsets();
 
     const bgColorMap = {
         primary: 'bg-white',
@@ -43,11 +51,20 @@ export const ScreenLayout = ({
 
     const containerClasses = `flex-1 ${paddingClasses} ${centerClasses} ${className}`.trim();
 
+    // py-8 (32px) ci-dessus ne suffit pas à dégager l'encoche/île dynamique en
+    // mode standalone iOS (confirmé en conditions réelles : pastille/pochette
+    // partiellement masquées) — remplace juste le haut par le vrai inset mesuré
+    // (cf. useWebSafeAreaInsets) + une marge de respiration, sans toucher au
+    // bas (32px suffisants là, jamais signalé comme trop court).
+    const topInsetStyle =
+        !noPadding && Platform.OS === 'web' ? { paddingTop: webInsets.top + WEB_TOP_SAFE_AREA_GAP } : undefined;
+
     return (
         <View className={`flex-1 ${bgColorMap[bgColor]} relative overflow-hidden`}>
             {shapes}
             <Container
                 className={containerClasses}
+                style={topInsetStyle}
                 contentContainerStyle={scrollable ? { flexGrow: 1 } : undefined}
             >
                 {children}
