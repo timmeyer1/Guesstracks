@@ -14,21 +14,45 @@ const discovery = {
     tokenEndpoint: 'https://accounts.spotify.com/api/token',
 };
 
+const AUTH_CONFIG = {
+    clientId: CLIENT_ID,
+    scopes: ['user-read-email', 'user-read-private', 'user-library-read', 'user-library-modify'],
+    usePKCE: true,
+    redirectUri: REDIRECT_URI,
+    // sans ça, la popup web réutilise silencieusement la session Spotify déjà
+    // active dans le navigateur (mêmes cookies) et termine l'autorisation
+    // sans jamais rien afficher — impossible de choisir un autre compte.
+    // show_dialog force Spotify à toujours montrer son écran de connexion/
+    // autorisation (avec un lien "Ce n'est pas vous ?" si déjà connecté).
+    extraParams: { show_dialog: 'true' },
+};
+
+// Pré-calcule la requête PKCE (challenge via expo-crypto, asynchrone) EN
+// DEHORS du clic : sur web, request.promptAsync() doit appeler window.open()
+// de façon synchrone dans le tick même du clic, sinon le navigateur bloque
+// la popup ("Popup window was blocked... invoked too long after a user
+// input was fired"). Un `await AuthSession.loadAsync(...)` fait dans le
+// handler de clic (comme avant) insère justement ce délai. En préchargeant
+// ici, request.url est déjà prêt : promptAsync n'a plus rien à attendre
+// avant son propre window.open().
+let pendingRequest: Promise<AuthSession.AuthRequest> = AuthSession.loadAsync(AUTH_CONFIG, discovery);
+// une requête PKCE n'est valable que pour une seule tentative : en préparer
+// tout de suite une nouvelle pour la prochaine (annulation, ou reconnexion
+// après un premier essai) plutôt que d'attendre le prochain clic
+const preloadNextRequest = () => {
+    pendingRequest = AuthSession.loadAsync(AUTH_CONFIG, discovery);
+    pendingRequest.catch(() => {});
+};
+pendingRequest.catch(() => {});
+
 export const loginWithSpotify = async () => {
     if (__DEV__) {
         console.log('--------------------------------------------------------------------------');
         console.log('redirect URI (à whitelister dans le dashboard Spotify) :', REDIRECT_URI);
     }
 
-    const request = await AuthSession.loadAsync(
-        {
-            clientId: CLIENT_ID,
-            scopes: ['user-read-email', 'user-read-private', 'user-library-read','user-library-modify'],
-            usePKCE: true,
-            redirectUri: REDIRECT_URI,
-        },
-        discovery
-    );
+    const request = await pendingRequest;
+    preloadNextRequest();
 
     const result = await request.promptAsync(discovery);
 
