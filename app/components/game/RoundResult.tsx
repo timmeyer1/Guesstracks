@@ -7,6 +7,7 @@ import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
 import { StatusPill } from '../StatusPill'
 import { CustomButton } from '../Button'
+import { Avatar } from '../Avatar'
 import { AudioPlayerButton } from './AudioPlayer'
 import { useGameStore } from '../../stores/game.store'
 import { useLobbyStore } from '../../stores/lobby.store'
@@ -300,12 +301,7 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                         >
                             <View className="flex-row items-center gap-3 flex-1 mr-2">
                                 <Text className="text-darkgray font-bold w-5">{index + 1}</Text>
-                                <Image
-                                    source={{ uri: entry.img || 'https://i.pravatar.cc/100' }}
-                                    style={{ width: 32, height: 32, borderRadius: 16 }}
-                                    cachePolicy="memory-disk"
-                                    transition={100}
-                                />
+                                <Avatar uri={entry.img} size={32} />
                                 <View className="flex-1">
                                     <Text className="text-black font-semibold" numberOfLines={1}>
                                         {entry.name}

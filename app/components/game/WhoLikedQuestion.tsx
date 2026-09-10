@@ -1,9 +1,9 @@
 import React from 'react'
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native'
-import { Image } from 'expo-image'
 import { Check } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { CustomButton } from '../Button'
+import { Avatar } from '../Avatar'
 import type { WhoLikedOption } from '../../core/types'
 
 type WhoLikedQuestionProps = {
@@ -46,12 +46,7 @@ const OptionRow: React.FC<OptionRowProps> = React.memo(function OptionRow({
             }}
         >
             <View className="relative">
-                <Image
-                    source={{ uri: option.img || 'https://i.pravatar.cc/100' }}
-                    style={{ width: 36, height: 36, borderRadius: 18 }}
-                    cachePolicy="memory-disk"
-                    transition={100}
-                />
+                <Avatar uri={option.img} size={36} />
                 {isSelected && (
                     <View
                         className="absolute -top-1 -right-1 rounded-full p-0.5"

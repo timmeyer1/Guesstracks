@@ -1,9 +1,9 @@
 // app/components/PlayerAvatar.tsx
 import React from 'react'
 import { View, Text } from 'react-native'
-import { Image } from 'expo-image'
 import { Crown } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
+import { Avatar } from '../Avatar'
 
 export const AVATAR_SIZES = {
     sm: 48,
@@ -45,12 +45,7 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = React.memo(function Pla
                             <Crown size={px * 0.31} color={COLORS.primary} fill={COLORS.primary} />
                         </View>
                     )}
-                    <Image
-                        source={{ uri: img || 'https://i.pravatar.cc/100' }}
-                        style={{ width: px, height: px, borderRadius: px / 2 }}
-                        cachePolicy="memory-disk"
-                        transition={100}
-                    />
+                    <Avatar uri={img} size={px} />
                 </View>
             </View>
 

@@ -1,11 +1,11 @@
 import React from 'react'
 import { View, Text, ScrollView } from 'react-native'
-import { Image } from 'expo-image'
 import { Trophy } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { SectionTitle } from '../SectionTitle'
 import { CustomButton } from '../Button'
 import { AudioPlayerButton } from './AudioPlayer'
+import { Avatar } from '../Avatar'
 import type { FinalLeaderboardEntry } from '../../core/types'
 
 type FinalResultsProps = {
@@ -59,13 +59,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
                     const isWinner = rank === 0
                     return (
                         <View key={entry.playerId} className="items-center" style={{ width: 90 }}>
-                            <Image
-                                source={{ uri: entry.img || 'https://i.pravatar.cc/100' }}
-                                style={{ width: 56, height: 56, borderRadius: 28 }}
-                                className="mb-2"
-                                cachePolicy="memory-disk"
-                                transition={100}
-                            />
+                            <Avatar uri={entry.img} size={56} className="mb-2" />
                             <Text className="text-black font-bold text-sm mb-1" numberOfLines={1}>
                                 {entry.name}
                             </Text>
@@ -106,12 +100,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
                     >
                         <View className="flex-row items-center gap-3">
                             <Text className="text-darkgray font-bold w-5">{index + 4}</Text>
-                            <Image
-                                source={{ uri: entry.img || 'https://i.pravatar.cc/100' }}
-                                style={{ width: 32, height: 32, borderRadius: 16 }}
-                                cachePolicy="memory-disk"
-                                transition={100}
-                            />
+                            <Avatar uri={entry.img} size={32} />
                             <View>
                                 <Text className="text-black font-semibold">{entry.name}</Text>
                                 <Text className="text-darkgray text-xs">
