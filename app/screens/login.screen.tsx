@@ -192,19 +192,6 @@ export const LoginScreen = () => {
                         available={false}
                     />
 
-                    <SectionTitle
-                        title="ou"
-                        align="center"
-                        size="sm"
-                    />
-
-                    <CustomButton
-                        name="Se connecter en tant qu'invité"
-                        onPress={() => {}}
-                        variant="dark"
-                        available={false}
-                    />
-
                     {/* déplacé ici (dans le même bloc que les boutons, avant
                     c'était un sibling du bloc entier) : posé en dehors, son
                     empilement dépendait d'un calcul flex fait par un parent

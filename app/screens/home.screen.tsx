@@ -141,22 +141,6 @@ export const HomeScreen = () => {
                                 variant="dark"
                             />
                         </View>
-
-                        <View className="gap-3 w-full">
-                            <SectionTitle
-                                title="Pas de musique ?"
-                                align="left"
-                                size='lg'
-                                subtitle="On s'en occupe !"
-                            />
-                            <CustomButton
-                                name="Choisir mes musiques"
-                                icon="Search"
-                                onPress={() => { }}
-                                variant="white"
-                                available={false}
-                            />
-                        </View>
                     </View>
                 </View>
 

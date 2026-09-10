@@ -57,7 +57,7 @@ export const UserProfileCard = ({ name, img, totalTracks, provider }: UserProfil
                     isHost={false}
                 />
 
-                <View className="flex-1 max-w-[220px]">
+                <View className="flex-1 max-w-2/3">
                     <SectionTitle
                         title="Bienvenue"
                         align="left"
