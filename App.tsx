@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { setAudioModeAsync } from 'expo-audio';
 import { ErrorBoundary } from './app/components/ErrorBoundary';
 import { StandaloneGate } from './app/components/StandaloneGate';
+import { setupWebAudioUnlock } from './app/core/webAudioUnlock';
 
 
 export default function App() {
@@ -20,6 +21,13 @@ export default function App() {
   // `duckOthers` demande le focus sans l'exiger en exclusivité (contrairement
   // au réglage par défaut, plus strict), ce qui réduit les cas où Android
   // refuse de l'accorder plutôt que de simplement baisser le son des autres.
+  // Web uniquement (no-op ailleurs, cf. la fonction elle-même) : sans ça, les
+  // extraits ne se lancent jamais tout seuls sur web (cf. useSyncedAudioPlayer,
+  // dont tous les play() partent d'un timer, jamais d'un clic direct).
+  useEffect(() => {
+    setupWebAudioUnlock()
+  }, []);
+
   useEffect(() => {
     setAudioModeAsync({
       playsInSilentMode: true,
