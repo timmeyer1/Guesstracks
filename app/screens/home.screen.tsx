@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { View, Alert } from 'react-native'
+import { View } from 'react-native'
+import { Alert } from '../core/alert'
 import { useAuthStore } from '../stores/auth.store'
 import { useTrackStore } from '../stores/tracks.store'
 import { spotifyService } from '../modules/spotify'

@@ -1,4 +1,4 @@
-import { Alert } from "react-native"
+import { Alert } from "../../core/alert"
 import { useAuthStore } from "../../stores/auth.store"
 import { useLobbyStore } from "../../stores/lobby.store"
 import { lobbyApiClient, extractLobbyErrorMessage } from "../../core/api/lobby.client"

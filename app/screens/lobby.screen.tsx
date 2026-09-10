@@ -1,6 +1,7 @@
 // app/screens/lobby.screen.tsx
 import React, { useCallback, useEffect, useState } from 'react'
-import { View, Alert, ScrollView, Share } from 'react-native'
+import { View, ScrollView, Share } from 'react-native'
+import { Alert } from '../core/alert'
 import { useFocusEffect, useNavigation } from "@react-navigation/native"
 
 import { leaveLobby, updateLobbySettings, kickPlayer, transferHost } from '../modules/lobby/lobby.service'
