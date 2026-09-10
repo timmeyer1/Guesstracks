@@ -25,19 +25,9 @@
       html,
       body {
         height: 100%;
-        /* Confirmé par test réel (inspecteur Safari branché sur iPhone) :
-        c'est ICI, sur html/body — pas sur #root, un enfant qui hérite du
-        problème sans le créer — que 100% est visiblement plus court que
-        l'écran réel en mode standalone iOS (barre blanche en dessous de tout
-        le contenu, y compris les formes décoratives). Forcer html/body à
-        104% à la main (testé en live dans l'inspecteur) corrige totalement
-        l'affichage. env(safe-area-inset-bottom) donne l'équivalent en pixels
-        réels plutôt qu'un pourcentage qui ne serait juste que sur CET
-        iPhone précis. */
-        height: calc(100% + env(safe-area-inset-bottom, 0px));
         /* couleur de fond neutre de l'app (cf. tailwind.config.js, "white" =
-        #FAFAFA) : évite qu'un résidu de calcul de hauteur ne laisse voir le
-        blanc par défaut du WKWebView */
+        #FAFAFA) : évite qu'un résidu de mise en page ne laisse voir le blanc
+        par défaut du WKWebView */
         background-color: #FAFAFA;
       }
       /* These styles disable body scrolling if you are using <ScrollView> */
@@ -51,6 +41,35 @@
         flex: 1;
       }
     </style>
+    <!--
+      100%/100vh/100dvh sur html/body se sont tous révélés FAUX de quelques
+      dizaines de pixels sur certains appareils en mode standalone iOS (bande
+      blanche visible), et un correctif en pourcentage fixe (ex: 104%) qui
+      corrigeait un iPhone Pro cassait complètement l'affichage sur iPhone
+      mini (proportion différente vis-à-vis de son écran plus petit) — et
+      créait à son tour des bandes en haut ET en bas hors du mode standalone.
+      Plutôt que deviner un nombre par catégorie d'appareil, on mesure la
+      VRAIE hauteur visible via window.visualViewport (le seul chiffre fiable
+      quel que soit l'appareil, la taille d'écran, ou le mode d'affichage) et
+      on l'applique nous-mêmes en pixels sur <html> : tout le reste
+      (body, #root, puis toute la chaîne flex de l'app) en hérite via son
+      simple height:100% ci-dessus, sans plus jamais avoir besoin d'un calcul
+      approximatif nulle part.
+    -->
+    <script>
+      (function () {
+        function setRealViewportHeight() {
+          var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+          document.documentElement.style.height = h + 'px';
+        }
+        setRealViewportHeight();
+        window.addEventListener('resize', setRealViewportHeight);
+        window.addEventListener('orientationchange', setRealViewportHeight);
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', setRealViewportHeight);
+        }
+      })();
+    </script>
   </head>
 
   <body>
