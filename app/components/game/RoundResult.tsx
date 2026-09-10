@@ -281,7 +281,22 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                         <Reanimated.View
                             key={playerId}
                             layout={reorderTransition}
-                            className="flex-row items-center justify-between bg-white rounded-2xl p-3 mb-2 shadow-card"
+                            // tout en style inline plutôt qu'en className : react-native-reanimated
+                            // n'est pas enregistré auprès de NativeWind (cf. cssInterop dans
+                            // TrackSuggestionsList.tsx pour un cas similaire avec gesture-handler),
+                            // et bg-offwhite en className restait sans AUCUN effet visible sur ce
+                            // Reanimated.View précis, confirmé en conditions réelles après
+                            // redémarrage complet de l'app. Même repli que WhoLikedQuestion.tsx
+                            // pour un souci de même famille.
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'flex-start',
+                                justifyContent: 'space-between',
+                                backgroundColor: COLORS.offwhite,
+                                borderRadius: 16,
+                                padding: 12,
+                                marginBottom: 8,
+                            }}
                         >
                             <View className="flex-row items-center gap-3 flex-1 mr-2">
                                 <Text className="text-darkgray font-bold w-5">{index + 1}</Text>

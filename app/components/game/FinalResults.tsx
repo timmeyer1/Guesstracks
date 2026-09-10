@@ -102,7 +102,7 @@ export const FinalResults: React.FC<FinalResultsProps> = ({
                 {rest.map((entry, index) => (
                     <View
                         key={entry.playerId}
-                        className="flex-row items-center justify-between bg-white rounded-2xl p-3 mb-2 shadow-card"
+                        className="flex-row items-start justify-between bg-offwhite rounded-2xl p-3 mb-2"
                     >
                         <View className="flex-row items-center gap-3">
                             <Text className="text-darkgray font-bold w-5">{index + 4}</Text>
