@@ -166,14 +166,6 @@ export const LoginScreen = () => {
                     />
 
                     <CustomButton
-                        name="Apple Music"
-                        iconFA="apple"
-                        onPress={() => console.log("Apple Music")}
-                        variant="apple_music"
-                        available={false}
-                    />
-
-                    <CustomButton
                         name="Deezer"
                         iconFA="deezer"
                         onPress={() => {
@@ -183,6 +175,15 @@ export const LoginScreen = () => {
                         variant="deezer"
                         available={!loadingProvider}
                     />
+                    
+                    <CustomButton
+                        name="Apple Music"
+                        iconFA="apple"
+                        onPress={() => console.log("Apple Music")}
+                        variant="apple_music"
+                        available={false}
+                    />
+
 
                     <CustomButton
                         name="Youtube Music"
