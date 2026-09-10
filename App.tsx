@@ -8,9 +8,19 @@ import { setAudioModeAsync } from 'expo-audio';
 import { ErrorBoundary } from './app/components/ErrorBoundary';
 import { StandaloneGate } from './app/components/StandaloneGate';
 import { setupWebAudioUnlock } from './app/core/webAudioUnlock';
+import { useRobustKeepAwake } from './app/core/hooks/useRobustKeepAwake';
 
 
 export default function App() {
+  // empêche l'écran de s'éteindre pour inactivité tant que l'app reste
+  // ouverte (accueil, lobby, partie...), pas seulement pendant une manche —
+  // demandé explicitement : rien de pire que l'écran qui s'éteint en
+  // attendant les autres joueurs dans le lobby. cf. useRobustKeepAwake.ts
+  // pour pourquoi le hook `useKeepAwake()` d'expo-keep-awake seul ne
+  // suffisait pas sur web (confirmé en conditions réelles, iPhone ET
+  // Android : l'écran finissait quand même par s'éteindre).
+  useRobustKeepAwake();
+
   // rien n'était configuré ici jusqu'à présent : le mode audio par défaut
   // d'expo-audio peut, sur Android, refuser silencieusement le focus audio
   // (donc ne pas jouer le son) selon l'état du téléphone (notification en
