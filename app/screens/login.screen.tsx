@@ -205,14 +205,21 @@ export const LoginScreen = () => {
                         available={false}
                     />
 
+                    {/* déplacé ici (dans le même bloc que les boutons, avant
+                    c'était un sibling du bloc entier) : posé en dehors, son
+                    empilement dépendait d'un calcul flex fait par un parent
+                    différent de celui des boutons, ce qui pouvait le faire
+                    chevaucher le dernier bouton sur web au lieu de s'afficher
+                    en dessous */}
+                    <SectionTitle
+                        subtitle="En te connectant, tu acceptes de partager tes titres likés pour jouer avec tes amis"
+                        align="center"
+                        size="xs"
+                        className="mt-2"
+                    />
+
                 </View>
             </View>
-
-            <SectionTitle
-                subtitle="En te connectant, tu acceptes de partager tes titres likés pour jouer avec tes amis"
-                align="center"
-                size="xs"
-            />
 
             <DeezerProfileModal
                 visible={isDeezerModalVisible}
