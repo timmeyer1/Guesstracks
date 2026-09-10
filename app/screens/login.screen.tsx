@@ -144,7 +144,7 @@ export const LoginScreen = () => {
             <View className="flex-1 justify-center items-center w-full">
                 <Image
                     source={require('../images/logo.png')}
-                    style={{ width: 150, height: 150 }}
+                    style={{ width: 150, height: 150, borderRadius: 16 }}
                 />
                 <View className="w-full gap-4">
 

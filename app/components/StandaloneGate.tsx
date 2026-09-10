@@ -73,7 +73,7 @@ export const StandaloneGate = ({ children }: { children: ReactNode }) => {
         <ScreenLayout centered>
             <Image
                 source={require('../images/logo.png')}
-                style={{ width: 96, height: 96, marginBottom: 24 }}
+                style={{ width: 96, height: 96, marginBottom: 24, borderRadius: 16 }}
             />
             <SectionTitle
                 title="Ajoute Guesstracks à ton écran d'accueil"
