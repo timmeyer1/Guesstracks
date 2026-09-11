@@ -6,8 +6,15 @@
     <!-- viewport-fit=cover : sans lui, iOS Safari garde la zone de l'encoche/
     barre d'état et de l'indicateur home comme marge inaccessible pour la page,
     et surtout react-native-safe-area-context (utilisé par l'app en natif)
-    renvoie des insets à zéro faute de env(safe-area-inset-*) exploitable. -->
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+    renvoie des insets à zéro faute de env(safe-area-inset-*) exploitable.
+    maximum-scale=1, user-scalable=no : sans ça, iOS Safari zoome automati-
+    quement la page dès qu'un <TextInput> reçoit le focus (comportement natif
+    de Safari, indépendant de la taille de police de nos champs, déjà à 16px)
+    — et comme window.visualViewport change de taille pendant ce zoom, le
+    script plus bas (setRealViewportHeight) recalculait une hauteur fausse le
+    temps que le zoom retombe, laissant une bande blanche en bas le temps
+    que ça se stabilise. En figeant le zoom, l'un et l'autre disparaissent. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover" />
     <meta name="theme-color" content="#9622E0" />
     <!-- Permet le vrai mode plein écran (sans barre d'adresse ni barre d'outils
     Safari) une fois la page ajoutée à l'écran d'accueil ("Partager" ->
@@ -70,10 +77,70 @@
     -->
     <script>
       (function () {
-        function setRealViewportHeight() {
-          var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-          document.documentElement.style.height = h + 'px';
+        // la plus grande valeur observée alors qu'aucun clavier ne peut être
+        // ouvert : PAS figée une fois pour toutes (contrairement à une
+        // précédente version qui bloquait tout au premier appel — celui-ci a
+        // lieu de façon synchrone dans <head>, avant toute mise en page, et
+        // peut rendre une valeur trop petite ou nulle qui restait alors
+        // bloquée pour le reste de la session, même après redémarrage de
+        // l'app). Se met à jour vers le haut si une mesure ultérieure plus
+        // grande arrive (auto-correction), jamais vers le bas hors clavier.
+        var maxObservedHeight = 0;
+
+        // le clavier ne peut être affiché que si un champ a le focus : sert à
+        // savoir s'il faut faire confiance à visualViewport.height (clavier
+        // potentiellement ouvert, hauteur réduite légitime) ou l'ignorer
+        // (aucun clavier possible, donc la pleine hauteur s'impose).
+        function isKeyboardLikelyOpen() {
+          var active = document.activeElement;
+          return !!(
+            active &&
+            (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)
+          );
         }
+
+        function setRealViewportHeight() {
+          var measured = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+          var keyboardOpen = isKeyboardLikelyOpen();
+
+          // Bug iOS connu (confirmé en conditions réelles) : après la
+          // fermeture du clavier, window.visualViewport.height ne revient pas
+          // toujours à la vraie hauteur d'origine — il peut rester bloqué
+          // plusieurs dizaines de pixels en dessous, sans jamais se corriger
+          // tout seul (ni au scroll, ni au tap). Comme le clavier ne peut être
+          // ouvert que si un champ a le focus, une mesure prise SANS focus
+          // est forcément fiable : on ne la garde que si elle est PLUS
+          // GRANDE que la référence actuelle (jamais plus petite), pour
+          // qu'une mesure ponctuellement trop basse (ex: au tout premier
+          // appel, avant mise en page complète) ne bloque jamais rien —
+          // une mesure correcte plus tard la corrige automatiquement.
+          if (!keyboardOpen && measured > maxObservedHeight) {
+            maxObservedHeight = measured;
+          }
+
+          var h = keyboardOpen || !maxObservedHeight ? measured : maxObservedHeight;
+          document.documentElement.style.height = h + 'px';
+
+          // iOS Safari a son propre comportement "scroll le champ focalisé
+          // dans la vue" quand un <input>/<TextInput> reçoit le focus : ça
+          // décale toute la page (document/body), MÊME avec overflow:hidden
+          // sur body (bug connu de longue date sur iOS). On neutralise ce
+          // scroll systématiquement, à chaque resize ET scroll du visual
+          // viewport (donc à l'ouverture ET à la fermeture du clavier).
+          window.scrollTo(0, 0);
+        }
+
+        // le focus/blur d'un champ ne déclenche pas toujours un resize/scroll
+        // fiable sur visualViewport (selon versions iOS) : on force nous-mêmes
+        // une réévaluation juste après, avec un petit délai pour laisser le
+        // clavier terminer son animation de fermeture avant de mesurer.
+        document.addEventListener(
+          'focusout',
+          function () {
+            setTimeout(setRealViewportHeight, 100);
+          },
+          true
+        );
 
         function measureSafeAreaInsets() {
           var probe = document.createElement('div');
@@ -117,6 +184,10 @@
         window.addEventListener('orientationchange', measureSafeAreaInsets);
         if (window.visualViewport) {
           window.visualViewport.addEventListener('resize', setRealViewportHeight);
+          // 'resize' seul ne suffit pas : iOS peut aussi émettre 'scroll' sur
+          // le visual viewport (sans changement de hauteur) pendant la
+          // scroll-into-view automatique du champ focalisé
+          window.visualViewport.addEventListener('scroll', setRealViewportHeight);
         }
       })();
     </script>
