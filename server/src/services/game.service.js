@@ -28,6 +28,16 @@ export class GameError extends Error {
 // doit de toute façon pas survivre au redémarrage du process.
 const games = new Map()
 
+// plafonds anti-abus pour tout ce qui arrive du payload client dans
+// submitTracks (cf. plus bas) : un client (CSV importé, ou payload socket
+// forgé directement) peut soumettre n'importe quelle chaîne de n'importe
+// quelle taille — sans ça, un champ de plusieurs Mo stocké en mémoire puis
+// rediffusé à tout le lobby (cf. buildPool/buildCatalog) est un vecteur de
+// déni de service facile
+const MAX_NAME_LENGTH = 60 // même limite que playerSchema.name (cf. models/lobby.model.js)
+const MAX_FIELD_LENGTH = 300 // large marge au-dessus de tout titre/artiste/album réel
+const MAX_URL_LENGTH = 2000 // image/previewUrl : assez pour une URL CDN signée réaliste
+
 const room = (code) => `lobby:${code}`
 
 // instant commun (epoch) auquel les clients doivent lancer la lecture d'un
@@ -129,10 +139,15 @@ export const submitTracks = (code, player, tracks, io) => {
         return { accepted: false }
     }
 
+    // name/img viennent du payload sans passer par le jeton vérifié (cf.
+    // game.sockets.js : non sensibles pour l'identité, mais quand même
+    // validés/plafonnés ici — sans ça un client pourrait pousser une valeur
+    // non-string ou de plusieurs Mo, stockée puis rediffusée à tout le lobby
+    // (cf. buildPool/buildCatalog plus bas)
     game.playersInfo.set(player.id, {
         id: player.id,
-        name: player.name,
-        img: player.img ?? null,
+        name: typeof player.name === 'string' && player.name.trim() ? player.name.trim().slice(0, MAX_NAME_LENGTH) : 'Joueur',
+        img: typeof player.img === 'string' ? player.img.slice(0, MAX_URL_LENGTH) : null,
     })
 
     const sanitized = Array.isArray(tracks)
@@ -145,12 +160,12 @@ export const submitTracks = (code, player, tracks, io) => {
             // ne plafonnent plus non plus le nombre de titres récupérés)
             .slice(0, 5000)
             .map((t) => ({
-                id: t.id,
-                name: t.name,
-                artist: t.artist,
-                album: typeof t.album === 'string' ? t.album : '',
-                image: typeof t.image === 'string' ? t.image : null,
-                previewUrl: typeof t.previewUrl === 'string' ? t.previewUrl : null,
+                id: t.id.slice(0, MAX_FIELD_LENGTH),
+                name: t.name.slice(0, MAX_FIELD_LENGTH),
+                artist: t.artist.slice(0, MAX_FIELD_LENGTH),
+                album: typeof t.album === 'string' ? t.album.slice(0, MAX_FIELD_LENGTH) : '',
+                image: typeof t.image === 'string' ? t.image.slice(0, MAX_URL_LENGTH) : null,
+                previewUrl: typeof t.previewUrl === 'string' ? t.previewUrl.slice(0, MAX_URL_LENGTH) : null,
                 // requis par resolveDeezerArtist (buildCatalog) pour savoir
                 // quels titres enrichir avec les artistes en feat. — sans ce
                 // champ ici, tous les titres soumis perdaient leur provider
