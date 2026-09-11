@@ -1,7 +1,8 @@
 import React from 'react';
-import { Modal, View, Text, Pressable, ScrollView, Linking, Platform } from 'react-native';
+import { Modal, View, Text, Pressable, ScrollView, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../../core/constants/colors.constants';
+import { getDeviceKind, type DeviceKind } from '../../core/device';
 import { SectionTitle } from '../SectionTitle';
 import { CustomButton } from '../Button';
 
@@ -12,27 +13,13 @@ type TuneMyMusicInstructionsModalProps = {
     onClose: () => void;
 };
 
-type DeviceKind = 'ios' | 'android' | 'desktop';
-
-// Platform.OS vaut 'web' aussi bien sur iPhone/Android/PC (le site tourne
-// dans un navigateur sur les trois) : seul l'user agent permet de
-// distinguer, comme déjà fait dans StandaloneGate.tsx
-const getDeviceKind = (): DeviceKind => {
-    if (Platform.OS === 'ios') return 'ios';
-    if (Platform.OS === 'android') return 'android';
-    if (Platform.OS === 'web' && typeof navigator !== 'undefined') {
-        if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) return 'ios';
-        if (/Android/i.test(navigator.userAgent)) return 'android';
-    }
-    return 'desktop';
-};
-
 // étape 3 seulement : sur iOS, le téléchargement passe par la feuille de
 // partage du navigateur ; sur Android/PC, le fichier va directement dans le
 // dossier Téléchargements, sans étape "Partager" équivalente
 const STEPS_BY_DEVICE: Record<DeviceKind, string[]> = {
     ios: [
-        "Connecte-toi à ton service préféré comme source et sélectionne tes playlists.",
+        "Connecte-toi à ton service préféré.",
+        "Sélectionne tes titres likés / playlists.",
         "Sélectionne \"Exporter vers le dossier\" puis choisis \"CSV\".",
         "Appuie sur \"Partager\" puis \"Enregistrer dans Fichiers\".",
         "Téléverse le fichier CSV dans Guesstracks.",

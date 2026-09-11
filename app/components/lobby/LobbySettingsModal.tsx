@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Modal, View, Text, TouchableOpacity, Pressable, Switch } from "react-native"
-// ScrollView de gesture-handler (pas celle de react-native) : sur Android,
-// une ScrollView "react-native" classique capte le geste dès qu'un
-// mouvement est détecté et ne le relâche jamais à un geste
-// react-native-gesture-handler imbriqué (ici le curseur de SettingsSlider),
-// même quand celui-ci ne bouge qu'à l'horizontale — la ScrollView gagnait
-// systématiquement, rendant les curseurs inutilisables au toucher sur
-// Android (fonctionnait sur iOS, dont l'arbitrage de gestes coexiste mieux
-// par défaut). Celle de gesture-handler participe au même système
-// d'arbitrage de gestes que le curseur, ce qui permet à Android de
-// distinguer correctement scroll vertical et glissement horizontal.
+import { Modal, View, Text, TouchableOpacity, Pressable } from "react-native"
+// ScrollView de gesture-handler (pas celle de react-native), gardée par
+// prudence pour l'arbitrage de gestes vertical/horizontal sur Android — même
+// si SettingsSlider est désormais un <Slider> natif (sans react-native-
+// gesture-handler), cette ScrollView reste un remplacement sûr de celle de
+// react-native.
 import { ScrollView, GestureHandlerRootView } from "react-native-gesture-handler"
 import { GAME_MODES, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
@@ -17,7 +12,8 @@ import { GameMode, PhaseSpeed } from "../../core/types"
 import { SectionTitle } from "../SectionTitle"
 import { CustomButton } from "../Button"
 import { GAME_MODE_ICONS } from "./GameModeCard"
-import { SettingsSlider, THUMB_SIZE, SLIDER_PADDING } from "./SettingsSlider"
+import { SettingsSlider, THUMB_SIZE } from "./SettingsSlider"
+import { SettingsSwitch } from "./SettingsSwitch"
 
 // tous les paliers atteignables du curseur (ex. 5, 10, 15, 20, 25, 30)
 const stepValues = (min: number, max: number, step: number) => {
@@ -33,10 +29,10 @@ const TICK_LABEL_WIDTH = 28
 // règle graduée sous la piste : un trait + un nombre par palier, pour
 // visualiser chaque valeur possible. Alignée sur la course réelle du curseur
 // de SettingsSlider (et non sur la largeur totale du composant) : le centre
-// du curseur ne balaie que [SLIDER_PADDING + THUMB_SIZE/2, largeur -
-// (SLIDER_PADDING + THUMB_SIZE/2)], jamais les bords 0 et largeur — sans quoi
-// les graduations extrêmes paraissent décalées vers l'extérieur par rapport
-// aux positions atteignables du curseur.
+// du curseur ne balaie que [THUMB_SIZE/2, largeur - THUMB_SIZE/2], jamais les
+// bords 0 et largeur — sans quoi les graduations extrêmes paraissent
+// décalées vers l'extérieur par rapport aux positions atteignables du
+// curseur.
 type StepRulerProps = {
     min: number
     max: number
@@ -47,7 +43,7 @@ type StepRulerProps = {
 const StepRuler = ({ min, max, step, suffix = "" }: StepRulerProps) => {
     const [width, setWidth] = useState(0)
     const values = stepValues(min, max, step)
-    const inset = SLIDER_PADDING + THUMB_SIZE / 2
+    const inset = THUMB_SIZE / 2
     const travel = Math.max(1, width - inset * 2)
 
     return (
@@ -286,10 +282,10 @@ export const LobbySettingsModal = ({
                                     Manche automatique
                                 </Text>
                             </View>
-                            <Switch
+                            <SettingsSwitch
                                 value={!manualAdvance}
                                 onValueChange={(value) => setManualAdvance(!value)}
-                                trackColor={{ true: accentColor }}
+                                accentColor={accentColor}
                                 thumbColor={COLORS.white}
                             />
                         </View>
