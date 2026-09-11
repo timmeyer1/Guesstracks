@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import './global.css';
 import { AuthNavigator } from './app/navigation/Navigator';
@@ -7,8 +8,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { setAudioModeAsync } from 'expo-audio';
 import { ErrorBoundary } from './app/components/ErrorBoundary';
 import { StandaloneGate } from './app/components/StandaloneGate';
+import { LoadingSpinner } from './app/components/LoadingSpinner';
 import { setupWebAudioUnlock } from './app/core/webAudioUnlock';
 import { useRobustKeepAwake } from './app/core/hooks/useRobustKeepAwake';
+import { useStoresHydrated } from './app/core/hooks/useStoresHydrated';
 
 
 export default function App() {
@@ -20,6 +23,12 @@ export default function App() {
   // suffisait pas sur web (confirmé en conditions réelles, iPhone ET
   // Android : l'écran finissait quand même par s'éteindre).
   useRobustKeepAwake();
+
+  // tant que la session persistée (cf. useStoresHydrated) n'a pas fini
+  // d'être relue depuis le stockage local, isAuthenticated vaut encore false
+  // par défaut : rendre AuthNavigator avant ça ferait flasher l'écran de
+  // connexion même pour un utilisateur déjà connecté
+  const storesHydrated = useStoresHydrated();
 
   // rien n'était configuré ici jusqu'à présent : le mode audio par défaut
   // d'expo-audio peut, sur Android, refuser silencieusement le focus audio
@@ -53,7 +62,13 @@ export default function App() {
       <SafeAreaProvider>
         <ErrorBoundary>
           <StandaloneGate>
-            <AuthNavigator />
+            {storesHydrated ? (
+              <AuthNavigator />
+            ) : (
+              <View className="flex-1 items-center justify-center bg-gray-50">
+                <LoadingSpinner size={32} />
+              </View>
+            )}
           </StandaloneGate>
         </ErrorBoundary>
         <StatusBar style="dark" />

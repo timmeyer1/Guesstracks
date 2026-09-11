@@ -29,6 +29,16 @@
       "expo-image",
       "expo-status-bar",
       "expo-web-browser",
+      "expo-document-picker",
+      "expo-file-system",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cette app a besoin d'accéder à tes photos pour choisir une image de profil.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-splash-screen",
         {

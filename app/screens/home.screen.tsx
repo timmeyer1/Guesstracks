@@ -31,6 +31,9 @@ export const HomeScreen = () => {
         const loadTracks = async () => {
             try {
                 const { user: currentUser, token } = useAuthStore.getState()
+                // titres déjà chargés depuis le fichier CSV à la connexion
+                // (cf. login.screen.tsx) : aucune API externe à interroger
+                if (currentUser?.provider === 'csv') return
                 let total: number
                 if (currentUser?.provider === 'deezer') {
                     // avec token : connexion OAuth ("me", cf. modules/auth/deezer.ts,
@@ -58,7 +61,18 @@ export const HomeScreen = () => {
             "Es-tu sûr de vouloir te déconnecter ?",
             [
                 { text: "Annuler", style: "cancel" },
-                { text: "Oui", onPress: logoutFn },
+                {
+                    text: "Oui",
+                    onPress: () => {
+                        logoutFn()
+                        // logout() (cf. auth.store.ts) ne vide que la session : les titres
+                        // likés (persistés eux aussi, cf. tracks.store.ts) ne sont rattachés
+                        // à aucun compte, donc les vider explicitement ici plutôt que d'en
+                        // laisser une session précédente traîner jusqu'à la prochaine connexion
+                        useTrackStore.getState().setLikedTracks([])
+                        useTrackStore.getState().setTotalTracks(0)
+                    },
+                },
             ],
             { cancelable: true }
         )

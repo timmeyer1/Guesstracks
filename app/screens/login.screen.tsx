@@ -1,17 +1,23 @@
 import React, { useState } from "react";
-import { Text, View, Image } from "react-native";
+import { Text, View, Image, Linking } from "react-native";
 import { getSpotifyUserProfile, loginWithSpotify } from "../modules/auth/spotify";
+import { importTracksFromCsv, type CsvImportResult } from "../modules/auth/csv";
 import { useAuthStore } from "../stores/auth.store";
 import { useTrackStore } from "../stores/tracks.store";
 import { spotifyService } from "../modules/spotify";
 import { deezerService, extractDeezerProfileId } from "../modules/deezer";
 import { CustomButton } from "../components/Button";
+import { IconButton } from "../components/IconButton";
 import { ScreenLayout } from "../components/ScreenLayout";
 import { SectionTitle } from "../components/SectionTitle";
 import { DeezerProfileModal } from "../components/auth/DeezerProfileModal";
+import { CsvProfileModal } from "../components/auth/CsvProfileModal";
+import { Alert } from "../core/alert";
 import type { TrackType } from "../core/types";
 
-type Provider = 'spotify' | 'deezer';
+const TUNEMYMUSIC_URL = 'https://www.tunemymusic.com/fr/transfer';
+
+type Provider = 'spotify' | 'deezer' | 'csv';
 
 export const LoginScreen = () => {
     const setToken = useAuthStore((s) => s.setToken);
@@ -20,6 +26,8 @@ export const LoginScreen = () => {
     const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
     const [isDeezerModalVisible, setIsDeezerModalVisible] = useState(false);
     const [deezerModalError, setDeezerModalError] = useState<string | undefined>(undefined);
+    const [isCsvModalVisible, setIsCsvModalVisible] = useState(false);
+    const [pendingCsvImport, setPendingCsvImport] = useState<CsvImportResult | null>(null);
 
     // commun aux deux providers : pose le profil + les titres likés puis
     // bascule isAuthenticated en dernier (une fois les titres likés en place)
@@ -139,6 +147,64 @@ export const LoginScreen = () => {
         }
     };
 
+    const handleOpenTuneMyMusic = () => {
+        Linking.openURL(TUNEMYMUSIC_URL);
+    };
+
+    const handleCsvImportResult = (imported: CsvImportResult | null) => {
+        if (!imported) return; // sélection annulée
+        setPendingCsvImport(imported);
+        setIsCsvModalVisible(true);
+
+        // au-delà de 5000 titres, le reste du fichier est ignoré (même limite
+        // que côté serveur, cf. modules/auth/csv.ts) : sans ce message,
+        // l'utilisateur croirait que toute sa bibliothèque a été importée
+        if (imported.truncated) {
+            Alert.alert(
+                'Bibliothèque tronquée',
+                `Seuls les ${imported.total} premiers titres du fichier ont été importés (limite de 5000).`
+            );
+        }
+    };
+
+    const handleUploadCsv = async () => {
+        if (loadingProvider) return;
+        setLoadingProvider('csv');
+
+        try {
+            handleCsvImportResult(await importTracksFromCsv());
+        } catch (error) {
+            console.error(error);
+            Alert.alert(
+                'Fichier CSV invalide',
+                error instanceof Error ? error.message : 'Impossible de lire ce fichier CSV'
+            );
+        } finally {
+            setLoadingProvider(null);
+        }
+    };
+
+    const handleCsvProfileConfirm = (pseudo: string, img: string | null) => {
+        if (!pendingCsvImport) return;
+
+        finalizeLogin(
+            'csv',
+            {
+                display_name: pseudo,
+                id: `csv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                email: '',
+                img,
+                account_type: 'csv',
+            },
+            pendingCsvImport.tracks,
+            pendingCsvImport.total
+        );
+
+        setIsCsvModalVisible(false);
+        setPendingCsvImport(null);
+        console.log('✅ Connexion Fichier CSV réussie');
+    };
+
     return (
         <ScreenLayout>
             <View className="flex-1 justify-center items-center w-full">
@@ -155,6 +221,24 @@ export const LoginScreen = () => {
                         size="xl"
                         className="py-4"
                     />
+
+                                        <View className="flex-row gap-2.5">
+                        <View className="flex-1">
+                            <CustomButton
+                                name="CSV via TuneMyMusic"
+                                onPress={handleOpenTuneMyMusic}
+                                variant="white"
+                                available={!loadingProvider}
+                            />
+                        </View>
+                        <IconButton
+                            iconFA="download"
+                            onPress={handleUploadCsv}
+                            variant="white"
+                            size="sm"
+                            className={loadingProvider === 'csv' ? 'opacity-40' : ''}
+                        />
+                    </View>
 
                     <CustomButton
                         name={loadingProvider === 'spotify' ? "Connexion..." : "Spotify"}
@@ -175,7 +259,7 @@ export const LoginScreen = () => {
                         variant="deezer"
                         available={!loadingProvider}
                     />
-                    
+
                     <CustomButton
                         name="Apple Music"
                         iconFA="apple"
@@ -185,13 +269,13 @@ export const LoginScreen = () => {
                     />
 
 
-                    <CustomButton
+                    {/* <CustomButton
                         name="Youtube Music"
                         iconFA="youtube"
                         onPress={() => console.log("Youtube Music")}
                         variant="youtube_music"
                         available={false}
-                    />
+                    /> */}
 
                     {/* déplacé ici (dans le même bloc que les boutons, avant
                     c'était un sibling du bloc entier) : posé en dehors, son
@@ -216,6 +300,15 @@ export const LoginScreen = () => {
                 error={deezerModalError}
                 onInputChange={() => setDeezerModalError(undefined)}
                 isSubmitting={loadingProvider === 'deezer'}
+            />
+
+            <CsvProfileModal
+                visible={isCsvModalVisible}
+                onClose={() => {
+                    setIsCsvModalVisible(false);
+                    setPendingCsvImport(null);
+                }}
+                onConfirm={handleCsvProfileConfirm}
             />
 
         </ScreenLayout>

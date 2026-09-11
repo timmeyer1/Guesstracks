@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { persistedStorage } from '../core/persistedStorage';
 
 type AuthStore = {
     token: string | null;
@@ -17,7 +19,7 @@ type AuthStore = {
         email: string;
         img: string | null;
         account_type: string;
-        provider: 'spotify' | 'deezer';
+        provider: 'spotify' | 'deezer' | 'csv';
     } | null;
     setUser: (user: {
         display_name: string;
@@ -25,16 +27,35 @@ type AuthStore = {
         email: string;
         img: string | null;
         account_type: string;
-        provider: 'spotify' | 'deezer';
+        provider: 'spotify' | 'deezer' | 'csv';
     }) => void;
 };
 
-export const useAuthStore = create<AuthStore>((set) => ({
-    token: null,
-    isAuthenticated: false,
-    setToken: (token) => set({ token }),
-    setAuthenticated: (value) => set({ isAuthenticated: value }),
-    logout: () => set({ token: null, isAuthenticated: false }),
-    user: null,
-    setUser: (user) => set({ user }),
-}));
+// persisté (cf. persistedStorage.ts) pour que l'utilisateur retrouve sa
+// session (moyen de connexion, profil) d'une visite à l'autre sans avoir à se
+// reconnecter — le token Spotify expiré (1h) n'est pas géré ici : l'intercepteur
+// 401 d'apiClient (cf. core/api/client.ts) appelle déjà logout() tout seul
+// dès le premier appel API qui échoue, ce qui renvoie proprement vers l'écran
+// de connexion (cf. Navigator.tsx, isAuthenticated)
+export const useAuthStore = create<AuthStore>()(
+    persist(
+        (set) => ({
+            token: null,
+            isAuthenticated: false,
+            setToken: (token) => set({ token }),
+            setAuthenticated: (value) => set({ isAuthenticated: value }),
+            logout: () => set({ token: null, isAuthenticated: false, user: null }),
+            user: null,
+            setUser: (user) => set({ user }),
+        }),
+        {
+            name: 'guesstracks-auth',
+            storage: persistedStorage,
+            partialize: (state) => ({
+                token: state.token,
+                isAuthenticated: state.isAuthenticated,
+                user: state.user,
+            }),
+        }
+    )
+);

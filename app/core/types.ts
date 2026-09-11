@@ -5,7 +5,7 @@ export type TrackType = {
     album: string;
     image?: string;
     previewUrl?: string | null;
-    provider: 'spotify' | 'deezer' | 'applemusic';
+    provider: 'spotify' | 'deezer' | 'applemusic' | 'csv';
 };
 
 

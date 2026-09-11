@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import {TrackType} from "../core/types";
+import { persist } from 'zustand/middleware';
+import { TrackType } from "../core/types";
+import { persistedStorage } from '../core/persistedStorage';
 
 type TrackStoreType = {
     likedTracks: TrackType[];
@@ -8,9 +10,22 @@ type TrackStoreType = {
     totalTracks: number;
 };
 
-export const useTrackStore = create<TrackStoreType>((set) => ({
-    likedTracks: [],
-    setLikedTracks: (tracks) => set({ likedTracks: tracks }),
-    setTotalTracks: (totalTracks) => set({ totalTracks: totalTracks }),
-    totalTracks:0
-}));
+// persisté avec auth.store (cf. persistedStorage.ts) : likedTracks n'est
+// rempli qu'une fois, à la connexion (cf. login.screen.tsx, finalizeLogin) et
+// jamais rechargé depuis une API ensuite — sans persistance, une session
+// restaurée après redémarrage de l'app aurait un utilisateur "connecté" mais
+// 0 titre à soumettre au lobby (cf. game.service.ts, submitMyTracks)
+export const useTrackStore = create<TrackStoreType>()(
+    persist(
+        (set) => ({
+            likedTracks: [],
+            setLikedTracks: (tracks) => set({ likedTracks: tracks }),
+            setTotalTracks: (totalTracks) => set({ totalTracks: totalTracks }),
+            totalTracks: 0
+        }),
+        {
+            name: 'guesstracks-tracks',
+            storage: persistedStorage,
+        }
+    )
+);
