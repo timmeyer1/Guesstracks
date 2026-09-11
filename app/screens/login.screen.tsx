@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Text, View, Image, Linking } from "react-native";
+import { Text, View, Image } from "react-native";
 import { getSpotifyUserProfile, loginWithSpotify } from "../modules/auth/spotify";
 import { importTracksFromCsv, type CsvImportResult } from "../modules/auth/csv";
 import { useAuthStore } from "../stores/auth.store";
@@ -12,10 +12,9 @@ import { ScreenLayout } from "../components/ScreenLayout";
 import { SectionTitle } from "../components/SectionTitle";
 import { DeezerProfileModal } from "../components/auth/DeezerProfileModal";
 import { CsvProfileModal } from "../components/auth/CsvProfileModal";
+import { TuneMyMusicInstructionsModal } from "../components/auth/TuneMyMusicInstructionsModal";
 import { Alert } from "../core/alert";
 import type { TrackType } from "../core/types";
-
-const TUNEMYMUSIC_URL = 'https://www.tunemymusic.com/fr/transfer';
 
 type Provider = 'spotify' | 'deezer' | 'csv';
 
@@ -28,6 +27,7 @@ export const LoginScreen = () => {
     const [deezerModalError, setDeezerModalError] = useState<string | undefined>(undefined);
     const [isCsvModalVisible, setIsCsvModalVisible] = useState(false);
     const [pendingCsvImport, setPendingCsvImport] = useState<CsvImportResult | null>(null);
+    const [isTuneMyMusicInfoVisible, setIsTuneMyMusicInfoVisible] = useState(false);
 
     // commun aux deux providers : pose le profil + les titres likés puis
     // bascule isAuthenticated en dernier (une fois les titres likés en place)
@@ -148,7 +148,7 @@ export const LoginScreen = () => {
     };
 
     const handleOpenTuneMyMusic = () => {
-        Linking.openURL(TUNEMYMUSIC_URL);
+        setIsTuneMyMusicInfoVisible(true);
     };
 
     const handleCsvImportResult = (imported: CsvImportResult | null) => {
@@ -309,6 +309,11 @@ export const LoginScreen = () => {
                     setPendingCsvImport(null);
                 }}
                 onConfirm={handleCsvProfileConfirm}
+            />
+
+            <TuneMyMusicInstructionsModal
+                visible={isTuneMyMusicInfoVisible}
+                onClose={() => setIsTuneMyMusicInfoVisible(false)}
             />
 
         </ScreenLayout>
