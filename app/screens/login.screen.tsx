@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Text, View, Image } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { getSpotifyUserProfile, loginWithSpotify } from "../modules/auth/spotify";
 import { importTracksFromCsv, type CsvImportResult } from "../modules/auth/csv";
 import { useAuthStore } from "../stores/auth.store";
 import { useTrackStore } from "../stores/tracks.store";
+import { useManualTrackPickerStore } from "../stores/manualTrackPicker.store";
 import { spotifyService } from "../modules/spotify";
 import { deezerService, extractDeezerProfileId } from "../modules/deezer";
 import { CustomButton } from "../components/Button";
@@ -12,22 +14,32 @@ import { ScreenLayout } from "../components/ScreenLayout";
 import { SectionTitle } from "../components/SectionTitle";
 import { DeezerProfileModal } from "../components/auth/DeezerProfileModal";
 import { CsvProfileModal } from "../components/auth/CsvProfileModal";
-import { TuneMyMusicInstructionsModal } from "../components/auth/TuneMyMusicInstructionsModal";
+import { UniversalLoginChoiceModal } from "../components/auth/UniversalLoginChoiceModal";
+import { CsvImportInstructionsModal } from "../components/auth/CsvImportInstructionsModal";
 import { Alert } from "../core/alert";
 import type { TrackType } from "../core/types";
 
-type Provider = 'spotify' | 'deezer' | 'csv';
+type Provider = 'spotify' | 'deezer' | 'csv' | 'manual';
+
+// bibliothèque en attente de profil (pseudo + photo, cf. CsvProfileModal) :
+// commune aux deux étapes finales de la connexion universelle (choix manuel
+// des titres ou import CSV, cf. UniversalLoginChoiceModal) puisqu'elles
+// aboutissent toutes deux au même écran de profil
+type PendingLibrary = { provider: 'csv' | 'manual'; tracks: TrackType[]; total: number };
 
 export const LoginScreen = () => {
+    const navigation = useNavigation();
     const setToken = useAuthStore((s) => s.setToken);
     const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
     const { setLikedTracks, setTotalTracks } = useTrackStore.getState();
     const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null);
     const [isDeezerModalVisible, setIsDeezerModalVisible] = useState(false);
     const [deezerModalError, setDeezerModalError] = useState<string | undefined>(undefined);
-    const [isCsvModalVisible, setIsCsvModalVisible] = useState(false);
-    const [pendingCsvImport, setPendingCsvImport] = useState<CsvImportResult | null>(null);
-    const [isTuneMyMusicInfoVisible, setIsTuneMyMusicInfoVisible] = useState(false);
+    const [isProfileModalVisible, setIsProfileModalVisible] = useState(false);
+    const [pendingLibrary, setPendingLibrary] = useState<PendingLibrary | null>(null);
+    const [isUniversalChoiceVisible, setIsUniversalChoiceVisible] = useState(false);
+    const [isCsvInstructionsVisible, setIsCsvInstructionsVisible] = useState(false);
+    const manualPickerResult = useManualTrackPickerStore((s) => s.result);
 
     // commun aux deux providers : pose le profil + les titres likés puis
     // bascule isAuthenticated en dernier (une fois les titres likés en place)
@@ -147,14 +159,46 @@ export const LoginScreen = () => {
         }
     };
 
-    const handleOpenTuneMyMusic = () => {
-        setIsTuneMyMusicInfoVisible(true);
+    // ouvre le choix entre composer sa bibliothèque à la main ou l'importer
+    // d'un fichier CSV (cf. UniversalLoginChoiceModal) — première étape de la
+    // "Connexion universelle", pour les joueurs sans compte Spotify/Deezer
+    const handleOpenUniversalLogin = () => {
+        setIsUniversalChoiceVisible(true);
     };
 
+    const handleChooseManualTracks = () => {
+        setIsUniversalChoiceVisible(false);
+        navigation.navigate('ManualTrackPicker');
+    };
+
+    const handleChooseCsvImport = () => {
+        setIsUniversalChoiceVisible(false);
+        setIsCsvInstructionsVisible(true);
+    };
+
+    const handleManualTracksConfirm = (tracks: TrackType[]) => {
+        setPendingLibrary({ provider: 'manual', tracks, total: tracks.length });
+        setIsProfileModalVisible(true);
+    };
+
+    // ManualTrackPickerScreen (poussé sur la pile, cf. Navigator.tsx) reste
+    // au-dessus de cet écran tant qu'il est ouvert : cet écran-ci reste monté
+    // en dessous et continue de recevoir les mises à jour du store — dès que
+    // l'utilisateur valide sa sélection là-bas et revient (goBack), ce store
+    // porte le résultat et cet effet prend le relais, comme le ferait un
+    // onConfirm de modale classique (cf. useManualTrackPickerStore)
+    useEffect(() => {
+        if (!manualPickerResult) return;
+        handleManualTracksConfirm(manualPickerResult);
+        useManualTrackPickerStore.getState().clear();
+    }, [manualPickerResult]);
+
     const handleCsvImportResult = (imported: CsvImportResult | null) => {
-        if (!imported) return; // sélection annulée
-        setPendingCsvImport(imported);
-        setIsCsvModalVisible(true);
+        if (!imported) return; // sélection annulée, on reste sur les instructions
+
+        setPendingLibrary({ provider: 'csv', tracks: imported.tracks, total: imported.total });
+        setIsCsvInstructionsVisible(false);
+        setIsProfileModalVisible(true);
 
         // au-delà de 5000 titres, le reste du fichier est ignoré (même limite
         // que côté serveur, cf. modules/auth/csv.ts) : sans ce message,
@@ -184,25 +228,25 @@ export const LoginScreen = () => {
         }
     };
 
-    const handleCsvProfileConfirm = (pseudo: string, img: string | null) => {
-        if (!pendingCsvImport) return;
+    const handleLibraryProfileConfirm = (pseudo: string, img: string | null) => {
+        if (!pendingLibrary) return;
 
         finalizeLogin(
-            'csv',
+            pendingLibrary.provider,
             {
                 display_name: pseudo,
-                id: `csv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                id: `${pendingLibrary.provider}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 email: '',
                 img,
-                account_type: 'csv',
+                account_type: pendingLibrary.provider,
             },
-            pendingCsvImport.tracks,
-            pendingCsvImport.total
+            pendingLibrary.tracks,
+            pendingLibrary.total
         );
 
-        setIsCsvModalVisible(false);
-        setPendingCsvImport(null);
-        console.log('✅ Connexion Fichier CSV réussie');
+        setIsProfileModalVisible(false);
+        setPendingLibrary(null);
+        console.log(`✅ Connexion universelle (${pendingLibrary.provider}) réussie`);
     };
 
     return (
@@ -222,22 +266,16 @@ export const LoginScreen = () => {
                         className="py-4"
                     />
 
-                                        <View className="flex-row gap-2.5">
+                    <View className="flex-row gap-2.5">
                         <View className="flex-1">
                             <CustomButton
-                                name="CSV via TuneMyMusic"
-                                onPress={handleOpenTuneMyMusic}
+                                name="Connexion universelle"
+                                iconFA="arrow-right-to-bracket"
+                                onPress={handleOpenUniversalLogin}
                                 variant="white"
                                 available={!loadingProvider}
                             />
                         </View>
-                        <IconButton
-                            iconFA="download"
-                            onPress={handleUploadCsv}
-                            variant="white"
-                            size="sm"
-                            className={loadingProvider === 'csv' ? 'opacity-40' : ''}
-                        />
                     </View>
 
                     <CustomButton
@@ -303,17 +341,26 @@ export const LoginScreen = () => {
             />
 
             <CsvProfileModal
-                visible={isCsvModalVisible}
+                visible={isProfileModalVisible}
                 onClose={() => {
-                    setIsCsvModalVisible(false);
-                    setPendingCsvImport(null);
+                    setIsProfileModalVisible(false);
+                    setPendingLibrary(null);
                 }}
-                onConfirm={handleCsvProfileConfirm}
+                onConfirm={handleLibraryProfileConfirm}
             />
 
-            <TuneMyMusicInstructionsModal
-                visible={isTuneMyMusicInfoVisible}
-                onClose={() => setIsTuneMyMusicInfoVisible(false)}
+            <UniversalLoginChoiceModal
+                visible={isUniversalChoiceVisible}
+                onClose={() => setIsUniversalChoiceVisible(false)}
+                onChooseManual={handleChooseManualTracks}
+                onChooseCsvImport={handleChooseCsvImport}
+            />
+
+            <CsvImportInstructionsModal
+                visible={isCsvInstructionsVisible}
+                onClose={() => setIsCsvInstructionsVisible(false)}
+                onImport={handleUploadCsv}
+                isImporting={loadingProvider === 'csv'}
             />
 
         </ScreenLayout>

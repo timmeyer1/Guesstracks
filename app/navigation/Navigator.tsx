@@ -2,6 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { LoginScreen } from '../screens/login.screen';
+import { ManualTrackPickerScreen } from '../screens/manualTrackPicker.screen';
 import { HomeScreen } from '../screens/home.screen';
 import { useAuthStore } from '../stores/auth.store';
 import LobbyScreen from "../screens/lobby.screen";
@@ -10,6 +11,7 @@ import { navigationRef } from "./navigationRef";
 
 export type RootStackParamList = {
     Login: undefined
+    ManualTrackPicker: undefined
     Home: undefined
     Lobby: undefined
     Game: undefined
@@ -42,8 +44,11 @@ export const AuthNavigator = () => {
                 }}
             >
                 {!isAuthenticated ? (
-                    // écran de déconnexion : fondu plutôt que glissement
-                    <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
+                    <>
+                        {/* écran de déconnexion : fondu plutôt que glissement */}
+                        <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
+                        <Stack.Screen name="ManualTrackPicker" component={ManualTrackPickerScreen} />
+                    </>
                 ) : (
                     <>
                         {/* Home est la destination de "Quitter le lobby" / retour après

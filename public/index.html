@@ -86,6 +86,9 @@
         // l'app). Se met à jour vers le haut si une mesure ultérieure plus
         // grande arrive (auto-correction), jamais vers le bas hors clavier.
         var maxObservedHeight = 0;
+        // dernière hauteur réellement appliquée à <html> : sert de garde-fou
+        // ci-dessous (cf. setRealViewportHeight)
+        var lastAppliedHeight = 0;
 
         // le clavier ne peut être affiché que si un champ a le focus : sert à
         // savoir s'il faut faire confiance à visualViewport.height (clavier
@@ -119,15 +122,32 @@
           }
 
           var h = keyboardOpen || !maxObservedHeight ? measured : maxObservedHeight;
-          document.documentElement.style.height = h + 'px';
+
+          // ne réapplique la hauteur que si elle a RÉELLEMENT changé. Sans ce
+          // garde-fou : le listener 'scroll' du visual viewport plus bas
+          // (à l'origine pour le scroll-into-view automatique du champ
+          // focalisé) se déclenche aussi, sur iOS, pendant le scroll d'une
+          // liste interne (ex: SectionList) quand le clavier est ouvert —
+          // measured vaut alors quasiment toujours la même chose d'un appel à
+          // l'autre, mais réécrire documentElement.style.height à l'identique
+          // force quand même un reflow de toute la page à chaque frame de
+          // scroll, ce qui se voit comme un tremblement/retour en arrière
+          // (constaté en pratique, cf. app/screens/manualTrackPicker.screen.tsx).
+          if (h !== lastAppliedHeight) {
+            document.documentElement.style.height = h + 'px';
+            lastAppliedHeight = h;
+          }
 
           // iOS Safari a son propre comportement "scroll le champ focalisé
           // dans la vue" quand un <input>/<TextInput> reçoit le focus : ça
           // décale toute la page (document/body), MÊME avec overflow:hidden
           // sur body (bug connu de longue date sur iOS). On neutralise ce
-          // scroll systématiquement, à chaque resize ET scroll du visual
-          // viewport (donc à l'ouverture ET à la fermeture du clavier).
-          window.scrollTo(0, 0);
+          // scroll à l'ouverture ET à la fermeture du clavier — mais
+          // uniquement s'il a réellement eu lieu (le même souci de reflow
+          // superflu que ci-dessus s'applique à un scrollTo inconditionnel).
+          if (window.scrollX !== 0 || window.scrollY !== 0) {
+            window.scrollTo(0, 0);
+          }
         }
 
         // le focus/blur d'un champ ne déclenche pas toujours un resize/scroll

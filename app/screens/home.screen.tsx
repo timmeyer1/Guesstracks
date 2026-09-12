@@ -31,9 +31,11 @@ export const HomeScreen = () => {
         const loadTracks = async () => {
             try {
                 const { user: currentUser, token } = useAuthStore.getState()
-                // titres déjà chargés depuis le fichier CSV à la connexion
-                // (cf. login.screen.tsx) : aucune API externe à interroger
-                if (currentUser?.provider === 'csv') return
+                // titres déjà chargés à la connexion (fichier CSV importé, ou
+                // choisis un par un à la main, cf. login.screen.tsx) : aucune
+                // API externe à interroger, ni pour les récupérer ni pour en
+                // rafraîchir le total
+                if (currentUser?.provider === 'csv' || currentUser?.provider === 'manual') return
                 let total: number
                 if (currentUser?.provider === 'deezer') {
                     // avec token : connexion OAuth ("me", cf. modules/auth/deezer.ts,

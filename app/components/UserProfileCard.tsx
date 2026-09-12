@@ -6,7 +6,7 @@ type UserProfileCardProps = {
     name?: string;
     img?: string | null;
     totalTracks: number;
-    provider?: 'spotify' | 'deezer' | 'csv';
+    provider?: 'spotify' | 'deezer' | 'csv' | 'manual';
 };
 
 const PROVIDER_LABELS: Record<'spotify' | 'deezer', string> = {
@@ -74,6 +74,8 @@ export const UserProfileCard = ({ name, img, totalTracks, provider }: UserProfil
                 <Text className="text-base text-darkgray bg-offwhite p-2 rounded-2xl">
                     {provider === 'csv'
                         ? 'Fichier CSV'
+                        : provider === 'manual'
+                        ? 'Titres choisis'
                         : `Connecté via ${provider ? PROVIDER_LABELS[provider] : 'Spotify'}`}
                 </Text>
                 <View className="w-1.5 h-1.5 rounded-full bg-gray-600" />

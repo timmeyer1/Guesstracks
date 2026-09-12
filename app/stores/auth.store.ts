@@ -19,7 +19,7 @@ type AuthStore = {
         email: string;
         img: string | null;
         account_type: string;
-        provider: 'spotify' | 'deezer' | 'csv';
+        provider: 'spotify' | 'deezer' | 'csv' | 'manual';
     } | null;
     setUser: (user: {
         display_name: string;
@@ -27,7 +27,7 @@ type AuthStore = {
         email: string;
         img: string | null;
         account_type: string;
-        provider: 'spotify' | 'deezer' | 'csv';
+        provider: 'spotify' | 'deezer' | 'csv' | 'manual';
     }) => void;
 };
 

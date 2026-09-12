@@ -52,15 +52,13 @@ const lobbyLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 })
-const authLimiter = rateLimit({
-    windowMs: 60_000,
-    max: 10, // 10 requêtes/min/IP sur l'échange de token OAuth
-    standardHeaders: true,
-    legacyHeaders: false,
-})
 
 app.use('/api', lobbyLimiter, createLobbyRouter(io))
-app.use('/api/auth', authLimiter, createAuthRouter())
+// limites appliquées par route à l'intérieur du router (cf. auth.routes.js) :
+// l'échange de token OAuth et la recherche de titres à la frappe n'ont pas du
+// tout le même profil d'usage, une seule limite au niveau du router aurait
+// forcément été trop stricte pour l'une des deux routes
+app.use('/api/auth', createAuthRouter())
 
 app.use((req, res) => {
     res.status(404).json({ error: 'Route introuvable' })

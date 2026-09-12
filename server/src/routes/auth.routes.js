@@ -1,4 +1,6 @@
 import { Router } from 'express'
+import rateLimit from 'express-rate-limit'
+import { searchTracksGroupedByAlbum } from '../services/deezer.service.js'
 
 export class AuthError extends Error {
     constructor(message, status = 400) {
@@ -9,6 +11,25 @@ export class AuthError extends Error {
 
 const DEEZER_TOKEN_URL = 'https://connect.deezer.com/oauth/access_token.php'
 
+// échange OAuth : rare et déjà protégé par le code éphémère Deezer lui-même,
+// une limite serrée n'entrave donc aucun usage légitime
+const tokenLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 10, // 10 requêtes/min/IP
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+// recherche à la frappe (cf. app/components/auth/ManualTrackPickerModal.tsx) :
+// plusieurs requêtes par utilisateur en quelques secondes le temps de taper
+// une recherche, une limite aussi stricte que tokenLimiter la bloquerait
+// avant même une seule recherche complète
+const searchLimiter = rateLimit({
+    windowMs: 60_000,
+    max: 30, // 30 requêtes/min/IP
+    standardHeaders: true,
+    legacyHeaders: false,
+})
+
 // Deezer n'expose pas de flux PKCE pour client public (contrairement à
 // Spotify, cf. app/modules/auth/spotify.ts) : l'échange code -> token exige
 // le secret d'app Deezer, qui ne doit donc jamais être embarqué côté mobile.
@@ -16,7 +37,7 @@ const DEEZER_TOKEN_URL = 'https://connect.deezer.com/oauth/access_token.php'
 export const createAuthRouter = () => {
     const router = Router()
 
-    router.post('/deezer/token', async (req, res, next) => {
+    router.post('/deezer/token', tokenLimiter, async (req, res, next) => {
         try {
             const { code, redirectUri } = req.body
 
@@ -60,6 +81,25 @@ export const createAuthRouter = () => {
             }
 
             res.json({ access_token: data.access_token, expires: data.expires ?? 0 })
+        } catch (err) {
+            next(err)
+        }
+    })
+
+    // recherche de titres dans le catalogue Deezer, groupée par album et
+    // proxyée côté serveur (cf. deezer.service.js/searchTracksGroupedByAlbum
+    // pour le pourquoi) — utilisée par la connexion universelle pour laisser
+    // un joueur choisir lui-même ses titres, sans compte streaming
+    router.get('/search-tracks', searchLimiter, async (req, res, next) => {
+        try {
+            const { q } = req.query
+
+            if (typeof q !== 'string' || !q.trim()) {
+                return res.json({ albums: [], similarArtists: [] })
+            }
+
+            const { albums, similarArtists } = await searchTracksGroupedByAlbum(q)
+            res.json({ albums, similarArtists })
         } catch (err) {
             next(err)
         }
