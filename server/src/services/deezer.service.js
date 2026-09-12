@@ -140,6 +140,31 @@ const normalize = (value) =>
         .toLowerCase()
         .trim()
 
+// Deezer liste parfois DEUX albums distincts (ids différents) pour un même
+// titre — une réédition/version deluxe avec son propre id, listée à côté de
+// l'originale (constaté en pratique : "Polak" de PLK sort deux fois dans
+// /artist/{id}/albums, 2018-10-05 puis 2019-02-01, cette dernière avec des
+// titres bonus). `key` permet d'inclure l'artiste dans la clé quand plusieurs
+// artistes différents sont mélangés (cf. la recherche générique dans
+// searchTracksGroupedByAlbum) : sans ça, deux albums same-titre d'artistes
+// DIFFÉRENTS (coïncidence rare mais possible) fusionneraient à tort. Entre
+// deux doublons, garde celui à la date de sortie la plus récente quand elle
+// est connue (une réédition est toujours postérieure et au moins aussi
+// complète que l'originale — cf. exemple ci-dessus) ; sinon le premier
+// rencontré (déjà dans l'ordre de pertinence Deezer).
+const dedupeAlbumsByTitle = (albums, { key = (a) => normalize(a.title) } = {}) => {
+    const byKey = new Map()
+    for (const album of albums) {
+        const k = key(album)
+        const existing = byKey.get(k)
+        const bothDated = album.release_date && existing?.release_date
+        if (!existing || (bothDated && `${album.release_date}` > `${existing.release_date}`)) {
+            byKey.set(k, album)
+        }
+    }
+    return [...byKey.values()]
+}
+
 // commun aux deux stratégies de recherche ci-dessous : résout la tracklist
 // complète de chaque album repéré, dans son ordre officiel
 const buildAlbumsWithTracks = async (albumEntries) => {
@@ -265,7 +290,7 @@ export const searchTracksGroupedByAlbum = async (query) => {
     const similarArtistsPromise = topArtist ? fetchRelatedArtists(topArtist.id) : Promise.resolve([])
 
     if (matchedArtist) {
-        const rawAlbums = await fetchArtistAlbums(matchedArtist.id)
+        const rawAlbums = dedupeAlbumsByTitle(await fetchArtistAlbums(matchedArtist.id))
         const albumEntries = rawAlbums.map((album) => ({
             id: String(album.id),
             title: album.title,
@@ -276,8 +301,10 @@ export const searchTracksGroupedByAlbum = async (query) => {
         return { albums, similarArtists }
     }
 
-    // dédoublonne par album, en gardant l'ordre d'apparition (= pertinence
-    // Deezer pour cette requête)
+    // dédoublonne par album (id), en gardant l'ordre d'apparition (=
+    // pertinence Deezer pour cette requête), PUIS par titre+artiste (cf.
+    // dedupeAlbumsByTitle) : deux ids distincts peuvent encore désigner le
+    // même titre pour le même artiste (réédition listée à part)
     const albumsById = new Map()
     for (const item of items) {
         const albumId = item.album?.id
@@ -290,9 +317,12 @@ export const searchTracksGroupedByAlbum = async (query) => {
         })
         if (albumsById.size >= MAX_ALBUMS_PER_SEARCH) break
     }
+    const dedupedAlbumEntries = dedupeAlbumsByTitle([...albumsById.values()], {
+        key: (a) => `${normalize(a.artist)}::${normalize(a.title)}`,
+    })
 
     const [albums, similarArtists] = await Promise.all([
-        buildAlbumsWithTracks([...albumsById.values()]),
+        buildAlbumsWithTracks(dedupedAlbumEntries),
         similarArtistsPromise,
     ])
     return { albums, similarArtists }

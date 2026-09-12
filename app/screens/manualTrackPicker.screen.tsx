@@ -55,79 +55,162 @@ const getPrimaryArtist = (artist: string) => artist.split(FEATURED_ARTIST_SEPARA
 // charger l'image elle-même — exactement comme les pochettes d'album déjà
 // affichées ailleurs (cf. track.image).
 type DefaultArtist = { name: string; picture: string };
-// groupés par pays/région d'origine, un sous-tableau par groupe : chaque
-// groupe est affiché dans sa propre rangée qui se répartit sur autant de
-// lignes que nécessaire (cf. plus bas), donc toujours suivi d'un vrai retour
-// à la ligne avant le groupe suivant, plutôt qu'un simple ordre à plat où le
-// dernier artiste d'un pays peut se retrouver sur la même ligne que le
-// premier du pays suivant selon la largeur d'écran
-const DEFAULT_ARTIST_SUGGESTIONS: DefaultArtist[][] = [
-    [
-        // États-Unis
-        { name: 'Taylor Swift', picture: 'https://cdn-images.dzcdn.net/images/artist/e528e270424103b527f8a27ac625563b/250x250-000000-80-0-0.jpg' },
-        { name: 'Billie Eilish', picture: 'https://cdn-images.dzcdn.net/images/artist/8eab1a9a644889aabaca1e193e05f984/250x250-000000-80-0-0.jpg' },
-        { name: 'Travis Scott', picture: 'https://cdn-images.dzcdn.net/images/artist/8d8316146026d7e6ce377e314536df62/250x250-000000-80-0-0.jpg' },
-        { name: 'SZA', picture: 'https://cdn-images.dzcdn.net/images/artist/8ced041da2bed70d5715f0860956169b/250x250-000000-80-0-0.jpg' },
-        { name: 'Kendrick Lamar', picture: 'https://cdn-images.dzcdn.net/images/artist/be0a7c550567f4af0ed202d7235b74d6/250x250-000000-80-0-0.jpg' },
-        { name: 'Doja Cat', picture: 'https://cdn-images.dzcdn.net/images/artist/9e3a3b8792a04c4578da7b905ffeaf2b/250x250-000000-80-0-0.jpg' },
-        { name: 'Ariana Grande', picture: 'https://cdn-images.dzcdn.net/images/artist/721d8fab84b315502de422b8d0901509/250x250-000000-80-0-0.jpg' },
-    ],
-    [
-        // Canada
-        { name: 'Drake', picture: 'https://cdn-images.dzcdn.net/images/artist/70223888f501f4b843142e071abda364/250x250-000000-80-0-0.jpg' },
-        { name: 'The Weeknd', picture: 'https://cdn-images.dzcdn.net/images/artist/581693b4724a7fcfa754455101e13a44/250x250-000000-80-0-0.jpg' },
-        { name: 'Justin Bieber', picture: 'https://cdn-images.dzcdn.net/images/artist/fe097f693cebf1f882e3da79e99e3bf9/250x250-000000-80-0-0.jpg' },
-    ],
-    [
-        // Royaume-Uni
-        { name: 'Ed Sheeran', picture: 'https://cdn-images.dzcdn.net/images/artist/d6bb84390641d8ae9118228d9544e53d/250x250-000000-80-0-0.jpg' },
-        { name: 'Dave', picture: 'https://cdn-images.dzcdn.net/images/artist/eb2c8952b7328fdf32b3546d5ffab8c2/250x250-000000-80-0-0.jpg' },
-        { name: 'Central Cee', picture: 'https://cdn-images.dzcdn.net/images/artist/25fe719f51af3ee2de27aa267e2a6ac9/250x250-000000-80-0-0.jpg' },
-        { name: 'Stormzy', picture: 'https://cdn-images.dzcdn.net/images/artist/fbf2218aa7d8262098c19097bd10cb21/250x250-000000-80-0-0.jpg' },
-    ],
-    [
-        // France
-        { name: 'Jul', picture: 'https://cdn-images.dzcdn.net/images/artist/b1e9d9f4c65beca2e8fe0811e4e1e0aa/250x250-000000-80-0-0.jpg' },
-        { name: 'PLK', picture: 'https://cdn-images.dzcdn.net/images/artist/092f633e7111bd134419146d2b7f32ee/250x250-000000-80-0-0.jpg' },
-        { name: 'Gazo', picture: 'https://cdn-images.dzcdn.net/images/artist/d4cd3a4cdd4cc58ac5f4e9bab535e3b2/250x250-000000-80-0-0.jpg' },
-        { name: 'Ninho', picture: 'https://cdn-images.dzcdn.net/images/artist/7601c5c0e2bd16cb585898316fd0dfec/250x250-000000-80-0-0.jpg' },
-        { name: 'Aya Nakamura', picture: 'https://cdn-images.dzcdn.net/images/artist/c8bca3e6aed3da8de8cbe0edd91bc156/250x250-000000-80-0-0.jpg' },
-    ],
-    [
-        // Latino (Porto Rico, Colombie, Mexique...)
-        { name: 'Bad Bunny', picture: 'https://cdn-images.dzcdn.net/images/artist/044a3f315b041864887a8dd8709e6926/250x250-000000-80-0-0.jpg' },
-        { name: 'Karol G', picture: 'https://cdn-images.dzcdn.net/images/artist/5b0aab23f8d2856951a92f3a9faf70e3/250x250-000000-80-0-0.jpg' },
-        { name: 'Peso Pluma', picture: 'https://cdn-images.dzcdn.net/images/artist/dde2bf89c1e8da0aeb94436681bc3aac/250x250-000000-80-0-0.jpg' },
-        { name: 'Feid', picture: 'https://cdn-images.dzcdn.net/images/artist/e629c93e03b3c225d8d52a42bae71537/250x250-000000-80-0-0.jpg' },
-        { name: 'Rauw Alejandro', picture: 'https://cdn-images.dzcdn.net/images/artist/0e7b2b93b91789a054bc3f08bb3df3a8/250x250-000000-80-0-0.jpg' },
-    ],
-    [
-        // Espagne
-        { name: 'Rosalía', picture: 'https://cdn-images.dzcdn.net/images/artist/96636156440182f1e7db3f77d39e6545/250x250-000000-80-0-0.jpg' },
-        { name: 'Quevedo', picture: 'https://cdn-images.dzcdn.net/images/artist/79880cc1b999b15567e332203464c34e/250x250-000000-80-0-0.jpg' },
-        { name: 'C. Tangana', picture: 'https://cdn-images.dzcdn.net/images/artist/0e48ef0b911fe883e0eaa67350c85c46/250x250-000000-80-0-0.jpg' },
-    ],
-    [
-        // Brésil
-        { name: 'Anitta', picture: 'https://cdn-images.dzcdn.net/images/artist/e1a33054b719a936f00dc2050f3c90a9/250x250-000000-80-0-0.jpg' },
-        { name: 'Ludmilla', picture: 'https://cdn-images.dzcdn.net/images/artist/55ecebdb6fdb2a1a97fff0e9d1ceed70/250x250-000000-80-0-0.jpg' },
-        { name: 'Iza', picture: 'https://cdn-images.dzcdn.net/images/artist/e1ecee874c34733da4f207c4133e61e8/250x250-000000-80-0-0.jpg' },
-    ],
-    [
-        // Corée du Sud
-        { name: 'BTS', picture: 'https://cdn-images.dzcdn.net/images/artist/b5c64fa8216ca158e52b4d88bd9388ff/250x250-000000-80-0-0.jpg' },
-        { name: 'NewJeans', picture: 'https://cdn-images.dzcdn.net/images/artist/0866c2c1d7d00879f5db46ddc1250db8/250x250-000000-80-0-0.jpg' },
-        { name: 'Stray Kids', picture: 'https://cdn-images.dzcdn.net/images/artist/15f8a188ec2261e9d1b6b706943ddaf5/250x250-000000-80-0-0.jpg' },
-        { name: 'BLACKPINK', picture: 'https://cdn-images.dzcdn.net/images/artist/89675729453893a91be35bde691050ff/250x250-000000-80-0-0.jpg' },
-    ],
-    [
-        // Nigeria / Afrobeats
-        { name: 'Burna Boy', picture: 'https://cdn-images.dzcdn.net/images/artist/ad15b7f03325752d60db9e4d39c079ae/250x250-000000-80-0-0.jpg' },
-        { name: 'Wizkid', picture: 'https://cdn-images.dzcdn.net/images/artist/171332ffcaa66c2b5583d7630297be88/250x250-000000-80-0-0.jpg' },
-        { name: 'Davido', picture: 'https://cdn-images.dzcdn.net/images/artist/bb20fa59263d537ce7a27160b8471aed/250x250-000000-80-0-0.jpg' },
-        { name: 'Rema', picture: 'https://cdn-images.dzcdn.net/images/artist/078018d591ab3ac531284044d4d4b388/250x250-000000-80-0-0.jpg' },
-        { name: 'Tems', picture: 'https://cdn-images.dzcdn.net/images/artist/b39b511ce7252fc5a94c55e08c6cf118/250x250-000000-80-0-0.jpg' },
-    ],
+type DefaultArtistCategory = { label: string; artists: DefaultArtist[] };
+// groupés par GENRE (pas par pays) : un libellé affiché au-dessus de chaque
+// catégorie (cf. plus bas), séparée de la suivante par un simple trait fin —
+// plus explicite qu'un regroupement muet par nationalité pour piocher dans un
+// style précis
+const DEFAULT_ARTIST_SUGGESTIONS: DefaultArtistCategory[] = [
+    {
+        label: 'Rock',
+        artists: [
+            { name: 'Queen', picture: 'https://cdn-images.dzcdn.net/images/artist/71eeb9e2eeb375df35a3c0654a5a01ab/250x250-000000-80-0-0.jpg' },
+            { name: 'Nirvana', picture: 'https://cdn-images.dzcdn.net/images/artist/3ec5542ff520ee74e2befdaba32ef2ef/250x250-000000-80-0-0.jpg' },
+            { name: 'AC/DC', picture: 'https://cdn-images.dzcdn.net/images/artist/7dbc950be70f997ba0cd2b39de7f2aa7/250x250-000000-80-0-0.jpg' },
+            { name: 'Coldplay', picture: 'https://cdn-images.dzcdn.net/images/artist/3087954bca22f306324912e5ac8375c3/250x250-000000-80-0-0.jpg' },
+            { name: 'Imagine Dragons', picture: 'https://cdn-images.dzcdn.net/images/artist/1ba025c23cae3dee14b51152990285fc/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Rap US',
+        artists: [
+            { name: 'Travis Scott', picture: 'https://cdn-images.dzcdn.net/images/artist/8d8316146026d7e6ce377e314536df62/250x250-000000-80-0-0.jpg' },
+            { name: 'Kendrick Lamar', picture: 'https://cdn-images.dzcdn.net/images/artist/be0a7c550567f4af0ed202d7235b74d6/250x250-000000-80-0-0.jpg' },
+            { name: 'Drake', picture: 'https://cdn-images.dzcdn.net/images/artist/70223888f501f4b843142e071abda364/250x250-000000-80-0-0.jpg' },
+            { name: 'SZA', picture: 'https://cdn-images.dzcdn.net/images/artist/8ced041da2bed70d5715f0860956169b/250x250-000000-80-0-0.jpg' },
+            { name: 'Doja Cat', picture: 'https://cdn-images.dzcdn.net/images/artist/9e3a3b8792a04c4578da7b905ffeaf2b/250x250-000000-80-0-0.jpg' },
+            { name: 'Playboi Carti', picture: 'https://cdn-images.dzcdn.net/images/artist/b90097972a60d9d8598a79a786be1a3a/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Pop internationale',
+        artists: [
+            { name: 'Michael Jackson', picture: 'https://cdn-images.dzcdn.net/images/artist/97fae13b2b30e4aec2e8c9e0c7839d92/250x250-000000-80-0-0.jpg' },
+            { name: 'Taylor Swift', picture: 'https://cdn-images.dzcdn.net/images/artist/e528e270424103b527f8a27ac625563b/250x250-000000-80-0-0.jpg' },
+            { name: 'Billie Eilish', picture: 'https://cdn-images.dzcdn.net/images/artist/8eab1a9a644889aabaca1e193e05f984/250x250-000000-80-0-0.jpg' },
+            { name: 'Ariana Grande', picture: 'https://cdn-images.dzcdn.net/images/artist/721d8fab84b315502de422b8d0901509/250x250-000000-80-0-0.jpg' },
+            { name: 'Justin Bieber', picture: 'https://cdn-images.dzcdn.net/images/artist/fe097f693cebf1f882e3da79e99e3bf9/250x250-000000-80-0-0.jpg' },
+            { name: 'The Weeknd', picture: 'https://cdn-images.dzcdn.net/images/artist/581693b4724a7fcfa754455101e13a44/250x250-000000-80-0-0.jpg' },
+            { name: 'Ed Sheeran', picture: 'https://cdn-images.dzcdn.net/images/artist/d6bb84390641d8ae9118228d9544e53d/250x250-000000-80-0-0.jpg' },
+            { name: 'Sam Smith', picture: 'https://cdn-images.dzcdn.net/images/artist/df9a62e39aabc1977f3b0bb85998bba8/250x250-000000-80-0-0.jpg' },
+            { name: 'PinkPantheress', picture: 'https://cdn-images.dzcdn.net/images/artist/dbf10322b8c415487c9caa678f4d82f6/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Rap FR',
+        artists: [
+            { name: 'Jul', picture: 'https://cdn-images.dzcdn.net/images/artist/b1e9d9f4c65beca2e8fe0811e4e1e0aa/250x250-000000-80-0-0.jpg' },
+            { name: 'PLK', picture: 'https://cdn-images.dzcdn.net/images/artist/092f633e7111bd134419146d2b7f32ee/250x250-000000-80-0-0.jpg' },
+            { name: 'Gazo', picture: 'https://cdn-images.dzcdn.net/images/artist/d4cd3a4cdd4cc58ac5f4e9bab535e3b2/250x250-000000-80-0-0.jpg' },
+            { name: 'Ninho', picture: 'https://cdn-images.dzcdn.net/images/artist/7601c5c0e2bd16cb585898316fd0dfec/250x250-000000-80-0-0.jpg' },
+            { name: 'Orelsan', picture: 'https://cdn-images.dzcdn.net/images/artist/cb21b6617783e6050240ba76ca9b3034/250x250-000000-80-0-0.jpg' },
+            { name: 'SCH', picture: 'https://cdn-images.dzcdn.net/images/artist/8d9c407bd25fab0fc961b6abf335e874/250x250-000000-80-0-0.jpg' },
+            { name: 'Gambi', picture: 'https://cdn-images.dzcdn.net/images/artist/e51a371262f19bb529820f88527d1410/250x250-000000-80-0-0.jpg' },
+            { name: 'La Rvfleuze', picture: 'https://cdn-images.dzcdn.net/images/artist/5d55b6b4ffc4d8510250b2043ca66999/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Variété française',
+        artists: [
+            { name: 'Aya Nakamura', picture: 'https://cdn-images.dzcdn.net/images/artist/c8bca3e6aed3da8de8cbe0edd91bc156/250x250-000000-80-0-0.jpg' },
+            { name: 'Vitaa', picture: 'https://cdn-images.dzcdn.net/images/artist/a32b590da0a3b2a1da0c86fa6cdba8f5/250x250-000000-80-0-0.jpg' },
+            { name: 'Kendji Girac', picture: 'https://cdn-images.dzcdn.net/images/artist/8937abf847aeabbaa7b8ec908c1509d4/250x250-000000-80-0-0.jpg' },
+            { name: 'Amir', picture: 'https://cdn-images.dzcdn.net/images/artist/2a46840f4e1341a223adc3e7d033827c/250x250-000000-80-0-0.jpg' },
+            { name: 'Zaz', picture: 'https://cdn-images.dzcdn.net/images/artist/4286b70b804735592fabfaee092e69c2/250x250-000000-80-0-0.jpg' },
+            { name: 'GIMS', picture: 'https://cdn-images.dzcdn.net/images/artist/ba02785ee0a58180ca0e8dd37190d107/250x250-000000-80-0-0.jpg' },
+            { name: 'Christophe Maé', picture: 'https://cdn-images.dzcdn.net/images/artist/f371ce72486a624fd17f7860fb3d7c6f/250x250-000000-80-0-0.jpg' },
+            { name: 'Theodora', picture: 'https://cdn-images.dzcdn.net/images/artist/5165b12a16269bbbb560134997f3f744/250x250-000000-80-0-0.jpg' },
+            { name: 'Céline Dion', picture: 'https://cdn-images.dzcdn.net/images/artist/e3ae78e5c49ed42342513d5a248b9c4c/250x250-000000-80-0-0.jpg' },
+            { name: 'Johnny Hallyday', picture: 'https://cdn-images.dzcdn.net/images/artist/a8cbf6cc9d2808237b23b1159b56afba/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Rap UK / Drill',
+        artists: [
+            { name: 'Central Cee', picture: 'https://cdn-images.dzcdn.net/images/artist/25fe719f51af3ee2de27aa267e2a6ac9/250x250-000000-80-0-0.jpg' },
+            { name: 'Dave', picture: 'https://cdn-images.dzcdn.net/images/artist/eb2c8952b7328fdf32b3546d5ffab8c2/250x250-000000-80-0-0.jpg' },
+            { name: 'Stormzy', picture: 'https://cdn-images.dzcdn.net/images/artist/fbf2218aa7d8262098c19097bd10cb21/250x250-000000-80-0-0.jpg' },
+            { name: 'Aitch', picture: 'https://cdn-images.dzcdn.net/images/artist/c17d03daafa22e101246fba24548bc53/250x250-000000-80-0-0.jpg' },
+            { name: 'Headie One', picture: 'https://cdn-images.dzcdn.net/images/artist/ca5b97695d26045d952ea62a0243bf08/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Latino',
+        artists: [
+            { name: 'Bad Bunny', picture: 'https://cdn-images.dzcdn.net/images/artist/044a3f315b041864887a8dd8709e6926/250x250-000000-80-0-0.jpg' },
+            { name: 'Karol G', picture: 'https://cdn-images.dzcdn.net/images/artist/5b0aab23f8d2856951a92f3a9faf70e3/250x250-000000-80-0-0.jpg' },
+            { name: 'Peso Pluma', picture: 'https://cdn-images.dzcdn.net/images/artist/dde2bf89c1e8da0aeb94436681bc3aac/250x250-000000-80-0-0.jpg' },
+            { name: 'Feid', picture: 'https://cdn-images.dzcdn.net/images/artist/e629c93e03b3c225d8d52a42bae71537/250x250-000000-80-0-0.jpg' },
+            { name: 'Rauw Alejandro', picture: 'https://cdn-images.dzcdn.net/images/artist/0e7b2b93b91789a054bc3f08bb3df3a8/250x250-000000-80-0-0.jpg' },
+            { name: 'Rosalía', picture: 'https://cdn-images.dzcdn.net/images/artist/96636156440182f1e7db3f77d39e6545/250x250-000000-80-0-0.jpg' },
+            { name: 'Quevedo', picture: 'https://cdn-images.dzcdn.net/images/artist/79880cc1b999b15567e332203464c34e/250x250-000000-80-0-0.jpg' },
+            { name: 'C. Tangana', picture: 'https://cdn-images.dzcdn.net/images/artist/0e48ef0b911fe883e0eaa67350c85c46/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Funk brésilien',
+        artists: [
+            { name: 'Anitta', picture: 'https://cdn-images.dzcdn.net/images/artist/e1a33054b719a936f00dc2050f3c90a9/250x250-000000-80-0-0.jpg' },
+            { name: 'Ludmilla', picture: 'https://cdn-images.dzcdn.net/images/artist/55ecebdb6fdb2a1a97fff0e9d1ceed70/250x250-000000-80-0-0.jpg' },
+            { name: 'Iza', picture: 'https://cdn-images.dzcdn.net/images/artist/e1ecee874c34733da4f207c4133e61e8/250x250-000000-80-0-0.jpg' },
+            { name: 'MC Kevinho', picture: 'https://cdn-images.dzcdn.net/images/artist/3549481bbfd3415ba247b411eea2f8d0/250x250-000000-80-0-0.jpg' },
+            { name: 'Pedro Sampaio', picture: 'https://cdn-images.dzcdn.net/images/artist/706ab941f922fb5820680cdceb284862/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Afrobeats',
+        artists: [
+            { name: 'Burna Boy', picture: 'https://cdn-images.dzcdn.net/images/artist/ad15b7f03325752d60db9e4d39c079ae/250x250-000000-80-0-0.jpg' },
+            { name: 'Wizkid', picture: 'https://cdn-images.dzcdn.net/images/artist/171332ffcaa66c2b5583d7630297be88/250x250-000000-80-0-0.jpg' },
+            { name: 'Davido', picture: 'https://cdn-images.dzcdn.net/images/artist/bb20fa59263d537ce7a27160b8471aed/250x250-000000-80-0-0.jpg' },
+            { name: 'Rema', picture: 'https://cdn-images.dzcdn.net/images/artist/078018d591ab3ac531284044d4d4b388/250x250-000000-80-0-0.jpg' },
+            { name: 'Tems', picture: 'https://cdn-images.dzcdn.net/images/artist/b39b511ce7252fc5a94c55e08c6cf118/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'K-pop',
+        artists: [
+            { name: 'BTS', picture: 'https://cdn-images.dzcdn.net/images/artist/b5c64fa8216ca158e52b4d88bd9388ff/250x250-000000-80-0-0.jpg' },
+            { name: 'NewJeans', picture: 'https://cdn-images.dzcdn.net/images/artist/0866c2c1d7d00879f5db46ddc1250db8/250x250-000000-80-0-0.jpg' },
+            { name: 'Stray Kids', picture: 'https://cdn-images.dzcdn.net/images/artist/15f8a188ec2261e9d1b6b706943ddaf5/250x250-000000-80-0-0.jpg' },
+            { name: 'BLACKPINK', picture: 'https://cdn-images.dzcdn.net/images/artist/89675729453893a91be35bde691050ff/250x250-000000-80-0-0.jpg' },
+            { name: 'TWICE', picture: 'https://cdn-images.dzcdn.net/images/artist/1f4acadade675899b7f775ae4ac67faa/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Phonk',
+        artists: [
+            { name: 'Kordhell', picture: 'https://cdn-images.dzcdn.net/images/artist/b0e3818ef24fa20e3170814d6a763e59/250x250-000000-80-0-0.jpg' },
+            { name: 'DVRST', picture: 'https://cdn-images.dzcdn.net/images/artist/c16aa18055c7c02a2d012b24f25dc400/250x250-000000-80-0-0.jpg' },
+            { name: 'Interworld', picture: 'https://cdn-images.dzcdn.net/images/artist/983ca9673268b4ad9f3b49317ab8a0ee/250x250-000000-80-0-0.jpg' },
+            { name: 'Freddie Dredd', picture: 'https://cdn-images.dzcdn.net/images/artist/8becee54612482c4ff5b37546199971f/250x250-000000-80-0-0.jpg' },
+            { name: 'KSLV Noh', picture: 'https://cdn-images.dzcdn.net/images/artist/1a8c935f9fa1080ad747db6c91b2b107/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        label: 'Metal',
+        artists: [
+            { name: 'Metallica', picture: 'https://cdn-images.dzcdn.net/images/artist/056578a9c2007f69ce198c81875eca41/250x250-000000-80-0-0.jpg' },
+            { name: 'System of a Down', picture: 'https://cdn-images.dzcdn.net/images/artist/67460cdb0b52bfde1b807650958058d6/250x250-000000-80-0-0.jpg' },
+            { name: 'Slipknot', picture: 'https://cdn-images.dzcdn.net/images/artist/d1a3db36015dd98615f42a5441dcf2f5/250x250-000000-80-0-0.jpg' },
+            { name: 'Bring Me the Horizon', picture: 'https://cdn-images.dzcdn.net/images/artist/d159e783c1f419ae27fd2deca5b89b54/250x250-000000-80-0-0.jpg' },
+            { name: 'Bullet for My Valentine', picture: 'https://cdn-images.dzcdn.net/images/artist/24af475170a6daa8009ec09896ae07cf/250x250-000000-80-0-0.jpg' },
+        ],
+    },
+    {
+        // mélange de bandes-son officielles publiées par le jeu lui-même en
+        // tant qu'"artiste" à part entière (League of Legends, VALORANT) et de
+        // compositeurs identifiés à un jeu précis (C418/Minecraft, Toby Fox/
+        // Undertale) ou à la culture jeu vidéo (The Living Tombstone)
+        label: 'Jeux vidéo',
+        artists: [
+            { name: 'League of Legends', picture: 'https://cdn-images.dzcdn.net/images/artist/21e53b8e8285f84f60601d895c39c900/250x250-000000-80-0-0.jpg' },
+            { name: 'VALORANT', picture: 'https://cdn-images.dzcdn.net/images/artist/9c3ba79eed997c70979bc6edbdd518b5/250x250-000000-80-0-0.jpg' },
+            { name: 'Toby Fox', picture: 'https://cdn-images.dzcdn.net/images/artist/fc346b96e27af180122e59d2517de00a/250x250-000000-80-0-0.jpg' },
+            { name: 'C418', picture: 'https://cdn-images.dzcdn.net/images/artist/9b76ec3fccb7b3831a9cccc2cae5036e/250x250-000000-80-0-0.jpg' },
+            { name: 'The Living Tombstone', picture: 'https://cdn-images.dzcdn.net/images/artist/1f20806019d4e615e3201aee4a056bb6/250x250-000000-80-0-0.jpg' },
+        ],
+    },
 ];
 
 type Section = { title: string; artist: string; cover: string | null; data: TrackType[] };
@@ -615,31 +698,34 @@ export const ManualTrackPickerScreen = () => {
                             showsVerticalScrollIndicator={false}
                             contentContainerStyle={{ paddingBottom: isWeb ? footerHeight + 12 : 12 }}
                         >
-                            {DEFAULT_ARTIST_SUGGESTIONS.map((group, groupIndex) => (
-                                // une View par groupe : force un vrai retour à la ligne entre
-                                // deux pays, plutôt qu'un flex-wrap unique où le dernier
-                                // artiste d'un groupe peut terminer sur la même ligne que le
-                                // premier du suivant selon la largeur d'écran
-                                <View
-                                    key={groupIndex}
-                                    className="flex-row flex-wrap justify-center"
-                                    style={{ gap: 8, marginBottom: 8 }}
-                                >
-                                    {group.map((artist) => (
-                                        <Pressable
-                                            key={artist.name}
-                                            onPress={() => setQuery(artist.name)}
-                                            className="flex-row items-center bg-offwhite rounded-full pl-1 pr-3 py-1 gap-2"
-                                        >
-                                            <Image
-                                                source={{ uri: artist.picture }}
-                                                style={{ width: 28, height: 28, borderRadius: 14 }}
-                                                cachePolicy="memory-disk"
-                                                transition={100}
-                                            />
-                                            <Text className="text-black text-xs font-medium">{artist.name}</Text>
-                                        </Pressable>
-                                    ))}
+                            {DEFAULT_ARTIST_SUGGESTIONS.map((category, categoryIndex) => (
+                                <View key={category.label}>
+                                    <Text className="text-black text-xs font-bold mb-2">{category.label}</Text>
+                                    {/* une View par catégorie : force un vrai retour à la ligne
+                                    entre deux genres, plutôt qu'un flex-wrap unique où le dernier
+                                    artiste d'une catégorie peut terminer sur la même ligne que le
+                                    premier de la suivante selon la largeur d'écran */}
+                                    <View className="flex-row flex-wrap justify-center" style={{ gap: 8 }}>
+                                        {category.artists.map((artist) => (
+                                            <Pressable
+                                                key={artist.name}
+                                                onPress={() => setQuery(artist.name)}
+                                                className="flex-row items-center bg-offwhite rounded-full pl-1 pr-3 py-1 gap-2"
+                                            >
+                                                <Image
+                                                    source={{ uri: artist.picture }}
+                                                    style={{ width: 28, height: 28, borderRadius: 14 }}
+                                                    cachePolicy="memory-disk"
+                                                    transition={100}
+                                                />
+                                                <Text className="text-black text-xs font-medium">{artist.name}</Text>
+                                            </Pressable>
+                                        ))}
+                                    </View>
+                                    {/* trait fin entre catégories, jamais après la dernière */}
+                                    {categoryIndex < DEFAULT_ARTIST_SUGGESTIONS.length - 1 && (
+                                        <View className="bg-offwhite" style={{ height: 1, marginVertical: 16 }} />
+                                    )}
                                 </View>
                             ))}
                         </ScrollView>

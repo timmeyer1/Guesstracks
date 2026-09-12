@@ -45,7 +45,7 @@ export const ScreenLayout = ({
     // bas se voient bien plus et donnent une impression de vide, surtout en
     // bas d'écran après le dernier bouton — cf. discussion sur le "bloc
     // blanc" en bas du login. Réduit uniquement sur web, le natif ne change pas.
-    const verticalPadding = Platform.OS === 'web' ? 'py-0' : 'py-20';
+    const verticalPadding = Platform.OS === 'web' ? 'py-8' : 'py-20';
     const paddingClasses = noPadding ? '' : `px-8 ${verticalPadding}`;
     const centerClasses = centered ? 'justify-center items-center' : '';
 
