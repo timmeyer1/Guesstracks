@@ -1,0 +1,70 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      # Exposé sur l'hôte uniquement pour pouvoir se connecter avec MongoDB
+      # Compass / mongosh depuis la machine. Le serveur, lui, passe par le
+      # réseau interne Docker (voir MONGODB_URI ci-dessous).
+      - "27017:27017"
+
+  server:
+    build:
+      context: ./server
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file:
+      - ./server/.env
+    environment:
+      # Écrase la valeur de server/.env (qui vise le Mongo local hors
+      # Docker) : ici on cible le conteneur mongo via le réseau interne
+      # du compose, résolu par son nom de service.
+      MONGODB_URI: mongodb://mongo:27017/guesstracks
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./server:/app
+      # Volume anonyme qui masque le node_modules de l'hôte (potentiellement
+      # macOS/arm64) par celui installé dans l'image Linux du conteneur.
+      - /app/node_modules
+
+  metro:
+    build:
+      context: .
+      dockerfile: docker/metro.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Indispensable pour que le QR code / manifest généré pointe vers le
+      # tunnel public plutôt que vers le port 8081 interne au conteneur.
+      EXPO_PACKAGER_PROXY_URL: https://metro.guesstracks.com
+    ports:
+      - "8081:8081"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      # ios/ et android/ sont générés par expo prebuild et inutiles au
+      # bundling JS : on évite que le watcher de Metro les parcoure.
+      - /app/ios
+      - /app/android
+    stdin_open: true
+    tty: true
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      - server
+      - metro
+    volumes:
+      # Réutilise le ~/.cloudflared existant (login, certificat, credentials
+      # du tunnel) : rien de secret n'est donc stocké dans le repo.
+      - ${HOME}/.cloudflared:/etc/cloudflared:ro
+    command: tunnel --config /etc/cloudflared/docker-config.yml run guesstracks
+
+volumes:
+  mongo_data:

@@ -1,0 +1,14 @@
+node_modules
+server
+ios
+android
+.expo
+dist
+web-build
+.git
+.idea
+.codegraph
+.claude
+.env
+.env.*
+*.log
