@@ -17,8 +17,7 @@ export type RootStackParamList = {
     Game: undefined
 }
 
-// permet à useNavigation() d'être correctement typé partout dans l'app sans
-// avoir à répéter le générique à chaque appel
+// dcp useNavigation() est bien typé partout sans répéter le générique à chaque fois
 declare global {
     namespace ReactNavigation {
         interface RootParamList extends RootStackParamList {}
@@ -35,25 +34,22 @@ export const AuthNavigator = () => {
             <Stack.Navigator
                 screenOptions={{
                     headerShown: false,
-                    // transition native (accélérée matériellement) au lieu du fondu
-                    // par défaut d'Android, pour un enchaînement plus fluide entre les écrans
+                    // glissement natif au lieu du fondu Android par défaut, plus fluide
                     animation: 'slide_from_right',
-                    // durée par défaut ~350ms, ramenée à 200ms pour des transitions
-                    // (fondu comme glissement) plus rapides entre les écrans
+                    // en gros on accélère les transitions, 350ms ça sentait lent
                     animationDuration: 100,
                 }}
             >
                 {!isAuthenticated ? (
                     <>
-                        {/* écran de déconnexion : fondu plutôt que glissement */}
+                        {/* fondu plutôt que glissement pour l'écran de déconnexion */}
                         <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
                         <Stack.Screen name="ManualTrackPicker" component={ManualTrackPickerScreen} />
                     </>
                 ) : (
                     <>
-                        {/* Home est la destination de "Quitter le lobby" / retour après
-                        déconnexion : fondu, pour la distinguer du glissement utilisé
-                        en entrant dans un lobby ou une partie */}
+                        {/* Home en fondu (quitter lobby / déconnexion), pour se
+                        distinguer du glissement quand on entre dans un lobby ou une partie */}
                         <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'fade' }} />
                         <Stack.Screen
                             name="Lobby"

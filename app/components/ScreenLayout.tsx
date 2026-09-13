@@ -3,10 +3,7 @@ import { Platform, View, ScrollView } from 'react-native';
 import React, { ReactNode } from 'react';
 import { useWebSafeAreaInsets } from '../core/hooks/useWebSafeAreaInsets';
 
-// espace sous la zone de sécurité (encoche/île dynamique) sur web, EN PLUS de
-// l'inset réel mesuré par useWebSafeAreaInsets — le natif garde son py-20
-// flat, inchangé (jamais concerné par le bug de mesure que ce hook contourne,
-// cf. ce fichier).
+// petite marge en plus de l'inset réel sur web, le natif touche pas à ça
 const WEB_TOP_SAFE_AREA_GAP = 16;
 
 interface ScreenLayoutProps {
@@ -38,24 +35,17 @@ export const ScreenLayout = ({
         dark: 'bg-zinc-900'
     };
 
-    // py-20 (80px) vient d'un design pensé pour le natif, où le safe-area
-    // (encoche + indicateur home) ne laisse jamais voir tout cet espace d'un
-    // coup. Sur web en mode standalone (ajouté à l'écran d'accueil), l'app
-    // tourne vraiment plein écran bord à bord : ces mêmes 80px en haut ET en
-    // bas se voient bien plus et donnent une impression de vide, surtout en
-    // bas d'écran après le dernier bouton — cf. discussion sur le "bloc
-    // blanc" en bas du login. Réduit uniquement sur web, le natif ne change pas.
+    // 80px de padding c'était pensé pour le natif (safe-area qui bouffe une
+    // partie). En mode standalone web, l'app est plein écran, dcp ces 80px
+    // faisaient un gros vide en bas. On réduit juste sur web.
     const verticalPadding = Platform.OS === 'web' ? 'py-8' : 'py-20';
     const paddingClasses = noPadding ? '' : `px-8 ${verticalPadding}`;
     const centerClasses = centered ? 'justify-center items-center' : '';
 
     const containerClasses = `flex-1 ${paddingClasses} ${centerClasses} ${className}`.trim();
 
-    // py-8 (32px) ci-dessus ne suffit pas à dégager l'encoche/île dynamique en
-    // mode standalone iOS (confirmé en conditions réelles : pastille/pochette
-    // partiellement masquées) — remplace juste le haut par le vrai inset mesuré
-    // (cf. useWebSafeAreaInsets) + une marge de respiration, sans toucher au
-    // bas (32px suffisants là, jamais signalé comme trop court).
+    // les 32px suffisent pas pour l'île dynamique iOS en mode standalone,
+    // dcp on remplace le haut par le vrai inset mesuré + une petite marge.
     const topInsetStyle =
         !noPadding && Platform.OS === 'web' ? { paddingTop: webInsets.top + WEB_TOP_SAFE_AREA_GAP } : undefined;
 

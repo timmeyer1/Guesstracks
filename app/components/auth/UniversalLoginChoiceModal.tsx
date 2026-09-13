@@ -10,12 +10,9 @@ type UniversalLoginChoiceModalProps = {
     onChooseCsvImport: () => void;
 };
 
-// première étape de la "Connexion universelle" (cf. login.screen.tsx) :
-// laisse choisir entre composer sa bibliothèque à la main (recherche dans le
-// catalogue Deezer, cf. ManualTrackPickerModal.tsx) ou l'importer d'un coup
-// depuis un fichier CSV exporté via TuneMyMusic/Soundiiz (cf.
-// CsvImportInstructionsModal.tsx) — les deux aboutissent au même profil
-// pseudo + photo (cf. CsvProfileModal.tsx, réutilisée pour les deux)
+// première étape de la connexion universelle : en gros choisir entre
+// composer sa bibliothèque à la main ou l'importer via un CSV. Les deux
+// finissent sur le même écran de profil (pseudo + photo).
 export const UniversalLoginChoiceModal = ({
     visible,
     onClose,

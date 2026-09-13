@@ -1,23 +1,15 @@
 // app/core/hooks/useWebSyncedAudioPlayer.ts
 //
-// Implémentation web de useSyncedAudioPlayer (cf. ce fichier pour le dispatch) —
-// passe par l'AudioContext (Web Audio API) plutôt que par expo-audio :
-// expo-audio crée un nouveau <audio> HTMLMediaElement à chaque manche (chaque
-// changement de previewUrl), et Safari iOS exige un geste utilisateur pour
-// CHAQUE nouvel élément — débloquer une fois au départ ne suffit donc qu'à la
-// toute première manche, les suivantes (démarrées via setTimeout pour la
-// synchro sur startedAt, jamais un clic direct) restent bloquées, avec une
-// NotAllowedError en boucle (confirmé en conditions réelles sur iPhone,
-// Android/Chrome n'étant lui pas concerné par cette restriction par élément).
-// Un AudioContext débloqué une seule fois (cf. webAudioUnlock.ts) reste lui
-// valide pour toutes les lectures qu'on y programme ensuite, quel que soit le
-// nombre d'extraits différents ou le moment de démarrage.
+// version web du lecteur audio synchro. en mode, on passe par l'AudioContext
+// plutôt que par expo-audio, dcp Safari iOS redemande un geste utilisateur à
+// chaque nouvel extrait, alors que nos manches démarrent toutes seules. un
+// AudioContext débloqué une fois (voir webAudioUnlock.ts) reste bon pour
+// toutes les lectures suivantes, quel que soit l'extrait.
 import { useEffect, useRef, useState } from 'react'
 import { getWebAudioContext, resumeWebAudioContext } from '../webAudioUnlock'
 import type { SyncedAudioPlayer, UseSyncedAudioPlayerOptions } from './useSyncedAudioPlayer.types'
 
-// Cache des buffers décodés par URL : évite de re-télécharger/décoder le même
-// extrait s'il revient (reconnexion, manche déjà entendue).
+// Cache des extraits déjà décodés, pour pas re-télécharger le même son.
 const bufferCache = new Map<string, Promise<AudioBuffer>>()
 
 const loadBuffer = (url: string): Promise<AudioBuffer> => {
@@ -27,8 +19,7 @@ const loadBuffer = (url: string): Promise<AudioBuffer> => {
     const promise = fetch(url)
         .then((res) => res.arrayBuffer())
         .then((data) => getWebAudioContext().decodeAudioData(data))
-    // un échec ne doit pas rester en cache indéfiniment (ex: souci réseau
-    // ponctuel) : la prochaine tentative sur cette URL repart de zéro
+    // Si ça échoue, on vire du cache pour réessayer proprement la prochaine fois.
     promise.catch(() => bufferCache.delete(url))
     bufferCache.set(url, promise)
     return promise
@@ -36,9 +27,8 @@ const loadBuffer = (url: string): Promise<AudioBuffer> => {
 
 type ActiveSource = {
     node: AudioBufferSourceNode
-    // `node.start()` n'a peut-être pas encore été réellement appelé (en
-    // attente de resumeWebAudioContext(), cf. start() plus bas) — appeler
-    // stop() sur un node jamais démarré lève une InvalidStateError.
+    // node.start() n'a peut-être pas encore vraiment tourné (en attente de
+    // resumeWebAudioContext()) — appeler stop() dessus avant plante.
     started: boolean
 }
 
@@ -53,13 +43,10 @@ export const useWebSyncedAudioPlayer = ({
 
     const bufferRef = useRef<AudioBuffer | null>(null)
     const activeRef = useRef<ActiveSource | null>(null)
-    // position (secondes) d'où repartir au prochain démarrage — mise à jour à
-    // chaque pause/seek, jamais pendant la lecture (pas besoin d'afficher une
-    // progression, cf. SyncedAudioPlayer)
+    // Position en secondes d'où repartir au prochain démarrage.
     const offsetRef = useRef(0)
     const startCtxTimeRef = useRef(0)
-    // comme dans useNativeSyncedAudioPlayer : ce rattrapage sur startedAt ne
-    // doit se déclencher qu'une seule fois par extrait chargé
+    // Comme côté natif : le rattrapage sur startedAt se fait qu'une fois par extrait.
     const syncedForUrlRef = useRef<string | null | undefined>(undefined)
 
     const stop = () => {
@@ -82,10 +69,8 @@ export const useWebSyncedAudioPlayer = ({
 
     const start = (offsetSeconds: number) => {
         const buffer = bufferRef.current
-        // un start() déjà en cours (activeRef non nul) est ignoré plutôt que
-        // remplacé : évite deux sources qui se chevauchent si play()/toggle()
-        // est appelé deux fois de suite avant que le premier ait fini de
-        // s'installer (cf. le délai de resumeWebAudioContext() ci-dessous)
+        // Si un start() tourne déjà, on l'ignore plutôt que de le remplacer,
+        // sinon on aurait deux sons qui se chevauchent.
         if (!buffer || activeRef.current) return
 
         const clamped = Math.min(Math.max(offsetSeconds, 0), Math.max(0, buffer.duration - 0.05))
@@ -106,17 +91,15 @@ export const useWebSyncedAudioPlayer = ({
         setDidJustFinish(false)
 
         resumeWebAudioContext().finally(() => {
-            if (activeRef.current !== current) return // arrêté/remplacé entre-temps
+            if (activeRef.current !== current) return // déjà arrêté ou remplacé entre-temps
             current.started = true
             startCtxTimeRef.current = ctx.currentTime - clamped
             node.start(0, clamped)
         })
     }
 
-    // chargement de l'extrait : contrairement à un <audio> qui bufferise
-    // progressivement (d'où le FORCE_PLAY_TIMEOUT_MS côté natif, pour ne pas
-    // attendre indéfiniment isLoaded), decodeAudioData() ne laisse rien à lire
-    // avant d'avoir fini — pas d'équivalent utile ici.
+    // Chargement de l'extrait. Contrairement au natif, decodeAudioData() ne
+    // laisse rien lire avant d'avoir fini, donc pas de timeout de secours ici.
     useEffect(() => {
         setIsLoaded(false)
         setDidJustFinish(false)
@@ -143,9 +126,7 @@ export const useWebSyncedAudioPlayer = ({
         }
     }, [previewUrl])
 
-    // synchro sur startedAt : même logique que useNativeSyncedAudioPlayer
-    // (cf. ce fichier pour le détail de pourquoi syncedForUrlRef n'est marqué
-    // qu'au moment où le démarrage est réellement déclenché, jamais avant).
+    // Synchro sur startedAt, même logique que la version native.
     useEffect(() => {
         if (!autoPlay || !isLoaded || syncedForUrlRef.current === previewUrl) return
 
@@ -181,8 +162,7 @@ export const useWebSyncedAudioPlayer = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isLoaded, startedAt, previewUrl])
 
-    // nettoyage à la vraie sortie de l'écran de manche (le lecteur reste monté
-    // entre question et résultat, cf. useNativeSyncedAudioPlayer)
+    // Nettoyage à la vraie sortie de la manche (le lecteur reste monté entre question et résultat).
     useEffect(() => {
         return () => stop()
     }, [])

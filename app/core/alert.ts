@@ -6,12 +6,9 @@ type AlertButton = {
     style?: 'default' | 'cancel' | 'destructive'
 }
 
-// react-native-web n'implémente PAS Alert.alert (node_modules/react-native-web/
-// .../Alert/index.js : `static alert() {}`, un no-op complet) : tout écran qui
-// passe par une confirmation Alert.alert (quitter le lobby, expulsion, erreurs
-// de sauvegarde...) restait donc silencieusement inopérant sur web, aucun
-// bouton n'étant jamais réellement affiché. Repli sur window.confirm/alert du
-// navigateur pour le web uniquement — le natif garde le vrai Alert.alert.
+// Sur web, Alert.alert ne fait rien (no-op de react-native-web), dcp les
+// popups de confirmation restaient invisibles. On bascule sur confirm/alert
+// du navigateur juste pour le web, le natif garde le vrai Alert.alert.
 const alertOnWeb = (title: string, message?: string, buttons?: AlertButton[]) => {
     const fullMessage = [title, message].filter(Boolean).join('\n\n')
 

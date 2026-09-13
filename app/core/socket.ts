@@ -9,14 +9,11 @@ const getSocket = (): Socket => {
         socket = io(LOBBY_SERVER_URL, {
             transports: ['websocket'],
             autoConnect: true,
-            // même raison que app/core/api/lobby.client.ts : évite que le
-            // handshake échoue derrière un tunnel ngrok gratuit
+            // Même raison que dans lobby.client.ts : sinon ngrok bloque avec son avertissement de tunnel gratuit.
             extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
         })
-        // émis par le serveur si lobby:subscribe reçoit un jeton de lobby
-        // absent/invalide/expiré (cf. server/src/sockets/index.js) : le socket
-        // n'est alors rattaché à aucune identité, toutes les actions de partie
-        // suivantes sont silencieusement ignorées côté serveur
+        // Le serveur envoie ça si le jeton du lobby manque, est invalide ou expiré.
+        // Dcp le socket reste sans identité et toutes les actions suivantes sont ignorées en silence côté serveur.
         socket.on('lobby:error', (payload: { message: string }) => {
             console.warn('⚠️ Session de lobby invalide :', payload.message)
         })
@@ -24,10 +21,8 @@ const getSocket = (): Socket => {
     return socket
 }
 
-// token : jeton de session de lobby (cf. app/stores/lobby.store.ts), vérifié
-// côté serveur avant de rattacher ce socket au lobby — c'est cette identité
-// vérifiée, jamais un playerId envoyé en clair, que game.sockets.js utilise
-// ensuite pour toutes les actions de partie (cf. server/src/sockets/index.js)
+// token : le jeton de session, vérifié côté serveur avant de rattacher le
+// socket au lobby. C'est lui qui identifie le joueur ensuite, jamais un playerId brut.
 export const subscribeToLobby = (
     code: string,
     token: string,
@@ -46,8 +41,7 @@ export const subscribeToLobby = (
 }
 
 // ---- Jeu ----
-// Contrairement au lobby, la partie n'a pas d'API REST : le serveur pilote le
-// déroulé (timers de manche) et pousse tout par socket.
+// En gros, contrairement au lobby, la partie n'a pas d'API REST : le serveur gère tout et pousse les infos par socket.
 
 export type GameStatePayload =
     | { status: 'idle' | 'collecting' | 'finished' }
@@ -61,17 +55,12 @@ export type GameSocketHandlers = {
     onEnd: (payload: GameEnd) => void
     onError: (payload: { message: string }) => void
     onState: (payload: GameStatePayload) => void
-    // diffusé à chaque fois qu'un joueur envoie ses musiques likées, pour que
-    // le lobby puisse afficher/bloquer "Lancer la partie" tant que tout le
-    // monde n'a pas encore envoyé les siennes
+    // Envoyé à chaque validation de musiques par un joueur, pour savoir qui bloque encore le bouton "Lancer la partie".
     onTracksProgress: (payload: { submittedPlayerIds: string[] }) => void
-    // diffusé à la fin d'une partie puis à chaque joueur qui revient au lobby
-    // (ou le quitte) : liste de ceux encore attendus avant de pouvoir relancer
+    // En fin de partie, dit qui manque encore avant de pouvoir relancer une manche.
     onReturnProgress: (payload: { pendingPlayerIds: string[] }) => void
-    // diffusé après "game:started" en mode blindtest, une ou plusieurs fois :
-    // artistes enrichis avec les featurings (cf. server/src/services/
-    // game.service.js enrichCatalogInBackground), à fusionner dans le
-    // catalogue déjà reçu par id plutôt que de le remplacer
+    // Envoyé après game:started en blindtest (parfois plusieurs fois) pour
+    // ajouter les featurings trouvés côté serveur. À fusionner par id, pas à remplacer.
     onCatalogEnriched: (payload: { updates: { id: string; artist: string }[] }) => void
 }
 
@@ -102,10 +91,7 @@ export const subscribeToGame = (handlers: GameSocketHandlers) => {
 
 type GamePlayerPayload = { id: string; name: string; img: string | null; accountType: string | null }
 
-// aucune de ces fonctions n'envoie plus de playerId : le serveur dérive
-// désormais l'identité du joueur de socket.data, fixé par lobby:subscribe
-// après vérification du jeton (cf. server/src/sockets/game.sockets.js) — un
-// playerId dans le payload serait de toute façon ignoré côté serveur.
+// Aucune de ces fonctions n'envoie de playerId : le serveur connaît déjà le joueur via lobby:subscribe.
 export const emitSubmitTracks = (code: string, player: GamePlayerPayload, tracks: TrackType[]) => {
     getSocket().emit('game:submitTracks', { code, player, tracks })
 }
@@ -126,16 +112,12 @@ export const emitConfirmReturn = (code: string) => {
     getSocket().emit('game:confirmReturn', { code })
 }
 
-// n'a d'effet que si le lobby a activé "avancer manuellement" (cf.
-// LobbyType.manualAdvance) — ignoré par le serveur sinon (endRound y arme
-// déjà son propre timer, cf. game.service.js)
+// Ne fait rien si le lobby n'a pas activé "avancer manuellement", le serveur enchaîne déjà tout seul sinon.
 export const emitNextRound = (code: string) => {
     getSocket().emit('game:nextRound', { code })
 }
 
-// "Pas le bon extrait ?" (cf. RoundResult.tsx) : le titre/artiste ne sont
-// jamais envoyés, le serveur retrouve la manche concernée à partir de
-// roundIndex (cf. server/src/services/game.service.js, reportWrongPreview)
+// Bouton "Pas le bon extrait ?" : pas besoin d'envoyer titre/artiste, le serveur retrouve la manche avec roundIndex.
 export const emitReportWrongPreview = (code: string, roundIndex: number) => {
     getSocket().emit('game:reportWrongPreview', { code, roundIndex })
 }

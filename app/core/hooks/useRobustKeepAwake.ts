@@ -4,16 +4,11 @@ import { Platform } from 'react-native'
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import NoSleep from 'nosleep.js'
 
-// nosleep.js choisit lui-même la Wake Lock API native si le navigateur la
-// supporte, sinon une <video> muette en boucle avec de vrais fichiers vidéo
-// encodés (webm + mp4) plutôt qu'un flux de canvas — contrairement à un flux
-// live via canvas.captureStream(), qui se heurte à un bug WebKit documenté
-// (échoue à jouer en <video> sur iOS, cf. bugs.webkit.org #181663). Sa doc
-// est explicite : enable() DOIT partir d'un vrai geste utilisateur pour être
-// fiable — confirmé en conditions réelles : le verrou (Wake Lock API
-// pourtant supportée, iOS 18.4+, donc pas le bug de compatibilité connu sur
-// les PWA installées) s'activait bien sur Android dès le montage du
-// composant, jamais sur iPhone tant qu'il ne partait pas d'un tap.
+// En gros, nosleep.js empêche l'écran de s'éteindre : Wake Lock API si le
+// navigateur la supporte, sinon une vidéo muette en boucle en secours. Sur
+// iPhone, ça ne marche que si enable() part d'un vrai tap utilisateur —
+// constaté en vrai, ça s'activait tout seul sur Android mais jamais sur iOS
+// sans interaction.
 const setupWebKeepAwake = (): (() => void) => {
     const noSleep = new NoSleep()
 
@@ -22,8 +17,7 @@ const setupWebKeepAwake = (): (() => void) => {
         noSleep.enable().catch(() => {})
     }
 
-    // tenté tout de suite (suffit sur Android/Chrome), le déblocage au
-    // premier geste ci-dessous prend le relais si ça n'a pas suffi (iPhone)
+    // On tente tout de suite (suffit sur Android), et le geste ci-dessous prend le relais sur iPhone.
     tryEnable()
 
     const onGesture = () => {
@@ -34,9 +28,7 @@ const setupWebKeepAwake = (): (() => void) => {
     document.addEventListener('pointerdown', onGesture)
     document.addEventListener('keydown', onGesture)
 
-    // filet supplémentaire pour le repli vidéo (nosleep.js ne réarme que lui-
-    // même le chemin Wake Lock API au retour au premier plan, jamais son
-    // repli vidéo, cf. sa source)
+    // Filet en plus pour le repli vidéo : nosleep.js réarme la Wake Lock API tout seul au retour, pas la vidéo.
     const onVisibilityChange = () => {
         if (document.visibilityState === 'visible') tryEnable()
     }

@@ -4,9 +4,8 @@ import type {TrackType} from "../../core/types";
 import type {AxiosResponse} from "axios";
 
 const PAGE_SIZE = 100;
-// nombre de pages récupérées en parallèle : toutes les récupérer d'un coup
-// pour une grosse bibliothèque dépasse la limite de débit de l'API Deezer —
-// par lots, ça reste rapide sans jamais rien tronquer
+// nombre de pages chargées en même temps. Tout charger d'un coup pour une
+// grosse bibliothèque ça fait dépasser la limite de l'API Deezer, dcp on y va par lots
 const FETCH_BATCH_SIZE = 5;
 
 const deezerError = (data: DeezerErrorPayload | undefined) =>
@@ -18,19 +17,15 @@ const mapItem = (item: DeezerTrackItem): TrackType => ({
     artist: item.artist?.name ?? 'Unknown',
     album: item.album?.title ?? '',
     image: item.album?.cover_medium ?? item.album?.cover ?? undefined,
-    // Deezer fournit un extrait de 30s pour la quasi-totalité de son
-    // catalogue (contrairement à Spotify qui les a retirés fin 2024) : le
-    // repli iTunes côté serveur (cf. server/src/services/preview.service.js)
-    // n'est donc quasiment jamais nécessaire pour les titres de ce provider
+    // Deezer donne quasi toujours un extrait de 30s (contrairement à Spotify
+    // qui a retiré ça), donc en gros le repli iTunes côté serveur sert presque jamais ici
     previewUrl: item.preview || null,
     provider: 'deezer',
 });
 
-// commun aux deux modes de récupération (OAuth "me" ou lookup public par id,
-// cf. plus bas) : le premier appel renseigne `total`, les pages restantes
-// sont récupérées par lots (cf. FETCH_BATCH_SIZE) pour diviser le temps de
-// chargement sans dépasser la limite de débit de l'API Deezer. Toutes les
-// pages sont récupérées, sans plafond sur le nombre de titres.
+// sert pour les deux façons de récupérer les titres (connecté ou profil
+// public) : le premier appel donne le total, le reste est chargé par lots
+// pour pas se faire limiter par Deezer. Tout est récupéré, y'a pas de plafond.
 const collectLikedTracks = async (
     fetchPage: (limit: number, index: number) => Promise<AxiosResponse<DeezerTracksResponse>>
 ): Promise<{ tracks: TrackType[]; total: number }> => {
@@ -60,7 +55,7 @@ const collectLikedTracks = async (
 
 export const deezerService = {
 
-    // -- connexion OAuth ("me", cf. app/modules/auth/deezer.ts) --
+    // -- pour un compte connecté --
 
     async getMyProfile() {
         const { data } = await deezerApi.getUserProfile();
@@ -80,9 +75,8 @@ export const deezerService = {
         return data.total ?? 0;
     },
 
-    // -- lookup de profil public, sans authentification (chemin actif tant
-    // que la création d'app OAuth Deezer est indisponible, cf.
-    // app/modules/deezer/deezer.utils.ts) --
+    // -- pour un profil public, sans connexion (le chemin utilisé en vrai
+    // pour l'instant) --
 
     async getPublicProfile(userId: string) {
         const { data } = await deezerApi.getPublicProfile(userId);

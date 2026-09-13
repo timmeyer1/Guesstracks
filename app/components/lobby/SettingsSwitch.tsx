@@ -16,11 +16,8 @@ const PADDING = 2
 const THUMB_SIZE = TRACK_HEIGHT - PADDING * 2
 const THUMB_TRAVEL = TRACK_WIDTH - PADDING * 2 - THUMB_SIZE
 
-// le <Switch> de react-native-web ignore/rend mal trackColor et thumbColor
-// (constaté : piste et curseur gardent des couleurs par défaut du navigateur
-// au lieu de accentColor/thumbColor) — un toggle "maison" sur web plutôt que
-// de vivre avec ce rendu cassé. Le <Switch> natif (iOS/Android), lui,
-// respecte bien ces props : on ne le touche pas.
+// le Switch de react-native-web gère mal trackColor/thumbColor (couleurs par
+// défaut du navigateur), dcp on a fait un toggle maison juste pour le web.
 const WebSwitch = ({ value, onValueChange, accentColor, thumbColor }: SettingsSwitchProps) => {
     const progress = useSharedValue(value ? 1 : 0)
 
@@ -55,8 +52,7 @@ const WebSwitch = ({ value, onValueChange, accentColor, thumbColor }: SettingsSw
     )
 }
 
-// switch système sur natif (iOS/Android), on ne le retouche pas ; toggle
-// "maison" sur web uniquement, cf. WebSwitch ci-dessus
+// switch système sur natif, toggle maison sur web (WebSwitch au-dessus)
 export const SettingsSwitch = (props: SettingsSwitchProps) => {
     if (Platform.OS === "web") {
         return <WebSwitch {...props} />

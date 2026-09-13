@@ -21,10 +21,9 @@ import type { TrackType } from "../core/types";
 
 type Provider = 'spotify' | 'deezer' | 'csv' | 'manual';
 
-// bibliothèque en attente de profil (pseudo + photo, cf. CsvProfileModal) :
-// commune aux deux étapes finales de la connexion universelle (choix manuel
-// des titres ou import CSV, cf. UniversalLoginChoiceModal) puisqu'elles
-// aboutissent toutes deux au même écran de profil
+// en gros c'est la bibliothèque qui attend un profil (pseudo + photo) :
+// que tu aies importé un CSV ou choisi tes titres à la main, tu passes
+// par le même écran de profil à la fin
 type PendingLibrary = { provider: 'csv' | 'manual'; tracks: TrackType[]; total: number };
 
 export const LoginScreen = () => {
@@ -41,12 +40,10 @@ export const LoginScreen = () => {
     const [isCsvInstructionsVisible, setIsCsvInstructionsVisible] = useState(false);
     const manualPickerResult = useManualTrackPickerStore((s) => s.result);
 
-    // commun aux deux providers : pose le profil + les titres likés puis
-    // bascule isAuthenticated en dernier (une fois les titres likés en place)
-    // — c'est lui qui déclenche la navigation hors de cet écran (cf.
-    // Navigator.tsx), et un joueur qui atteindrait le lobby avant que
-    // useTrackStore.likedTracks soit rempli y soumettrait 0 titre
-    // (submitMyTracks ne se relance jamais après coup)
+    // pose le profil et les titres likés, puis authentifie en dernier —
+    // dcp la navigation se déclenche seulement quand tout est prêt. Sinon
+    // le joueur arriverait dans le lobby avec 0 titre, et ça ne se
+    // rattrape jamais après coup
     const finalizeLogin = (
         provider: Provider,
         userProfile: { display_name: string; id: string; email: string; img: string | null; account_type: string },
@@ -67,13 +64,11 @@ export const LoginScreen = () => {
             const data = await loginWithSpotify();
             if (!data?.access_token) return;
 
-            // posé tout de suite : apiClient (getSpotifyUserProfile via fetch direct,
-            // mais aussi getMyLikedTracks juste après) lit le token depuis ce store
+            // on pose le token direct, l'API va le relire dans le store juste après
             setToken(data.access_token);
 
-            // le profil et les titres likés sont indépendants l'un de l'autre :
-            // on les récupère en parallèle plutôt qu'en séquence pour réduire
-            // le temps de connexion perçu
+            // profil et titres likés sont indépendants, dcp on les récupère en
+            // même temps plutôt que l'un après l'autre, ça va plus vite
             const [userProfile, { tracks, total }] = await Promise.all([
                 getSpotifyUserProfile(data.access_token),
                 spotifyService.getMyLikedTracks(),
@@ -100,14 +95,10 @@ export const LoginScreen = () => {
         }
     };
 
-    // La connexion OAuth Deezer (app/modules/auth/deezer.ts +
-    // server/src/routes/auth.routes.js) est complète mais dormante : la
-    // création d'app sur developers.deezer.com est cassée depuis ~2 ans, donc
-    // impossible d'obtenir un app_id/secret pour l'instant. En attendant, on
-    // utilise le lookup de profil public Deezer (sans authentification, cf.
-    // deezerService.getPublicProfile / getPublicLikedTracks) : il suffit de
-    // l'ID ou du lien du profil, à condition que l'utilisateur ait laissé ses
-    // titres likés publics.
+    // en mode la connexion OAuth Deezer existe déjà mais elle dort, parce que
+    // créer une app sur Deezer est cassé depuis ~2 ans, dcp impossible d'avoir
+    // les identifiants. En attendant on regarde juste le profil public par
+    // ID/lien, faut juste que ses titres likés soient publics
     const handleDeezerProfileLogin = async (profileInput: string) => {
         if (loadingProvider) return;
         setDeezerModalError(undefined);
@@ -119,8 +110,7 @@ export const LoginScreen = () => {
         }
 
         setLoadingProvider('deezer');
-        // pas de token pour ce mode : on s'assure qu'un éventuel token Spotify
-        // d'une session précédente ne traîne pas dans le store
+        // pas de token ici, on efface un éventuel vieux token Spotify qui traînerait
         setToken(null);
 
         try {
@@ -159,9 +149,8 @@ export const LoginScreen = () => {
         }
     };
 
-    // ouvre le choix entre composer sa bibliothèque à la main ou l'importer
-    // d'un fichier CSV (cf. UniversalLoginChoiceModal) — première étape de la
-    // "Connexion universelle", pour les joueurs sans compte Spotify/Deezer
+    // première étape de la connexion universelle : choisir ses titres à la
+    // main ou importer un CSV, pour ceux qui ont ni Spotify ni Deezer
     const handleOpenUniversalLogin = () => {
         setIsUniversalChoiceVisible(true);
     };
@@ -181,12 +170,10 @@ export const LoginScreen = () => {
         setIsProfileModalVisible(true);
     };
 
-    // ManualTrackPickerScreen (poussé sur la pile, cf. Navigator.tsx) reste
-    // au-dessus de cet écran tant qu'il est ouvert : cet écran-ci reste monté
-    // en dessous et continue de recevoir les mises à jour du store — dès que
-    // l'utilisateur valide sa sélection là-bas et revient (goBack), ce store
-    // porte le résultat et cet effet prend le relais, comme le ferait un
-    // onConfirm de modale classique (cf. useManualTrackPickerStore)
+    // l'écran de choix manuel des titres reste au-dessus, celui-ci reste
+    // monté en dessous. Dès que le joueur valide et revient en arrière, le
+    // store récupère le résultat et cet effet prend la suite, comme un
+    // onConfirm de modale classique
     useEffect(() => {
         if (!manualPickerResult) return;
         handleManualTracksConfirm(manualPickerResult);
@@ -200,9 +187,8 @@ export const LoginScreen = () => {
         setIsCsvInstructionsVisible(false);
         setIsProfileModalVisible(true);
 
-        // au-delà de 5000 titres, le reste du fichier est ignoré (même limite
-        // que côté serveur, cf. modules/auth/csv.ts) : sans ce message,
-        // l'utilisateur croirait que toute sa bibliothèque a été importée
+        // au-delà de 5000 titres on ignore le reste (même limite côté serveur),
+        // dcp on prévient sinon le joueur croit que tout est importé
         if (imported.truncated) {
             Alert.alert(
                 'Bibliothèque tronquée',
@@ -315,12 +301,9 @@ export const LoginScreen = () => {
                         available={false}
                     /> */}
 
-                    {/* déplacé ici (dans le même bloc que les boutons, avant
-                    c'était un sibling du bloc entier) : posé en dehors, son
-                    empilement dépendait d'un calcul flex fait par un parent
-                    différent de celui des boutons, ce qui pouvait le faire
-                    chevaucher le dernier bouton sur web au lieu de s'afficher
-                    en dessous */}
+                    {/* déplacé dans le bloc des boutons : avant il dépendait d'un
+                    calcul flex différent et pouvait chevaucher le dernier
+                    bouton sur web au lieu de s'afficher dessous */}
                     <SectionTitle
                         subtitle="En te connectant, tu acceptes de partager tes titres likés pour jouer avec tes amis"
                         align="center"

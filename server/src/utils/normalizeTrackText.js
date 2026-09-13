@@ -1,10 +1,8 @@
-// Normalisation d'un titre/artiste utilisée pour comparer/regrouper des
-// morceaux par identité plutôt que par id fournisseur (accents, casse et
-// ponctuation ignorés). Utilisée par preview.service.js (validation des
-// résultats de recherche, cf. isRealMatch), game.service.js (regroupement du
-// pool, cf. poolKey) et previewMatch.service.js (clé de la base de
-// correspondances vérifiées) — extraite ici pour que ces deux derniers
-// puissent tous les deux en dépendre sans import circulaire entre eux.
+// nettoie un titre/artiste pour pouvoir comparer des morceaux entre eux
+// (on ignore accents, majuscules et ponctuation), plutôt que se fier à l'id
+// fournisseur. utilisé dans preview.service.js (isRealMatch), game.service.js
+// (poolKey) et previewMatch.service.js. c'est ici et pas ailleurs pour éviter
+// un import circulaire entre ces fichiers qui en ont tous besoin.
 const DIACRITICS_RANGE = new RegExp('[\\u0300-\\u036f]', 'g')
 
 export const normalizeTrackText = (value) =>

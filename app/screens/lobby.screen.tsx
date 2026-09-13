@@ -50,37 +50,29 @@ const LobbyScreen = () => {
     const [isStartingGame, setIsStartingGame] = useState(false)
 
     const isHost = users[0]?.id === user?.id
-    // dérivé de l'état serveur partagé (et non d'un état local) pour que tous
-    // les joueurs voient la même chose, y compris ceux qui rejoignent après
-    // que l'hôte a déjà choisi les réglages
+    // ça vient du serveur, pas d'un state local, dcp tout le monde voit
+    // pareil, même ceux qui arrivent après le choix des réglages
     const isGameModeSelected = lobby?.settingsConfirmed ?? false
     const hasEnoughPlayers = users.length >= LOBBY_LIMITS.MIN_PLAYERS_TO_START
-    // le serveur refuse de toute façon de lancer tant que tout le monde n'a
-    // pas envoyé ses musiques likées (cf. game.service.js) : on reflète cette
-    // même contrainte ici pour ne pas laisser l'hôte cliquer dans le vide
+    // le serveur bloque le lancement tant que tout le monde n'a pas envoyé
+    // ses musiques, on le montre ici aussi pour que l'hôte ne clique pour rien
     const missingTrackSubmissions = users.filter((u) => !submittedPlayerIds.includes(u.id)).length
-    // après une partie, bloque le relancement tant que tout le monde n'est
-    // pas explicitement revenu au lobby (ou ne l'a pas quitté) — cf.
-    // game.service.js, qui expulse pour inactivité au bout de 30s
+    // après une partie on bloque le relancement tant que tout le monde n'est
+    // pas revenu au lobby (sinon la personne est virée après 30s d'inactivité)
     const missingReturns = users.filter((u) => pendingReturnPlayerIds.includes(u.id)).length
     const canStartGame =
         hasEnoughPlayers && isGameModeSelected && missingTrackSubmissions === 0 && missingReturns === 0
 
-    // écoute les événements de partie dès l'entrée dans le lobby, et envoie ses
-    // titres likés pour que le pool soit prêt quand l'hôte lancera la partie
+    // dès qu'on entre dans le lobby, on écoute la partie et on envoie ses
+    // titres likés, dcp tout est prêt quand l'hôte lance
     useEffect(() => {
         if (!lobby) return
 
-        // Repart d'un game store totalement propre à chaque changement RÉEL de
-        // lobby (pas à chaque retour dans le MÊME lobby, cf. la dépendance sur
-        // lobby.code) : un joueur qui rejoint un nouveau lobby juste après avoir
-        // quitté/été expulsé d'un ancien (ou qui y revient et en devient l'hôte)
-        // ne doit hériter d'aucun résidu de cet ancien lobby — ni son `phase`
-        // (sinon renvoi vers l'écran de jeu de l'ancienne partie), ni ses
-        // submittedPlayerIds/pendingReturnPlayerIds (sinon "En attente que 3
-        // joueurs..." fantôme dans un lobby où personne n'a encore joué).
-        // reset() ici est un remplacement complet (cf. game.store.ts), pas une
-        // fusion partielle : il n'y a donc rien d'autre à vider à la main.
+        // on repart avec un game store tout propre à chaque VRAI changement de
+        // lobby, pas juste un retour dans le même. Sinon un joueur qui change
+        // de lobby hérite des résidus de l'ancien (mauvaise phase, faux "en
+        // attente de joueurs"...). reset() remplace tout d'un coup, rien
+        // d'autre à vider derrière
         useGameStore.getState().reset()
 
         startWatchingGame()
@@ -89,16 +81,11 @@ const LobbyScreen = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lobby?.code])
 
-    // tous les joueurs (pas seulement l'hôte) sont redirigés dès que le
-    // serveur démarre la partie. Liste explicite des phases "partie en cours"
-    // plutôt que `!== 'idle'` : cette dernière incluait aussi 'finished', qui
-    // est justement la phase dont on part en pressant "Rester dans le lobby"
-    // (cf. handleStayInLobby dans game.screen.tsx). S'il restait la moindre
-    // fenêtre où cet écran se re-rendait avec gamePhase encore à 'finished'
-    // avant que le reset local n'ait fini de se propager, cet effet renvoyait
-    // aussitôt vers l'écran de jeu — un aller-retour de navigation silencieux
-    // (aucune exception, donc aucun log) qui pouvait laisser l'app bloquée
-    // sur un écran incohérent/vide.
+    // tout le monde est redirigé dès que le serveur lance la partie. On liste
+    // les phases "en cours" à la main plutôt que tester `!== 'idle'`, parce
+    // que 'finished' compte aussi et ça renvoyait direct vers l'écran de jeu
+    // quand on cliquait "Rester dans le lobby" — un bug silencieux qui
+    // pouvait bloquer l'app sur un écran vide
     useEffect(() => {
         if (GAME_IN_PROGRESS_PHASES.includes(gamePhase)) {
             navigation.navigate('Game')
@@ -114,13 +101,10 @@ const LobbyScreen = () => {
         useGameStore.getState().setError(null)
     }, [gameError])
 
-    // le stack navigator garde cet écran monté (goBack le réaffiche tel quel,
-    // ex: "Rester dans le lobby" depuis les résultats finaux) : sans ce reset,
-    // isStartingGame resterait bloqué à true après un lancement réussi et le
-    // bouton resterait grisé sur "Lancement..." indéfiniment. On en profite
-    // pour signaler au serveur que ce joueur est bien de retour au lobby (cf.
-    // missingReturns ci-dessus) : couvre aussi bien "Rester dans le lobby"
-    // que tout autre chemin de retour à cet écran.
+    // cet écran reste monté dans la pile (goBack le réaffiche tel quel), donc
+    // sans ce reset le bouton resterait bloqué sur "Lancement..." pour
+    // toujours. On prévient aussi le serveur que ce joueur est bien revenu au
+    // lobby, ça couvre tous les chemins de retour possibles
     useFocusEffect(
         useCallback(() => {
             setIsStartingGame(false)
@@ -128,8 +112,7 @@ const LobbyScreen = () => {
         }, [])
     )
 
-    // détecte une expulsion par l'hôte : on n'apparaît plus dans la liste
-    // diffusée par le serveur
+    // détecte qu'on a été expulsé : on n'est plus dans la liste envoyée par le serveur
     useEffect(() => {
         if (!lobby || !user || users.length === 0) return
         const stillIn = users.some((u) => u.id === user.id)
@@ -150,12 +133,9 @@ const LobbyScreen = () => {
                 { text: "Rester", style: "cancel" },
                 {
                     text: "Quitter",
-                    // EXPÉRIMENTAL — navigation optimisée (cf. discussion audit
-                    // perf) : leaveLobby() avale déjà ses propres erreurs réseau
-                    // (log + continue, cf. lobby.service.ts) sans jamais annuler
-                    // le départ, donc attendre sa réponse avant de naviguer ne
-                    // protégeait contre rien — juste un aller-retour réseau
-                    // masqué derrière la transition au lieu d'être devant.
+                    // en mode test perf : leaveLobby() gère déjà ses erreurs
+                    // réseau tout seul et annule jamais le départ, dcp attendre
+                    // sa réponse avant de naviguer servait à rien
                     onPress: () => {
                         leaveLobby()
                         leaveGame()
@@ -187,8 +167,8 @@ const LobbyScreen = () => {
         }
         if (isStartingGame) return
         setIsStartingGame(true)
-        // le serveur diffuse "game:started" à tout le lobby, qui redirige
-        // chaque joueur vers l'écran de jeu (cf. l'effet sur gamePhase ci-dessus)
+        // le serveur envoie "game:started" à tout le lobby, ça redirige chaque
+        // joueur vers l'écran de jeu
         startGame()
     }
 
@@ -224,14 +204,11 @@ const LobbyScreen = () => {
         }
     }
 
-    // ne devrait s'afficher que le temps d'une frame pendant la transition de
-    // navigation qui suit un départ/une expulsion du lobby (cf. handleLeaveLobby
-    // et la détection d'expulsion ci-dessus, qui redirigent vers Home juste après).
-    // Un indicateur de chargement plutôt que `return null` : un écran vide sans
-    // aucun visuel est indiscernable d'un plantage silencieux pour l'utilisateur
-    // (cf. le bug du "Rester dans le lobby" plus haut) — si ce cas venait à durer
-    // plus qu'une frame pour une raison qu'on n'a pas anticipée, mieux vaut un
-    // spinner visible qu'un écran blanc muet.
+    // ça devrait s'afficher qu'une frame, pendant la transition après un
+    // départ/une expulsion du lobby. Un spinner plutôt que rien du tout, parce
+    // qu'un écran vide ressemble à un crash pour l'utilisateur — si jamais ça
+    // dure plus longtemps que prévu, mieux vaut un spinner visible qu'un écran
+    // blanc muet
     if (!lobby) {
         return (
             <ScreenLayout centered>
@@ -271,12 +248,9 @@ const LobbyScreen = () => {
                     className="flex-1 w-full"
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingBottom: 20 }}
-                    // Android uniquement : sans ça, le conteneur natif de l'écran
-                    // (react-native-screens) intercepte le geste de glissement
-                    // vertical avant que cette ScrollView ne le récupère, même
-                    // sans ScrollView parent visible côté JS (cf. même bug déjà
-                    // rencontré sur TrackSuggestionsList) — la liste reste
-                    // affichée mais ne réagit à aucun glissement
+                    // Android seulement : sans ça, l'écran natif capte le
+                    // glissement vertical avant la ScrollView, dcp la liste
+                    // s'affiche mais réagit à rien quand on scrolle
                     nestedScrollEnabled
                 >
                     <PlayersGrid

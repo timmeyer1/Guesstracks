@@ -65,10 +65,7 @@ export const CsvProfileModal = ({
 
     return (
         <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
-            {/* behavior="padding" sur iOS : sans ça, le clavier recouvre le champ
-                pseudo sur les écrans plus petits (iPhone SE/mini...) puisque la
-                modale reste centrée verticalement au lieu de remonter (même
-                correctif que JoinLobbyModal.tsx). */}
+            {/* padding sur iOS sinon le clavier recouvre le champ sur les petits écrans */}
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

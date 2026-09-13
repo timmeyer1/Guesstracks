@@ -3,12 +3,10 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
 const AVATAR_SIZE = 80;
 
-// ouvre le sélecteur de photo natif, redimensionne l'image choisie en 80x80
-// (taille d'affichage des avatars, cf. PlayerAvatar.AVATAR_SIZES) et la
-// renvoie en data URI base64 : contrairement à une uri locale (file://,
-// blob:), une data URI reste affichable par les AUTRES joueurs du lobby une
-// fois transmise via socket (cf. game.service.ts buildPlayerPayload), sans
-// nécessiter d'endpoint d'upload dédié.
+// ouvre le sélecteur de photo natif, redimensionne en 80x80 (taille des
+// avatars) et renvoie une data URI base64. contrairement à une uri locale
+// (file://, blob:), une data URI reste affichable par les autres joueurs une
+// fois envoyée par socket, sans besoin d'un endpoint d'upload à part.
 export const pickAndResizeProfileImage = async (): Promise<string | null> => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return null;

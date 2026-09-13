@@ -1,5 +1,5 @@
 export const COLORS = {
-    // IMPORTANT: les couleurs doivent être synchronisées avec tailwind.config.js
+    // important : faut garder ces couleurs en phase avec tailwind.config.js
     // mains
     dark: '#020202',
     white: '#FAFAFA',

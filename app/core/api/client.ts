@@ -11,9 +11,9 @@ export const apiClient = axios.create({
     },
 });
 
-// le token n'est jamais connu au moment où apiClient est créé (import-time,
-// avant tout login) : il est relu depuis le store à chaque requête plutôt que
-// figé une fois dans les headers ci-dessus
+// au moment où apiClient est créé, on n'a pas encore le token (avant tout
+// login). dcp on va le rechercher dans le store à chaque requête, plutôt
+// que de le figer une fois pour toutes dans les headers.
 apiClient.interceptors.request.use(
     async (config) => {
         try {

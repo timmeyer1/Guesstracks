@@ -10,10 +10,9 @@ export const createLobbyRouter = (io) => {
         io.to(`lobby:${code}`).emit('lobby:update', lobby)
     }
 
-    // exige un jeton de lobby valide pour :code et expose l'identité vérifiée
-    // en req.playerId — seule source de vérité sur "qui appelle cette route",
-    // jamais req.body.playerId/requesterId (envoyés par le client, donc
-    // falsifiables : cf. audit sécurité, finding C1)
+    // vérifie le jeton du lobby et met l'identité vérifiée dans req.playerId.
+    // c'est la seule source fiable pour savoir qui appelle la route, jamais
+    // req.body.playerId (ça vient du client, donc n'importe qui peut le trafiquer).
     const requireLobbyIdentity = (req, res, next) => {
         try {
             const raw = req.headers.authorization?.replace(/^Bearer\s+/i, '')
@@ -67,7 +66,7 @@ export const createLobbyRouter = (io) => {
                 io.to(`lobby:${code}`).emit('lobby:closed')
             } else {
                 broadcast(code, result.lobby)
-                // un joueur qui quitte n'a plus besoin d'être attendu pour relancer
+                // pas la peine d'attendre ce joueur pour relancer la partie, il est parti
                 clearPendingReturn(code, req.playerId, io)
             }
             res.json(result)
@@ -92,7 +91,7 @@ export const createLobbyRouter = (io) => {
             const code = req.params.code.toUpperCase()
             const lobby = await lobbyService.kickPlayer(code, req.playerId, req.body.targetId)
             broadcast(code, lobby)
-            // un joueur expulsé n'a plus besoin d'être attendu pour relancer
+            // pareil, pas la peine d'attendre un joueur expulsé pour relancer la partie
             clearPendingReturn(code, req.body.targetId, io)
             res.json({ lobby })
         } catch (err) {

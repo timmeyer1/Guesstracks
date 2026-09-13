@@ -73,7 +73,7 @@ export const joinLobby = async (code, player) => {
     return lobby.toPublic()
 }
 
-// retourne { closed: true } si le lobby a été supprimé (plus aucun joueur)
+// renvoie { closed: true } si le lobby a été supprimé (plus personne dedans)
 export const leaveLobby = async (code, playerId) => {
     const lobby = await getLobby(code)
 
@@ -138,7 +138,7 @@ export const updateLobbySettings = async (code, playerId, settings) => {
     return lobby.toPublic()
 }
 
-// le premier joueur du tableau est toujours l'hôte (cf. lobby.model.js)
+// en gros le premier joueur du tableau, c'est toujours l'hôte (voir lobby.model.js)
 export const kickPlayer = async (code, requesterId, targetId) => {
     const lobby = await getLobby(code)
 
@@ -160,19 +160,12 @@ export const kickPlayer = async (code, requesterId, targetId) => {
     return lobby.toPublic()
 }
 
-// retire plusieurs joueurs d'un coup, sans vérification d'hôte : utilisé par
-// le nettoyage automatique pour inactivité (game.service.js), pas par une
-// action d'un joueur. Une seule opération atomique ($pull avec $in) plutôt
-// qu'un retrait joueur par joueur en boucle : l'ancienne version lisait puis
-// sauvegardait le lobby séquentiellement pour chaque id, ce qui laissait une
-// fenêtre où un retrait pouvait échouer (ou être écrasé par une écriture
-// concurrente sur le même document) sans empêcher les précédents d'avoir déjà
-// été appliqués — un ou plusieurs joueurs pouvaient alors rester coincés dans
-// le lobby après les 30s. Ici soit tous les ids demandés sont retirés en une
-// fois, soit aucun (si le lobby n'existe déjà plus).
-// Renvoie { removed: false } si le lobby n'existe déjà plus, { removed: true,
-// closed: true } si le lobby est maintenant vide (supprimé, comme
-// leaveLobby), { removed: true, closed: false, lobby } sinon.
+// vire plusieurs joueurs d'un coup, sans check d'hôte : c'est le nettoyage
+// auto pour inactivité qui appelle ça (game.service.js), pas un joueur.
+// une seule opération atomique ($pull avec $in) plutôt qu'une boucle,
+// sinon une écriture concurrente pouvait écraser un retrait en cours.
+// renvoie removed:false si le lobby existe plus, sinon removed:true avec
+// closed:true (lobby vide, supprimé) ou closed:false + lobby.
 export const removePlayers = async (code, targetIds) => {
     if (!Array.isArray(targetIds) || targetIds.length === 0) return { removed: false }
 

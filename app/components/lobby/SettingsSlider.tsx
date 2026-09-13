@@ -10,12 +10,8 @@ export type SettingsSliderProps = {
     accentColor: string
 }
 
-// curseur système (UISlider/SeekBar), le même sur toutes les plateformes :
-// adopte automatiquement le rendu du système (Liquid Glass sur iOS 26,
-// Material sur Android) sans rien à styliser nous-mêmes. Sur web, cette lib
-// retombe sur son propre rendu générique (pas de rendu système possible
-// depuis une page : Liquid Glass est un matériau natif, inaccessible au DOM
-// même dans Safari sur iPhone).
+// curseur système (Liquid Glass sur iOS, Material sur Android), on stylise rien.
+// Sur web ça retombe sur un rendu générique, pas de rendu système possible depuis une page.
 export const THUMB_SIZE = 28
 
 export const SettingsSlider = ({ min, max, step, value, onValueChange, accentColor }: SettingsSliderProps) => {

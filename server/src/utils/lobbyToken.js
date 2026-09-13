@@ -1,10 +1,9 @@
 import jwt from 'jsonwebtoken'
 
-// Jeton liant une connexion à une identité de joueur au sein d'un lobby
-// donné : émis à la création/l'entrée dans un lobby, rejoué par le client sur
-// chaque requête REST (header Authorization) et chaque abonnement socket. Sans
-// ça, playerId/requesterId venait tel quel du corps de la requête et n'importe
-// qui pouvait usurper n'importe quel joueur (cf. audit sécurité, finding C1).
+// ce jeton prouve qu'un joueur est bien celui qu'il prétend être dans un lobby.
+// on le crée à la création/l'entrée dans le lobby, et le client le renvoie à
+// chaque requête (header Authorization) et chaque connexion socket. sans ça,
+// n'importe qui pouvait se faire passer pour un autre joueur en trafiquant sa requête.
 const SECRET = process.env.LOBBY_JWT_SECRET
 if (!SECRET) {
     throw new Error(
@@ -20,8 +19,8 @@ export class LobbyTokenError extends Error {}
 export const signLobbyToken = (code, playerId) =>
     jwt.sign({ code, playerId }, SECRET, { expiresIn: TOKEN_TTL })
 
-// lève LobbyTokenError si le jeton est absent, invalide, expiré, ou ne
-// correspond pas au code de lobby attendu
+// plante avec LobbyTokenError si le jeton manque, est invalide/expiré,
+// ou ne correspond pas au bon lobby
 export const verifyLobbyToken = (rawToken, expectedCode) => {
     if (typeof rawToken !== 'string' || !rawToken) {
         throw new LobbyTokenError('Jeton de lobby manquant')

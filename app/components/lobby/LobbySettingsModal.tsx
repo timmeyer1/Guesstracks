@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Modal, View, Text, TouchableOpacity, Pressable } from "react-native"
-// ScrollView de gesture-handler (pas celle de react-native), gardée par
-// prudence pour l'arbitrage de gestes vertical/horizontal sur Android — même
-// si SettingsSlider est désormais un <Slider> natif (sans react-native-
-// gesture-handler), cette ScrollView reste un remplacement sûr de celle de
-// react-native.
+// ScrollView de gesture-handler plutôt que celle de react-native, en gros
+// pour mieux gérer les gestes verticaux/horizontaux en même temps sur Android
 import { ScrollView, GestureHandlerRootView } from "react-native-gesture-handler"
 import { GAME_MODES, DEFAULT_LOBBY_SETTINGS, LOBBY_LIMITS } from "../../core/constants/lobby.constants"
 import { COLORS } from "../../core/constants/colors.constants"
@@ -22,17 +19,12 @@ const stepValues = (min: number, max: number, step: number) => {
     return values
 }
 
-// largeur allouée à chaque étiquette pour son centrage horizontal (cf. plus
-// bas) : suffisant pour les libellés attendus ("5" à "30s")
+// largeur de chaque étiquette pour bien la centrer, suffisant pour "5" à "30s"
 const TICK_LABEL_WIDTH = 28
 
-// règle graduée sous la piste : un trait + un nombre par palier, pour
-// visualiser chaque valeur possible. Alignée sur la course réelle du curseur
-// de SettingsSlider (et non sur la largeur totale du composant) : le centre
-// du curseur ne balaie que [THUMB_SIZE/2, largeur - THUMB_SIZE/2], jamais les
-// bords 0 et largeur — sans quoi les graduations extrêmes paraissent
-// décalées vers l'extérieur par rapport aux positions atteignables du
-// curseur.
+// règle graduée sous le curseur (un trait + un nombre par palier). Alignée sur
+// la vraie course du curseur (pas la largeur totale), sinon les graduations
+// extrêmes paraissent décalées vers l'extérieur.
 type StepRulerProps = {
     min: number
     max: number
@@ -105,28 +97,19 @@ export const LobbySettingsModal = ({
         initialSettings?.manualAdvance ?? DEFAULT_LOBBY_SETTINGS.manualAdvance
     )
 
-    // le scroll n'est activé que si le contenu dépasse réellement la hauteur
-    // visible de la carte : sans ça, la ScrollView réagissait au moindre
-    // glisser-déposer (rebond/déplacement visuel) même quand tout tient déjà
-    // à l'écran, donnant l'impression que la modale "bouge" pour rien
+    // scroll activé que si le contenu dépasse vraiment, sinon ça bougeait
+    // pour rien même quand tout rentrait déjà à l'écran
     const [scrollViewHeight, setScrollViewHeight] = useState(0)
     const [contentHeight, setContentHeight] = useState(0)
     const scrollEnabled = contentHeight > scrollViewHeight
 
-    // couleur d'accent des réglages (curseurs, contours, switch...) : celle du
-    // mode de jeu actuellement sélectionné (violet who_liked / orange
-    // blindtest, cf. colors.constants.ts) plutôt qu'une couleur fixe, pour que
-    // toute la modale se re-teinte instantanément quand on change de mode —
-    // s'étend automatiquement à un futur mode tant qu'il a une entrée dans COLORS
+    // couleur d'accent des réglages basée sur le mode de jeu choisi (violet ou
+    // orange), dcp toute la modale se re-teinte direct quand on change de mode
     const accentColor = COLORS[gameMode]
 
-    // synchro avec les paramètres initiaux quand la modal s'ouvre — uniquement
-    // au passage fermée -> ouverte (wasVisible), pas à chaque fois que
-    // `initialSettings` change de référence : ce prop vient du lobby du store
-    // (cf. lobby.screen.tsx), qui est remplacé par un nouvel objet à chaque
-    // mise à jour socket (ex. un joueur qui rejoint/quitte) — sans cette
-    // garde, un réglage en cours (curseur en train d'être déplacé) était
-    // écrasé et revenait à sa valeur serveur dès qu'un tel événement arrivait
+    // resynchro les réglages que quand la modale s'ouvre (fermée → ouverte),
+    // pas à chaque update socket du lobby, sinon un curseur en train d'être
+    // bougé revenait direct à sa valeur serveur
     const wasVisible = useRef(false)
     useEffect(() => {
         if (visible && !wasVisible.current && initialSettings) {
@@ -161,23 +144,13 @@ export const LobbySettingsModal = ({
 
     return (
         <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
-            {/* Modal (react-native) ouvre sa propre fenêtre native, séparée de celle
-                de l'app — donc HORS de la zone que le GestureHandlerRootView posé à la
-                racine de App.tsx surveille. Sur Android, ça empêchait les gestes
-                (curseurs, ScrollView gesture-handler) de fonctionner à l'intérieur de
-                cette modale, quel que soit le réglage du geste lui-même : il fallait un
-                second GestureHandlerRootView, dédié à cette fenêtre-ci. C'est un piège
-                documenté de react-native-gesture-handler avec Modal, pas quelque chose
-                de spécifique à ce composant. */}
+            {/* Modal ouvre sa propre fenêtre, hors de portée du GestureHandlerRootView
+                de App.tsx, dcp les gestes marchaient pas dans la modale sur Android.
+                Faut son propre GestureHandlerRootView ici, c'est un piège connu de la lib. */}
             <GestureHandlerRootView style={{ flex: 1 }}>
-                {/* backdrop en sibling absolu de la carte (pas un Pressable ancêtre qui
-                    l'englobe) : une Pressable ancêtre de la ScrollView capte le geste dès
-                    qu'on touche un espace vide de la carte, et une ScrollView ne peut
-                    reprendre la main que sur un DESCENDANT (bouton, slider), jamais sur un
-                    ancêtre — d'où un scroll qui ne fonctionnait qu'en posant le doigt sur
-                    un "module" et jamais sur le vide entre eux. En sibling, le tap sur le
-                    fond noir (hors carte) ferme la modale normalement, et la carte ne
-                    capte plus rien au niveau ancêtre de la ScrollView */}
+                {/* backdrop en sibling de la carte, pas en Pressable ancêtre : sinon
+                    ça capte le geste dès qu'on touche du vide et le scroll marche
+                    plus que sur les boutons/curseurs, jamais entre eux */}
                 <Pressable
                     className="absolute top-0 left-0 right-0 bottom-0 bg-black/60"
                     onPress={handleClose}

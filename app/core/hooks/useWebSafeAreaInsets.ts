@@ -1,10 +1,8 @@
 // app/core/hooks/useWebSafeAreaInsets.ts
 //
-// Sur web, react-native-safe-area-context reste bloqué à { top: 0, bottom: 0 }
-// en mode standalone iOS (cf. public/index.html pour le détail exact du bug
-// dans sa sonde CSS) : ce hook lit à la place les vraies valeurs mesurées par
-// le script de public/index.html, mises à jour dès qu'elles sont connues,
-// aucune valeur figée à l'instant du premier rendu React (forcément trop tôt).
+// Sur web, react-native-safe-area-context renvoie toujours 0 en mode appli
+// installée sur iOS (bug connu). Dcp ce hook va chercher les vraies valeurs
+// mesurées par public/index.html et les met à jour dès qu'elles arrivent.
 import { useEffect, useState } from 'react'
 import { Platform } from 'react-native'
 

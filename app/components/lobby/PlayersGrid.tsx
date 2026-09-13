@@ -12,9 +12,7 @@ interface User {
 
 type AvatarSize = keyof typeof AVATAR_SIZES
 
-// item de grille : soit un joueur, soit le bouton "Inviter" ajouté quand le
-// lobby n'est pas complet — isAddButton sert de discriminant pour que
-// TypeScript retrouve les bons champs (name/img/id) après le if plus bas
+// soit un joueur, soit le bouton "Inviter" si le lobby est pas complet
 type GridItem = (User & { isAddButton?: false }) | { id: 'add-button'; isAddButton: true }
 
 interface PlayersGridProps {

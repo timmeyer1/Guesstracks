@@ -8,17 +8,17 @@ export const lobbyApiClient = axios.create({
     headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        // sans ce header, un tunnel ngrok gratuit renvoie une page HTML
-        // d'avertissement au lieu de proxyfier la requête vers le serveur —
-        // inoffensif si le serveur n'est pas derrière ngrok (header ignoré)
+        // sans ce header, un tunnel ngrok gratuit renvoie une page d'avertissement
+        // au lieu de faire passer la requête. sans incidence si y'a pas de
+        // ngrok, le header est juste ignoré.
         'ngrok-skip-browser-warning': 'true',
     },
 })
 
-// le jeton de lobby n'existe qu'une fois dans un lobby (créé/rejoint) : relu
-// depuis le store à chaque requête plutôt que figé une fois, même pattern que
-// apiClient (cf. app/core/api/client.ts). Absent pour create/join (aucun
-// lobby encore rejoint) : le serveur ne l'exige d'ailleurs pas sur ces routes.
+// le jeton de lobby n'existe qu'une fois qu'on a créé ou rejoint un lobby,
+// dcp on va le chercher dans le store à chaque requête (même principe que
+// apiClient). il est absent pour create/join, et le serveur ne l'exige
+// pas sur ces routes-là.
 lobbyApiClient.interceptors.request.use((config) => {
     const token = useLobbyStore.getState().lobbyToken
     if (token) {

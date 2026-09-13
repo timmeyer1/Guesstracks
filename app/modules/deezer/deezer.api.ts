@@ -1,8 +1,7 @@
 import { deezerApiClient } from "../../core/api/deezer.client";
 
-// Deezer répond en HTTP 200 même en cas d'échec, avec ce corps d'erreur (cf.
-// app/core/api/deezer.client.ts) : présent (optionnellement) sur toutes les
-// réponses ci-dessous.
+// en gros Deezer renvoie du 200 même quand ça foire, avec ce format
+// d'erreur en plus dans la réponse (voir deezer.client.ts)
 export type DeezerErrorPayload = {
     error?: { type?: string; message?: string; code?: number }
 }
@@ -29,11 +28,9 @@ export type DeezerTracksResponse = DeezerErrorPayload & {
 
 export const deezerApi = {
 
-    // -- connexion OAuth : nécessite un app_id/secret Deezer enregistré sur
-    // developers.deezer.com (cf. app/modules/auth/deezer.ts et
-    // server/src/routes/auth.routes.js). Dormant tant que la création d'app
-    // est indisponible côté Deezer — cf. getPublic* ci-dessous pour le
-    // chemin actuellement utilisé par l'écran de connexion.
+    // connexion via OAuth Deezer : demande un app_id/secret enregistré chez
+    // Deezer. Dcp pas utilisé pour l'instant (création d'app fermée côté
+    // Deezer) — c'est getPublic* en dessous qui est vraiment utilisé
     getUserProfile: () =>
         deezerApiClient.get<DeezerUserProfile>('/user/me'),
 
@@ -45,9 +42,8 @@ export const deezerApi = {
             }
         }),
 
-    // -- lookup de profil public, sans authentification : Deezer expose
-    // /user/{id} et /user/{id}/tracks sans token dès lors que l'utilisateur
-    // n'a pas rendu ses titres likés privés
+    // récupère un profil public, sans se connecter : ça marche tant que
+    // l'utilisateur n'a pas mis ses titres likés en privé
     getPublicProfile: (userId: string) =>
         deezerApiClient.get<DeezerUserProfile>(`/user/${userId}`),
 

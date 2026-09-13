@@ -9,8 +9,7 @@ export type SpotifyUserProfile = {
     product: string
 }
 
-// item de GET /me/tracks : `track.artists` contient l'artiste principal ET
-// les featurings (cf. formatArtists dans spotify.service.ts)
+// track.artists contient l'artiste principal ET les featurings
 export type SpotifyLikedTrackItem = {
     track: {
         id: string

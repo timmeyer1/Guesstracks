@@ -1,40 +1,30 @@
 import mongoose from 'mongoose'
 
-// Base globale (partagée par TOUTES les parties, pas par lobby) des
-// correspondances titre+artiste -> extrait déjà vérifiées avec succès (cf.
-// preview.service.js/getVerifiedMatch). Objectif : au fil du temps, de moins
-// en moins de titres nécessitent une vraie recherche Deezer/iTunes (donc de
-// moins en moins de requêtes vers ces API publiques à quota limité, cf.
-// PREVIEW_PREFETCH_BATCH_SIZE dans game.service.js) puisque la musique
-// populaire se concentre sur un nombre limité de titres, likés par des
-// joueurs différents dans des parties différentes.
+// dcp c'est une base commune à toutes les parties (pas par lobby) des
+// couples titre+artiste déjà vérifiés avec un vrai extrait (voir getVerifiedMatch
+// dans preview.service.js). le but : plus le temps passe, moins on a besoin
+// de refaire une recherche Deezer/iTunes, parce que la musique populaire
+// revient souvent entre les parties (et ces API ont un quota limité).
 //
-// On ne stocke JAMAIS le lien de l'extrait lui-même : les liens Deezer sont
-// des URLs signées qui expirent après ~15 min (cf. deezer.service.js), et
-// resteraient mortes bien après leur écriture ici. On stocke l'identifiant du
-// titre chez le fournisseur (providerId), stable dans le temps, qui permet de
-// toujours récupérer un extrait FRAIS en un seul appel (cf.
-// fetchFreshByProviderId, preview.service.js) plutôt qu'une recherche floue à
-// plusieurs requêtes.
+// on stocke jamais le lien de l'extrait lui-même : les liens Deezer expirent
+// après ~15 min (voir deezer.service.js). on garde juste l'id du titre chez le
+// fournisseur (providerId), qui lui ne change pas, pour retrouver un extrait
+// frais en un seul appel plutôt qu'une recherche floue.
 const previewMatchSchema = new mongoose.Schema({
-    // normalizeTrackText(name) + '::' + normalizeTrackText(artist), cf.
-    // preview.service.js — même normalisation que le reste du fichier, pour
-    // que deux graphies différentes du même titre (accents, casse...)
-    // retombent sur la même entrée
+    // normalizeTrackText(name) + '::' + normalizeTrackText(artist) (voir
+    // preview.service.js) — même normalisation partout, pour que deux
+    // écritures différentes du même titre tombent sur la même entrée
     key: { type: String, required: true, unique: true, index: true },
     provider: { type: String, enum: ['deezer', 'itunes'], required: true },
     providerId: { type: String, required: true },
-    // titre/artiste TELS QUE renvoyés par le fournisseur au moment de la
-    // vérification (pas ceux du joueur) : utile pour un diagnostic manuel,
-    // jamais utilisé pour la revalidation (cf. isRealMatch, toujours comparé
-    // au nom d'origine transmis par le client)
+    // titre/artiste renvoyés par le fournisseur, pas ceux tapés par le joueur.
+    // sert juste pour vérifier à l'œil, jamais utilisé pour revalider (voir isRealMatch)
     verifiedTitle: { type: String, required: true },
     verifiedArtist: { type: String, required: true },
-    // nombre de joueurs distincts ayant signalé un mauvais extrait sur cette
-    // entrée (cf. game:reportWrongPreview) : au-delà du seuil (cf.
-    // FLAG_INVALIDATE_THRESHOLD, previewMatch.service.js), l'entrée est
-    // supprimée pour forcer une nouvelle recherche revalidée à la prochaine
-    // résolution, plutôt que de rejouer indéfiniment un mauvais extrait
+    // combien de joueurs différents ont signalé un mauvais extrait ici (voir
+    // game:reportWrongPreview). au-delà du seuil (FLAG_INVALIDATE_THRESHOLD
+    // dans previewMatch.service.js), l'entrée est supprimée pour forcer une
+    // nouvelle recherche plutôt que de rejouer le mauvais extrait en boucle
     flagCount: { type: Number, default: 0 },
     lastFlaggedAt: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now },

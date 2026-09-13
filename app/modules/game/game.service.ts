@@ -51,16 +51,14 @@ const applySnapshot = (payload: GameStatePayload) => {
     }
 }
 
-// écoute les événements de jeu pour toute la durée du lobby : à appeler dès
-// l'entrée dans l'écran de lobby, avant même que la partie démarre, pour ne
-// rater ni "game:started" ni le premier "game:round:start"
+// écoute les events de jeu pendant tout le lobby. À lancer dès l'arrivée
+// dans le lobby (avant même que la partie démarre) pour rien louper
 export const startWatchingGame = () => {
     stopWatchingGame()
 
     unsubscribeGame = subscribeToGame({
         onStarted: (payload: GameStarted) => {
-            // état transitoire : le pool est prêt, le premier "round:start" arrive
-            // dans la foulée
+            // état de transition, le premier round arrive juste après
             useGameStore.getState().setPhase('collecting')
             useGameStore.getState().setGameMode(payload.gameMode)
             useGameStore.getState().setManualAdvance(payload.manualAdvance)
@@ -97,24 +95,18 @@ export const stopWatchingGame = () => {
     unsubscribeGame = null
 }
 
-// à appeler en quittant le lobby (la partie ne doit pas survivre après ça)
+// à appeler en quittant le lobby, la partie doit pas survivre après ça
 export const leaveGame = () => {
     stopWatchingGame()
-    // remplacement complet (cf. game.store.ts) : plus aucune raison de garder
-    // submittedPlayerIds/pendingReturnPlayerIds une fois qu'on quitte pour de bon
     useGameStore.getState().reset()
 }
 
 const SUBMIT_TRACKS_RETRY_MS = 1500
 const SUBMIT_TRACKS_MAX_ATTEMPTS = 4
 
-// envoie ses titres likés au serveur dès l'entrée dans le lobby, pour que le
-// pool soit prêt quand l'hôte lance la partie. Si useTrackStore n'est pas encore
-// rempli au moment de l'appel (course possible juste après une connexion),
-// réessaie quelques fois plutôt que d'abandonner silencieusement et
-// définitivement — un abandon silencieux ici laissait "En attente des
-// musiques d'un joueur" bloqué indéfiniment côté hôte, sans qu'aucune
-// nouvelle tentative ne soit jamais faite.
+// envoie ses titres likés dès l'arrivée dans le lobby, pour que ce soit prêt
+// quand l'hôte lance la partie. Si les titres sont pas encore chargés dcp on
+// réessaie plusieurs fois — sinon l'hôte restait bloqué sur "en attente" indéfiniment
 export const submitMyTracks = (attempt = 1) => {
     const { lobby } = useLobbyStore.getState()
     const player = buildPlayerPayload()
@@ -151,19 +143,16 @@ export const submitAnswer = (selected: string[]) => {
     emitAnswer(lobby.code, round.roundIndex, selected)
 }
 
-// n'a d'effet que si le lobby a activé "avancer manuellement" (cf.
-// useGameStore().manualAdvance) et que l'appelant est bien l'hôte — le
-// serveur revalide les deux de toute façon (cf. advanceRound, game.service.js)
+// marche que si "avancer manuellement" est activé et que c'est l'hôte qui
+// appelle — le serveur revérifie les deux de son côté de toute façon
 export const advanceRound = () => {
     const { lobby } = useLobbyStore.getState()
     if (!lobby) return
     emitNextRound(lobby.code)
 }
 
-// bouton "Pas le bon extrait ?" de l'écran de résultat (cf. RoundResult.tsx) :
-// n'a aucun effet sur la manche déjà jouée, alimente seulement la base de
-// correspondances vérifiées côté serveur pour les résolutions futures (cf.
-// server/src/services/previewMatch.service.js)
+// bouton "Pas le bon extrait ?" de l'écran de résultat. Ça change rien à la
+// manche en cours, ça sert juste à nourrir la base de corrections côté serveur
 export const reportWrongPreview = (roundIndex: number) => {
     const { lobby } = useLobbyStore.getState()
     if (!lobby) return
@@ -177,9 +166,9 @@ export const syncGame = () => {
     emitGameSync(lobby.code)
 }
 
-// à appeler à chaque fois que l'écran de lobby regagne le focus : signale au
-// serveur que ce joueur est bien de retour, ce qui débloque "Lancer la
-// partie" côté hôte une fois que tout le monde l'a fait (cf. lobby.screen.tsx)
+// à appeler chaque fois que l'écran de lobby reprend le focus : dit au
+// serveur que ce joueur est bien revenu, ce qui débloque "Lancer la partie"
+// côté hôte une fois que tout le monde est revenu
 export const confirmReturnedToLobby = () => {
     const { lobby } = useLobbyStore.getState()
     const { user } = useAuthStore.getState()

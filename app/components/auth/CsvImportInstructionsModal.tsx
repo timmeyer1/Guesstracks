@@ -12,17 +12,13 @@ const SOUNDIIZ_URL = 'https://soundiiz.com/fr/transfer';
 type CsvImportInstructionsModalProps = {
     visible: boolean;
     onClose: () => void;
-    // déclenche le sélecteur de fichier natif (cf. login.screen.tsx,
-    // handleUploadCsv) une fois le CSV exporté depuis TuneMyMusic/Soundiiz
+    // ouvre le sélecteur de fichier une fois le CSV exporté
     onImport: () => void;
     isImporting?: boolean;
 };
 
-// étape 3 seulement : sur iOS, le téléchargement passe par la feuille de
-// partage du navigateur ; sur Android/PC, le fichier va directement dans le
-// dossier Téléchargements, sans étape "Partager" équivalente. Générique aux
-// deux services proposés plus bas (TuneMyMusic/Soundiiz) : leurs parcours
-// d'export se ressemblent assez pour ne pas dupliquer ces étapes par service.
+// que l'étape 3 change vraiment entre iOS (feuille de partage) et Android/PC
+// (direct dans Téléchargements). Le reste marche pareil pour TuneMyMusic et Soundiiz.
 const STEPS_BY_DEVICE: Record<DeviceKind, string[]> = {
     ios: [
         "Connecte-toi à ton service préféré.",
@@ -45,12 +41,9 @@ const STEPS_BY_DEVICE: Record<DeviceKind, string[]> = {
     ],
 };
 
-// remplace l'ancienne redirection directe vers TuneMyMusic (Linking.openURL
-// au clic du bouton "CSV via TuneMyMusic") : sans marche à suivre,
-// l'utilisateur arrivait sur le site sans savoir quoi y faire. Propose
-// maintenant TuneMyMusic ET Soundiiz (deux services équivalents, au cas où
-// l'un des deux ne supporterait pas le service source du joueur), plus un
-// bouton pour revenir importer le fichier obtenu sans quitter cet écran.
+// avant on redirigeait direct vers TuneMyMusic sans expliquer quoi faire.
+// dcp maintenant y'a une marche à suivre, les deux services en option (au cas
+// où un des deux marche pas avec ta source), et un bouton pour revenir importer.
 export const CsvImportInstructionsModal = ({
     visible,
     onClose,
@@ -79,9 +72,7 @@ export const CsvImportInstructionsModal = ({
                         <View className="gap-4">
                             {steps.map((step, index) => (
                                 <View key={index} className="flex-row gap-3 items-center">
-                                    {/* mêmes couleurs que les modes de jeu who_liked/blindtest
-                                        (cf. colors.constants.ts) : pas de sens fonctionnel ici,
-                                        juste un repère visuel cohérent avec le reste de l'app */}
+                                    {/* mêmes couleurs que les modes de jeu, juste pour être cohérent visuellement */}
                                     <LinearGradient
                                         colors={[COLORS.who_liked, COLORS.blindtest]}
                                         start={{ x: 0, y: 0 }}

@@ -5,18 +5,15 @@ const isValidCode = (code) => typeof code === 'string' && code.trim().length > 0
 
 const errorMessage = (err) => (err instanceof Error ? err.message : 'Erreur inconnue')
 
-// La partie est pilotée par socket (timers serveur), à la différence du lobby
-// dont l'API REST reste la source de vérité (cf. sockets/index.js) : ici
-// l'état est par nature éphémère et rythmé par le serveur, un aller-retour
-// REST n'apporterait rien.
+// dcp la partie est pilotée en socket (timers serveur), pas comme le lobby
+// qui passe par du REST (voir sockets/index.js). ici l'état change tout seul
+// au fil du temps, un aller-retour REST servirait à rien.
 export const registerGameSockets = (io) => {
     io.on('connection', (socket) => {
-        // l'identité du joueur ne vient jamais du payload (falsifiable par le
-        // client) mais de socket.data, fixé par lobby:subscribe après
-        // vérification du jeton de lobby (cf. sockets/index.js) — renvoie null
-        // si ce socket ne s'est jamais authentifié pour ce code précis, ce qui
-        // ignore silencieusement l'événement (même comportement que les gardes
-        // de validation déjà présentes plus bas)
+        // l'identité vient jamais du payload (n'importe qui peut le trafiquer),
+        // mais de socket.data, posé par lobby:subscribe une fois le jeton
+        // vérifié (voir sockets/index.js). renvoie null si ce socket s'est
+        // jamais authentifié pour ce code, et l'événement est juste ignoré
         const identityFor = (code) => {
             if (!isValidCode(code)) return null
             const upperCode = code.toUpperCase()
@@ -29,8 +26,8 @@ export const registerGameSockets = (io) => {
             const identity = identityFor(code)
             if (!identity) return
             try {
-                // le nom/avatar affichés viennent du payload (non sensibles),
-                // mais l'id du joueur est toujours celui du jeton vérifié
+                // le nom/avatar viennent du payload (pas sensibles), mais
+                // l'id du joueur c'est toujours celui du jeton vérifié
                 gameService.submitTracks(identity.code, { ...player, id: identity.playerId }, tracks, io)
             } catch (err) {
                 socket.emit('game:error', { message: errorMessage(err) })
@@ -57,9 +54,8 @@ export const registerGameSockets = (io) => {
             gameService.submitAnswer({ code: identity.code, playerId: identity.playerId, roundIndex, selected, io })
         })
 
-        // uniquement utilisé quand le lobby a activé "avancer manuellement"
-        // (cf. game.manualAdvance) : sans quoi endRound arme déjà son propre
-        // timer et cet événement n'a aucun effet (advanceRound l'ignore)
+        // sert que si le lobby a activé "avancer manuellement". sinon endRound
+        // a déjà son propre timer et cet événement ne fait rien (advanceRound l'ignore)
         socket.on('game:nextRound', (payload = {}) => {
             const { code } = payload
             const identity = identityFor(code)
@@ -71,17 +67,17 @@ export const registerGameSockets = (io) => {
             }
         })
 
-        // permet à un client qui vient de (re)rejoindre la room de resynchroniser
-        // son affichage sur l'état de partie en cours (reconnexion réseau, etc.)
+        // pour qu'un client qui revient (reconnexion réseau, etc.) resynchronise
+        // son affichage avec l'état actuel de la partie
         socket.on('game:sync', (code) => {
             const identity = identityFor(code)
             if (!identity) return
             socket.emit('game:state', gameService.getSnapshot(identity.code))
         })
 
-        // "Pas le bon extrait ?" sur l'écran de résultat (cf. RoundResult.tsx) :
-        // alimente la base globale de correspondances vérifiées (cf.
-        // previewMatch.service.js), sans effet sur la manche déjà jouée
+        // le bouton "pas le bon extrait ?" sur l'écran de résultat. ça met à
+        // jour la base de correspondances vérifiées (previewMatch.service.js),
+        // mais ça change rien à la manche déjà jouée
         socket.on('game:reportWrongPreview', (payload = {}) => {
             const { code, roundIndex } = payload
             const identity = identityFor(code)
@@ -89,9 +85,9 @@ export const registerGameSockets = (io) => {
             gameService.reportWrongPreview({ code: identity.code, playerId: identity.playerId, roundIndex })
         })
 
-        // envoyé quand l'écran de lobby regagne le focus (retour depuis les
-        // résultats finaux, ou simple arrivée dans le lobby) : sort le joueur
-        // de la liste d'attente ouverte par la fin d'une partie précédente
+        // envoyé quand l'écran de lobby reprend le focus (retour des résultats
+        // finaux, ou juste arrivée dans le lobby) : sort le joueur de la liste
+        // d'attente ouverte par la partie précédente
         socket.on('game:confirmReturn', (payload = {}) => {
             const { code } = payload
             const identity = identityFor(code)

@@ -11,11 +11,9 @@ type AvatarProps = {
     className?: string
 }
 
-// Illustration neutre (silhouette + fond uni) pour les joueurs sans photo,
-// plutôt qu'un visage aléatoire de i.pravatar.cc : sans identifiant par
-// joueur, cette API renvoyait une photo DIFFÉRENTE à chaque chargement pour
-// le même joueur, en plus de piocher dans une base de vrais visages de
-// personnes n'ayant jamais consenti à apparaître dans cette app.
+// silhouette neutre pour les joueurs sans photo, en gros on utilise plus
+// i.pravatar.cc : ça changeait de photo à chaque fois et piochait des
+// vrais visages de gens qui ont jamais donné leur accord.
 export const Avatar: React.FC<AvatarProps> = ({ uri, size, className }) => {
     if (uri) {
         return (

@@ -1,9 +1,8 @@
 import { createNavigationContainerRef } from '@react-navigation/native';
 import type { RootStackParamList } from './Navigator';
 
-// permet de naviguer depuis en dehors d'un composant React (ex:
-// lobby.service.ts, quand le lobby est fermé par le serveur pendant que
-// l'utilisateur est sur un tout autre écran, comme les résultats de partie)
+// pour naviguer depuis en dehors d'un composant React, en gros quand
+// le serveur ferme le lobby alors que le joueur est sur un autre écran
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 export const resetToHome = () => {

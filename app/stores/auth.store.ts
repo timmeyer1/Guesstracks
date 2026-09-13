@@ -5,11 +5,8 @@ import { persistedStorage } from '../core/persistedStorage';
 type AuthStore = {
     token: string | null;
     isAuthenticated: boolean;
-    // sépare le token (nécessaire dès que possible pour les appels API,
-    // cf. l'intercepteur de app/core/api/client.ts) de isAuthenticated (qui
-    // pilote la navigation dans app/navigation/Navigator.tsx) : le login doit
-    // pouvoir poser le token puis encore effectuer des appels authentifiés
-    // avant de considérer l'utilisateur "prêt" et de basculer d'écran
+    // le token et isAuthenticated sont séparés en gros pour pouvoir poser le
+    // token et faire des appels API avant de basculer l'écran de connexion
     setToken: (token: string | null) => void;
     setAuthenticated: (value: boolean) => void;
     logout: () => void;
@@ -31,12 +28,9 @@ type AuthStore = {
     }) => void;
 };
 
-// persisté (cf. persistedStorage.ts) pour que l'utilisateur retrouve sa
-// session (moyen de connexion, profil) d'une visite à l'autre sans avoir à se
-// reconnecter — le token Spotify expiré (1h) n'est pas géré ici : l'intercepteur
-// 401 d'apiClient (cf. core/api/client.ts) appelle déjà logout() tout seul
-// dès le premier appel API qui échoue, ce qui renvoie proprement vers l'écran
-// de connexion (cf. Navigator.tsx, isAuthenticated)
+// persisté dcp l'utilisateur retrouve sa session sans se reconnecter à chaque
+// fois. Le token Spotify expiré (1h) est pas géré ici, c'est l'intercepteur
+// 401 du client API qui appelle logout() tout seul quand ça arrive.
 export const useAuthStore = create<AuthStore>()(
     persist(
         (set) => ({

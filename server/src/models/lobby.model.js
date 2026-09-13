@@ -17,20 +17,18 @@ const lobbySchema = new mongoose.Schema({
     gameMode: { type: String, enum: GAME_MODES, default: 'who_liked' },
     rounds: { type: Number, min: LOBBY_LIMITS.MIN_ROUNDS, max: LOBBY_LIMITS.MAX_ROUNDS, default: 10 },
     phaseSpeed: { type: Number, min: PHASE_SPEED_LIMITS.MIN, max: PHASE_SPEED_LIMITS.MAX, default: 15 },
-    // si activé, la partie n'enchaîne plus automatiquement sur la manche
-    // suivante après l'affichage des résultats : seul l'hôte peut continuer
-    // (cf. game.service.js, endRound/advanceRound)
+    // si activé, ça n'enchaîne pas tout seul sur la manche suivante après
+    // les résultats, faut que l'hôte clique (voir endRound/advanceRound dans game.service.js)
     manualAdvance: { type: Boolean, default: false },
-    // le lobby a des valeurs par défaut dès sa création, mais tant que l'hôte
-    // n'a pas explicitement validé les réglages, on ne veut pas les afficher
-    // comme "choisis" aux autres joueurs (cf. LobbySettingsModal)
+    // le lobby a des réglages par défaut dès sa création, mais tant que
+    // l'hôte les a pas validés on veut pas les montrer comme "choisis" aux autres
     settingsConfirmed: { type: Boolean, default: false },
     maxPlayers: { type: Number, default: LOBBY_LIMITS.MAX_PLAYERS, max: LOBBY_LIMITS.MAX_PLAYERS },
     players: { type: [playerSchema], default: [] },
     createdAt: { type: Date, default: Date.now, expires: '6h' },
 })
 
-// le premier joueur du tableau est toujours l'hôte
+// en gros le premier joueur du tableau, c'est toujours l'hôte
 lobbySchema.methods.toPublic = function toPublic() {
     return {
         code: this.code,

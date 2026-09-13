@@ -15,51 +15,36 @@ import { IconButton } from '../components/IconButton';
 import type { TrackType } from '../core/types';
 
 const MIN_QUERY_LENGTH = 2;
-// distance (px) à partir de laquelle un mouvement du doigt sur la liste des
-// résultats est considéré comme un vrai glissement plutôt qu'un tap (cf.
-// touchStartRef plus bas pour le pourquoi)
+// distance en px à partir de laquelle on considère que le doigt glisse
+// vraiment, pas juste un tap
 const SCROLL_DISMISS_THRESHOLD_PX = 10;
-// laisse le temps à la frappe de se stabiliser avant de lancer une requête
-// réseau : évite une requête (recherche + tracklists des albums trouvés,
-// cf. server/src/services/deezer.service.js) par caractère tapé
+// on attend que la frappe se stabilise avant de lancer une requête, sinon
+// ça part à chaque lettre tapée
 const SEARCH_DEBOUNCE_MS = 350;
-// en dessous, une partie n'a quasiment aucun intérêt (trop peu de titres à
-// deviner) — cohérent avec MIN_ROUNDS_PLAYABLE côté serveur (cf.
-// server/src/constants.js), sans lui être couplé en dur
+// en dessous de ce seuil, une partie a quasiment aucun intérêt (trop peu
+// de titres à deviner)
 const MIN_MANUAL_TRACKS = 3;
-// nombre CIBLE affiché dans le compteur (cf. le badge plus bas) — PAS une
-// limite dure : l'utilisateur reste libre d'en sélectionner davantage s'il le
-// souhaite, rien ne bloque au-delà
+// c'est juste un objectif affiché dans le compteur, pas une limite dure —
+// tu peux en choisir plus si tu veux
 const TARGET_MANUAL_TRACKS = 20;
-// garantit un minimum de variété dans la sélection (pas uniquement des
-// titres du même artiste) : un nombre d'artistes DISTINCTS plutôt qu'un
-// simple nombre de titres, qui n'empêchait pas ce cas
+// pour garantir un minimum de variété : on compte les artistes distincts,
+// pas juste le nombre de titres
 const MIN_UNIQUE_ARTISTS = 5;
-// "Leto feat. PLK" ne doit compter que pour Leto (l'artiste principal) pour
-// cette variété — sinon un featuring gonflait le compte à deux artistes pour
-// un seul titre choisi (constaté en pratique). Même convention "X feat. Y"
-// que app/modules/spotify/spotify.service.ts (formatArtists) ; "ft."/
-// "featuring" couverts aussi, au cas où une source les utilise à la place.
+// "Leto feat. PLK" compte que pour Leto, l'artiste principal, sinon un
+// featuring gonflait le compte pour un seul titre. Même règle que côté
+// Spotify, "ft."/"featuring" gérés aussi
 const FEATURED_ARTIST_SEPARATOR = /\s+(?:feat\.?|ft\.?|featuring)\s+/i;
 const getPrimaryArtist = (artist: string) => artist.split(FEATURED_ARTIST_SEPARATOR)[0].trim();
 
-// suggestions par défaut avant toute recherche (cf. plus bas) : liste EN DUR,
-// pas une requête Deezer (ex: un endpoint "top artistes") — cet écran n'a pas
-// besoin d'un classement à jour à la seconde près pour donner un point de
-// départ, et ça évite un appel réseau supplémentaire au premier affichage,
-// avant même que l'utilisateur ait tapé quoi que ce soit. Quelques valeurs
-// sûres et durables (têtes d'affiche internationales depuis plusieurs années)
-// plutôt qu'un classement précis et daté dans 6 mois. Les pochettes sont
-// elles aussi codées en dur (URL Deezer résolue une fois pour toutes) : là
-// encore, aucun appel réseau depuis l'app pour les obtenir, seulement pour
-// charger l'image elle-même — exactement comme les pochettes d'album déjà
-// affichées ailleurs (cf. track.image).
+// suggestions par défaut codées en dur, pas une requête Deezer — pas besoin
+// d'un classement ultra précis pour donner un point de départ, et ça évite
+// un appel réseau au premier affichage. Des valeurs sûres qui durent, plutôt
+// qu'un classement daté. Les pochettes aussi sont en dur (juste chargées
+// comme une image normale)
 type DefaultArtist = { name: string; picture: string };
 type DefaultArtistCategory = { label: string; artists: DefaultArtist[] };
-// groupés par GENRE (pas par pays) : un libellé affiché au-dessus de chaque
-// catégorie (cf. plus bas), séparée de la suivante par un simple trait fin —
-// plus explicite qu'un regroupement muet par nationalité pour piocher dans un
-// style précis
+// groupés par genre (pas par pays), avec un trait fin entre chaque
+// catégorie — plus simple pour piocher dans un style précis
 const DEFAULT_ARTIST_SUGGESTIONS: DefaultArtistCategory[] = [
     {
         label: 'Rock',
@@ -198,10 +183,9 @@ const DEFAULT_ARTIST_SUGGESTIONS: DefaultArtistCategory[] = [
         ],
     },
     {
-        // mélange de bandes-son officielles publiées par le jeu lui-même en
-        // tant qu'"artiste" à part entière (League of Legends, VALORANT) et de
-        // compositeurs identifiés à un jeu précis (C418/Minecraft, Toby Fox/
-        // Undertale) ou à la culture jeu vidéo (The Living Tombstone)
+        // mélange de bandes-son de jeux (League of Legends, VALORANT) et de
+        // compositeurs connus pour un jeu précis (C418/Minecraft, Toby Fox/
+        // Undertale...)
         label: 'Jeux vidéo',
         artists: [
             { name: 'League of Legends', picture: 'https://cdn-images.dzcdn.net/images/artist/21e53b8e8285f84f60601d895c39c900/250x250-000000-80-0-0.jpg' },
@@ -217,27 +201,19 @@ type Section = { title: string; artist: string; cover: string | null; data: Trac
 
 type TrackRowProps = { track: TrackType; selected: boolean; onToggle: (track: TrackType) => void };
 
-// Ligne mémoïsée : ne re-rend que si son propre statut de sélection (ou son
-// track) change, pas à chaque cochage d'une AUTRE ligne — même pattern que
-// SuggestionRow (cf. app/components/game/TrackSuggestionsList.tsx). Sans ça
-// (renderItem inline recréé à chaque render, cocher un titre re-rendait donc
-// toute la fenêtre visible du SectionList), la virtualisation pouvait
-// recycler/réaffecter une cellule PENDANT qu'un toucher était encore en
-// cours de résolution : le tap se retrouvait alors appliqué à la ligne du
-// dessus ou du dessous plutôt qu'à celle sous le doigt (constaté en
-// pratique — cf. onToggle/selectedIds côté appelant, eux aussi stabilisés
-// avec useCallback/useMemo pour que ce memo soit réellement efficace).
+// ligne mémorisée : elle ne se re-rend que si SA sélection change, pas à
+// chaque coche d'une autre ligne. sans ça, cocher un titre re-rendait toute
+// la liste visible, et ça pouvait faire recevoir le tap à la ligne du dessus
+// ou du dessous (bug constaté en vrai). onToggle/selectedIds doivent rester
+// stables côté appelant pour que ça marche
 const TrackRow = React.memo(function TrackRow({ track, selected, onToggle }: TrackRowProps) {
-    // petit "pop" à la sélection (grossit) et à la désélection (rétrécit),
-    // toujours suivi d'un retour pile à la taille normale, plutôt qu'un
-    // déplacement, pour un retour bien visible sans décaler les lignes
-    // voisines. Deux withTiming (pas de withSpring) : un aller-retour sec,
-    // sans rebond ni oscillation à l'arrivée. Déclenché sur le changement de
-    // `selected` plutôt que dans onPress : `selected` ne reflète l'état réel
-    // qu'une fois remonté par le parent (cf. selectedIds ci-dessous), donc
-    // animer avant coup pourrait jouer le pop même si le toggle est ignoré
-    // ailleurs. `prevSelectedRef` distingue sélection et désélection (deux
-    // animations différentes) sans jouer quoi que ce soit au premier rendu.
+    // petit effet visuel : ça grossit un peu à la sélection, ça rétrécit un
+    // peu à la désélection, puis ça revient pile à la taille normale. deux
+    // withTiming plutôt que withSpring, pour un mouvement sec sans rebond.
+    // déclenché sur le changement de `selected` (pas dans onPress), parce
+    // que `selected` ne reflète l'état réel qu'une fois remonté par le
+    // parent. `prevSelectedRef` sert juste à savoir si on sélectionne ou
+    // désélectionne
     const jump = useSharedValue(1);
     const prevSelectedRef = useRef(selected);
 
@@ -260,26 +236,19 @@ const TrackRow = React.memo(function TrackRow({ track, selected, onToggle }: Tra
         <Animated.View style={jumpStyle}>
             <Pressable
                 onPress={() => onToggle(track)}
-                // marge/arrondi/bordure TOUJOURS présents, identiques dans les deux
-                // états (seules la couleur de fond et celle de la bordure changent) :
-                // les appliquer seulement quand sélectionné décalait le contenu (la
-                // marge de gauche poussait le texte vers la droite au clic, constaté
-                // en pratique) — la ligne garde maintenant exactement la même
-                // position/taille, sélectionnée ou non
+                // marge/arrondi/bordure toujours présents, dans les deux états (seule
+                // la couleur change) — sinon le contenu se décalait au clic
                 className={`flex-row items-center py-3.5 pl-2 pr-4 mx-2 my-0.5 rounded-2xl border-b ${
                     selected ? 'bg-primary/10 border-transparent' : 'bg-white border-offwhite'
                 }`}
-                // retour visuel dès l'appui (avant même le relâchement qui déclenche
-                // réellement onPress) : sans ça, rien ne bouge à l'écran tant que le
-                // doigt n'est pas relevé, ce qui peut se lire comme un délai avant
-                // que l'action ne parte (constaté en pratique — "comme si on
-                // attendait le serveur" alors qu'aucun appel réseau n'est en jeu ici)
+                // retour visuel dès l'appui, avant même le relâchement — sinon ça
+                // donne l'impression d'un délai, comme si ça attendait le serveur
+                // pour rien
                 style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
             >
-                {/* pochette en petit sur chaque titre : celle de l'album n'apparaît
-                qu'une fois en en-tête de section (cf. renderSectionHeader plus bas),
-                jamais dans la liste des titres déjà sélectionnés (aucun en-tête là) —
-                répétée ici, en plus petit, pour rester identifiable partout */}
+                {/* petite pochette sur chaque titre : celle de l'album n'apparaît
+                qu'une fois en en-tête, ici on la répète en plus petit pour rester
+                identifiable partout */}
                 {track.image ? (
                     <Image
                         source={{ uri: track.image }}
@@ -298,10 +267,8 @@ const TrackRow = React.memo(function TrackRow({ track, selected, onToggle }: Tra
                 <Text className="flex-1 text-black text-sm" numberOfLines={1}>
                     {track.name}
                 </Text>
-                {/* toujours visible (vide/pleine), au lieu d'un petit ✓ qui
-                n'apparaissait qu'une fois sélectionné et passait facilement
-                inaperçu (cf. discussion) — juste le glyphe une fois sélectionné,
-                sans le gros disque violet plein d'avant (jugé trop imposant) */}
+                {/* toujours visible (vide ou pleine), plutôt qu'un petit ✓ discret
+                qui passait inaperçu */}
                 {selected ? (
                     <View className="w-6 h-6 items-center justify-center">
                         <Check size={18} color={COLORS.primary} strokeWidth={3} />
@@ -318,23 +285,18 @@ const SkeletonBlock = ({ width, height, radius = 6 }: { width: number | `${numbe
     <View className="bg-offwhite" style={{ width, height, borderRadius: radius }} />
 );
 
-// nombre de faux albums/titres affichés pendant le chargement : juste assez
-// pour remplir l'écran (silhouette plausible), sans avoir besoin de connaître
-// la vraie taille des résultats à venir
+// nombre de faux albums/titres affichés pendant le chargement, juste assez
+// pour remplir l'écran
 const SKELETON_ALBUMS = 2;
 const SKELETON_TRACKS_PER_ALBUM = 3;
-// largeurs variées plutôt qu'une seule valeur fixe : des lignes toutes
-// identiques se lisent trop clairement comme un motif répété, moins crédible
-// qu'une vraie liste de titres de longueurs différentes
+// largeurs variées plutôt qu'une seule taille, sinon ça se voit trop que
+// c'est un motif répété
 const SKELETON_TITLE_WIDTHS: `${number}%`[] = ['70%', '55%', '45%'];
 
-// silhouette de la mise en page réelle (pochettes + lignes de texte) affichée
-// pendant la recherche, à la place d'un simple texte "Recherche..." : donne
-// une impression de contenu déjà là (et de la même forme que le résultat final,
-// pas de saut de mise en page à l'arrivée des vrais résultats), plutôt qu'un
-// écran vide qui se contente de clignoter un mot. Une seule animation de pulsation
-// partagée par tous les blocs (au lieu d'une par bloc) : un seul calcul de style
-// par frame pour toute la silhouette.
+// silhouette de la vraie mise en page pendant la recherche, plutôt qu'un
+// texte "Recherche...", pour éviter un saut visuel à l'arrivée des résultats.
+// Une seule animation de pulsation partagée par tous les blocs, pour pas
+// recalculer le style pour chacun
 const SearchSkeleton = () => {
     const pulse = useSharedValue(1);
 
@@ -370,12 +332,11 @@ const SearchSkeleton = () => {
     );
 };
 
-// Choix manuel des titres pour la "connexion universelle" (cf.
-// login.screen.tsx) : un écran à part entière plutôt qu'une modale (plus de
-// place pour parcourir des albums entiers), poussé sur la pile pré-connexion
-// (cf. Navigator.tsx). Le résultat remonte à LoginScreen via
-// useManualTrackPickerStore (cf. ce fichier pour le pourquoi) plutôt que par
-// route.params, aucun écran de l'app ne faisant transiter de données ainsi.
+// écran pour choisir ses titres à la main, pour la connexion universelle
+// (voir login.screen.tsx). un écran entier plutôt qu'une modale, pour avoir
+// la place de parcourir des albums. le résultat remonte à LoginScreen via un
+// store, pas par route.params — aucun écran de l'app ne fait passer des
+// données comme ça
 export const ManualTrackPickerScreen = () => {
     const navigation = useNavigation();
     const [query, setQuery] = useState('');
@@ -383,36 +344,29 @@ export const ManualTrackPickerScreen = () => {
     const [albums, setAlbums] = useState<AlbumSearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState<string | undefined>(undefined);
-    // suggestions d'artistes similaires à celui de la recherche en cours (cf.
-    // bandeau du bas plus bas) : PAS remis à vide par handleClearQuery — elles
-    // restent affichées même après avoir vidé le champ, pour permettre
-    // d'enchaîner vers une nouvelle recherche suggérée sans repartir de zéro.
-    // Seule une recherche qui aboutit (ou échoue) les renouvelle, dans l'effet
-    // ci-dessous.
+    // suggestions d'artistes similaires à la recherche en cours (voir le
+    // bandeau du bas). handleClearQuery ne les vide pas exprès : elles
+    // restent affichées même après avoir vidé le champ, pour pouvoir
+    // enchaîner sur une suggestion. seule une recherche qui se termine les
+    // renouvelle
     const [similarArtists, setSimilarArtists] = useState<SimilarArtist[]>([]);
     const [selected, setSelected] = useState<TrackType[]>([]);
     const inputRef = useRef<TextInput>(null);
-    // remonte la liste tout en haut quand le champ de recherche reprend le
-    // focus (cf. onFocus plus bas) : sans ça, après avoir scrollé plus bas
-    // dans les résultats (ce qui ferme le clavier) puis retapé le champ, la
-    // liste restait scrollée là où l'utilisateur l'avait laissée
+    // remonte la liste tout en haut quand on retape dans le champ de
+    // recherche. sinon après avoir scrollé plus bas (ce qui ferme le
+    // clavier) puis retapé le champ, la liste restait scrollée où on
+    // l'avait laissée
     const sectionListRef = useRef<SectionList<TrackType, Section>>(null);
-    // ignore la réponse d'une requête devenue obsolète (une recherche plus
-    // récente a été lancée entre-temps) plutôt que de laisser la première
-    // requête terminée écraser les résultats de la dernière frappe
+    // ignore la réponse d'une requête devenue trop vieille (une recherche
+    // plus récente est partie entre-temps), sinon la première réponse
+    // arrivée écraserait les résultats de la dernière frappe
     const requestIdRef = useRef(0);
-    // position du doigt au tout début du geste, sur le SectionList (cf. plus
-    // bas) : sert à ne fermer le clavier que sur un VRAI glissement, pas sur
-    // le moindre micro-tremblement du doigt pendant un tap. onTouchMove seul
-    // se déclenche déjà pour quelques pixels de mouvement (constaté en
-    // pratique, même à l'arrêt) ; fermer le clavier à ce moment-là recalcule
-    // la hauteur de <html> et scrolle la page à (0,0) (cf. public/index.html)
-    // PENDANT que le doigt est encore posé — un titre pouvait alors se
-    // décaler sous le doigt entre l'appui et le relâchement, et c'est la
-    // ligne du dessus/dessous qui recevait le tap à sa place (constaté en
-    // pratique). Un seuil de quelques pixels distingue un vrai glissement
-    // (qui le dépasse tout de suite) d'un simple tap (qui ne le dépasse
-    // jamais), sans réintroduire ce déplacement de contenu sous le doigt.
+    // retient où était le doigt au début du geste sur la liste, pour ne
+    // fermer le clavier que sur un vrai glissement, pas sur un simple
+    // tremblement pendant un tap. sinon fermer le clavier trop tôt décale
+    // le contenu sous le doigt (vu en vrai), et c'est la ligne voisine qui
+    // reçoit le tap à la place. un petit seuil de distance permet de faire
+    // la différence entre les deux
     const touchStartRef = useRef<{ x: number; y: number } | null>(null);
     const keyboardDismissedForGestureRef = useRef(false);
 

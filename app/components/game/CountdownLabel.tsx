@@ -7,10 +7,8 @@ type CountdownLabelProps = {
     duration: number
 }
 
-// Isole le tick de useCountdown (1x/seconde) dans ce petit composant plutôt
-// que dans l'écran/la question parents : seul ce <Text> re-rend chaque
-// seconde, pas tout l'arbre (RoundHeader, AudioPlayer, liste d'options...)
-// au-dessus de lui. Cf. audit perf, findings I1/I2.
+// on isole le compte à rebours dans son propre petit composant pour que
+// seul ce texte se re-rende chaque seconde, pas tout l'écran au-dessus
 export const CountdownLabel: React.FC<CountdownLabelProps> = ({ startedAt, duration }) => {
     const { remaining } = useCountdown(startedAt, duration)
     return <Text className="text-black font-semibold text-sm">{`Temps restant : ${remaining}s`}</Text>

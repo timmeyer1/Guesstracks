@@ -51,10 +51,7 @@ export const JoinLobbyModal = ({
 
     return (
         <Modal transparent visible={visible} animationType="fade" onRequestClose={handleClose}>
-            {/* behavior="padding" sur iOS : sans ça, le clavier recouvre le champ
-                de code sur les écrans plus petits (iPhone SE/mini...) puisque la
-                modale reste centrée verticalement au lieu de remonter. "height"
-                sur Android, comme ailleurs dans l'app (cf. game.screen.tsx). */}
+            {/* padding sur iOS sinon le clavier recouvre le champ sur les petits écrans */}
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

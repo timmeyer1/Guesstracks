@@ -31,17 +31,14 @@ export const HomeScreen = () => {
         const loadTracks = async () => {
             try {
                 const { user: currentUser, token } = useAuthStore.getState()
-                // titres déjà chargés à la connexion (fichier CSV importé, ou
-                // choisis un par un à la main, cf. login.screen.tsx) : aucune
-                // API externe à interroger, ni pour les récupérer ni pour en
-                // rafraîchir le total
+                // en mode si t'as importé un CSV ou choisi tes titres à la main,
+                // on les a déjà tous, pas besoin d'appeler une API
                 if (currentUser?.provider === 'csv' || currentUser?.provider === 'manual') return
                 let total: number
                 if (currentUser?.provider === 'deezer') {
-                    // avec token : connexion OAuth ("me", cf. modules/auth/deezer.ts,
-                    // dormante). Sans token : lookup de profil public par id (chemin
-                    // actif tant que la création d'app Deezer est cassée, cf.
-                    // screens/login.screen.tsx)
+                    // avec token = connecté en vrai via Deezer (dormant pour l'instant).
+                    // Sans token, on va chercher le profil public par id, c'est le chemin
+                    // utilisé tant que la création d'app Deezer est cassée
                     total = token
                         ? await deezerService.getTotalTracks()
                         : await deezerService.getPublicTotalTracks(currentUser.id)
@@ -67,10 +64,9 @@ export const HomeScreen = () => {
                     text: "Oui",
                     onPress: () => {
                         logoutFn()
-                        // logout() (cf. auth.store.ts) ne vide que la session : les titres
-                        // likés (persistés eux aussi, cf. tracks.store.ts) ne sont rattachés
-                        // à aucun compte, donc les vider explicitement ici plutôt que d'en
-                        // laisser une session précédente traîner jusqu'à la prochaine connexion
+                        // logout() vide juste la session, pas les titres likés (stockés à
+                        // part) donc on les vide ici à la main, sinon ça traîne d'une
+                        // session à l'autre
                         useTrackStore.getState().setLikedTracks([])
                         useTrackStore.getState().setTotalTracks(0)
                     },
@@ -80,11 +76,9 @@ export const HomeScreen = () => {
         )
     }
 
-    // EXPÉRIMENTAL — navigation optimisée (cf. discussion audit perf) : on
-    // bascule sur Lobby tout de suite (qui affiche déjà un spinner tant que
-    // lobby est null, cf. lobby.screen.tsx) au lieu d'attendre la réponse du
-    // serveur avant de naviguer, pour masquer l'aller-retour réseau derrière
-    // la transition plutôt que devant. À évaluer, pas forcément définitif.
+    // en mode c'est un test perf : on file sur Lobby tout de suite (y'a déjà
+    // un spinner qui tourne dessus) au lieu d'attendre la réponse serveur,
+    // dcp le chargement se cache derrière la transition. Pas figé, à voir.
     const handleCreateLobby = async () => {
         if (isCreating) return
         setIsCreating(true)

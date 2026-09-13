@@ -15,34 +15,19 @@ import { useStoresHydrated } from './app/core/hooks/useStoresHydrated';
 
 
 export default function App() {
-  // empêche l'écran de s'éteindre pour inactivité tant que l'app reste
-  // ouverte (accueil, lobby, partie...), pas seulement pendant une manche —
-  // demandé explicitement : rien de pire que l'écran qui s'éteint en
-  // attendant les autres joueurs dans le lobby. cf. useRobustKeepAwake.ts
-  // pour pourquoi le hook `useKeepAwake()` d'expo-keep-awake seul ne
-  // suffisait pas sur web (confirmé en conditions réelles, iPhone ET
-  // Android : l'écran finissait quand même par s'éteindre).
+  // en mode l'écran doit pas s'éteindre tout seul, même en attendant
+  // les autres dans le lobby. Le hook natif d'expo tout seul suffisait
+  // pas (testé sur iPhone et Android), dcp voir useRobustKeepAwake.ts.
   useRobustKeepAwake();
 
-  // tant que la session persistée (cf. useStoresHydrated) n'a pas fini
-  // d'être relue depuis le stockage local, isAuthenticated vaut encore false
-  // par défaut : rendre AuthNavigator avant ça ferait flasher l'écran de
-  // connexion même pour un utilisateur déjà connecté
+  // en attendant que la session sauvegardée soit relue, on affiche pas
+  // le navigateur direct sinon ça flash l'écran de connexion en gros.
   const storesHydrated = useStoresHydrated();
 
-  // rien n'était configuré ici jusqu'à présent : le mode audio par défaut
-  // d'expo-audio peut, sur Android, refuser silencieusement le focus audio
-  // (donc ne pas jouer le son) selon l'état du téléphone (notification en
-  // cours, autre appli musique en pause qui garde la main...), sans qu'aucune
-  // erreur ne remonte côté JS (expo-audio n'expose pas d'erreur de lecture,
-  // cf. useSyncedAudioPlayer.ts) — signalé comme "pas de son du tout sur
-  // certains extraits, marche sur iPhone" par des joueurs Android.
-  // `duckOthers` demande le focus sans l'exiger en exclusivité (contrairement
-  // au réglage par défaut, plus strict), ce qui réduit les cas où Android
-  // refuse de l'accorder plutôt que de simplement baisser le son des autres.
-  // Web uniquement (no-op ailleurs, cf. la fonction elle-même) : sans ça, les
-  // extraits ne se lancent jamais tout seuls sur web (cf. useSyncedAudioPlayer,
-  // dont tous les play() partent d'un timer, jamais d'un clic direct).
+  // sur Android le son peut être coupé en silence sans erreur (notif,
+  // autre appli musique...), du coup certains joueurs avaient pas de son
+  // du tout. `duckOthers` évite qu'Android refuse le focus audio direct.
+  // Web only, sinon les extraits se lancent jamais tout seuls là-bas.
   useEffect(() => {
     setupWebAudioUnlock()
   }, []);

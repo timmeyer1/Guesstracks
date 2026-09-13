@@ -13,14 +13,12 @@ type FinalResultsProps = {
     totalRounds: number
     onStayInLobby: () => void
     onBackToHome: () => void
-    // extrait de la toute dernière manche jouée (cf. game.screen.tsx), pour
-    // que la musique continue plutôt que de s'arrêter net à l'écran final
+    // extrait de la dernière manche, pour que la musique continue au lieu de
+    // s'arrêter net à l'écran final
     lastPreviewUrl?: string | null
-    // état/contrôle du lecteur partagé avec les écrans précédents (question,
-    // résultat de manche, cf. useSyncedAudioPlayer dans game.screen.tsx) : ce
-    // composant n'a plus sa propre instance audio, pour que l'extrait
-    // continue sans coupure/rechute au changement d'écran plutôt que d'être
-    // rechargé (et donc réentendu deux fois)
+    // le lecteur audio est partagé avec les écrans précédents, dcp ce
+    // composant n'a pas son propre lecteur — ça évite que l'extrait
+    // recommence ou coupe en changeant d'écran
     audioPlaying: boolean
     onToggleAudio: () => void
 }

@@ -21,29 +21,25 @@ export class GameError extends Error {
     }
 }
 
-// État de partie en mémoire, par code de lobby. Contrairement au lobby (dont
-// l'API REST est la source de vérité, cf. sockets/index.js), une partie est un
-// flux temps réel piloté par des timers serveur : le socket est ici la seule
-// source de vérité, ce qui est le bon compromis pour un état éphémère qui ne
-// doit de toute façon pas survivre au redémarrage du process.
+// état de la partie en mémoire, par code de lobby. contrairement au lobby (où
+// l'API REST fait foi), une partie tourne en temps réel avec des timers
+// serveur, dcp c'est le socket qui fait foi ici. en gros c'est un état
+// jetable, pas grave s'il disparaît au redémarrage du serveur.
 const games = new Map()
 
-// plafonds anti-abus pour tout ce qui arrive du payload client dans
-// submitTracks (cf. plus bas) : un client (CSV importé, ou payload socket
-// forgé directement) peut soumettre n'importe quelle chaîne de n'importe
-// quelle taille — sans ça, un champ de plusieurs Mo stocké en mémoire puis
-// rediffusé à tout le lobby (cf. buildPool/buildCatalog) est un vecteur de
-// déni de service facile
-const MAX_NAME_LENGTH = 60 // même limite que playerSchema.name (cf. models/lobby.model.js)
-const MAX_FIELD_LENGTH = 300 // large marge au-dessus de tout titre/artiste/album réel
-const MAX_URL_LENGTH = 2000 // image/previewUrl : assez pour une URL CDN signée réaliste
+// limites anti-abus sur tout ce qui vient du client dans submitTracks : un
+// payload trafiqué peut envoyer une chaîne énorme. sans limite, ça se stocke
+// en mémoire et se rediffuse à tout le lobby, facile de planter le serveur
+// avec ça (DoS).
+const MAX_NAME_LENGTH = 60 // même limite que playerSchema.name dans lobby.model.js
+const MAX_FIELD_LENGTH = 300 // large marge, aucun vrai titre/artiste/album ne fait cette taille
+const MAX_URL_LENGTH = 2000 // pour image/previewUrl, large assez pour une vraie URL de CDN
 
 const room = (code) => `lobby:${code}`
 
-// instant commun (epoch) auquel les clients doivent lancer la lecture d'un
-// extrait, avec la même marge de bufferisation que le lancement de manche
-// (cf. startNextRound et AUDIO_SYNC_LEAD_MS) — utilisé pour les extraits
-// rejoués sur les écrans de résultat de manche / résultats finaux.
+// heure commune à laquelle tout le monde doit lancer la lecture d'un extrait,
+// avec la même marge que pour une manche (voir AUDIO_SYNC_LEAD_MS). utilisé
+// quand on rejoue un extrait sur les écrans de résultats.
 const audioSyncedStart = () => Date.now() + AUDIO_SYNC_LEAD_MS
 
 const emptyScore = () => ({
@@ -67,29 +63,28 @@ const getOrCreate = (code) => {
             scores: new Map(), // playerId -> score
             gameMode: null,
             phaseSpeed: null,
-            // si true, endRound n'arme pas de timer automatique : seul
-            // l'hôte peut passer à la manche suivante (cf. advanceRound)
+            // si true, endRound n'enclenche pas de timer auto, l'hôte doit
+            // cliquer lui-même pour passer à la manche suivante
             manualAdvance: false,
             hostId: null,
-            // id de titre -> previewUrl | null, alimenté dès la soumission des
-            // musiques (cf. warmPreviewCache), pas seulement au lancement —
-            // survit à une partie relancée dans le même lobby (rejouer), donc
-            // ne se réinitialise jamais explicitement ici
+            // id de titre -> previewUrl (ou null). rempli dès que les joueurs
+            // envoient leurs musiques, pas juste au lancement. ça survit si
+            // on rejoue dans le même lobby, donc jamais remis à zéro ici.
             previewCache: new Map(),
-            // évite d'empiler plusieurs passes de pré-chauffage concurrentes
-            // (une par joueur qui soumet ses musiques), cf. warmPreviewCache
+            // pour pas lancer plusieurs pré-chauffages en même temps (un par
+            // joueur qui envoie ses musiques)
             previewWarming: false,
-            // true dès que startGame a validé le lancement et commence à
-            // résoudre les extraits lui-même : stoppe warmPreviewCache pour
-            // que les deux ne tapent plus Deezer/iTunes en même temps (cf.
-            // warmPreviewCache) — remis à false une fois la partie terminée
+            // passe à true dès que startGame valide le lancement et commence
+            // à résoudre les extraits lui-même. ça arrête le pré-chauffage en
+            // même temps, sinon les deux tapent Deezer/iTunes en parallèle.
+            // repasse à false à la fin de la partie.
             launching: false,
             rounds: [],
             currentRoundIndex: -1,
             timer: null,
-            // ids des joueurs de la partie qui vient de se terminer, encore
-            // attendus au lobby avant de pouvoir relancer (cf. finishGame /
-            // clearPendingReturn) ; vide/absent hors de cette fenêtre d'attente
+            // ids des joueurs qu'on attend encore au lobby après la fin d'une
+            // partie, avant de pouvoir relancer. vide en dehors de cette
+            // fenêtre d'attente.
             pendingReturnPlayerIds: null,
             returnTimer: null,
         }
@@ -113,25 +108,11 @@ export const submitTracks = (code, player, tracks, io) => {
     }
 
     const game = getOrCreate(code)
-    // partie déjà lancée (en cours de manche ou entre deux manches) : un envoi
-    // tardif (reconnexion, etc.) est ignoré, le pool a déjà été figé au
-    // démarrage. 'finished' est en revanche traité comme 'collecting' (même
-    // liste de statuts que startGame ci-dessous) : entre la fin d'une partie
-    // et le prochain lancement, le statut reste 'finished' tant que l'hôte n'a
-    // pas relancé — un nouveau joueur qui rejoint le lobby à ce moment-là (ou
-    // un joueur existant qui renvoie ses musiques) doit pouvoir être enregistré
-    // dans submittedTracks, sinon il reste invisible du pool et le lancement
-    // reste bloqué indéfiniment sur "En attente des musiques d'un joueur",
-    // sans qu'aucun changement d'hôte ne puisse le débloquer.
-    //
-    // On rediffuse quand même l'état courant dans le cas rejeté (même principe
-    // que clearPendingReturn pour pendingReturnPlayerIds) : un joueur expulsé
-    // pour inactivité en fin de partie (cf. handleReturnTimeout) puis revenu
-    // au lobby en retapant le code voit son game store local réinitialisé
-    // (cf. lobby.screen.tsx) avant de renvoyer ses musiques ici ; comme il n'a
-    // pas besoin de les renvoyer (déjà dans submittedTracks depuis la partie
-    // précédente), sans cette rediffusion il n'apprenait jamais que tout le
-    // monde avait déjà soumis.
+    // si la partie est déjà lancée, un envoi tardif est ignoré, le pool est déjà
+    // figé. mais 'finished' compte comme 'collecting' : entre deux parties, un
+    // joueur (nouveau ou qui renvoie ses musiques) doit pouvoir s'enregistrer,
+    // sinon ça reste bloqué sur "en attente des musiques d'un joueur". on
+    // rediffuse l'état quand même, pour ceux qui reviennent après un kick.
     if (game.status !== 'collecting' && game.status !== 'finished') {
         io?.to(room(code)).emit('game:tracksProgress', {
             submittedPlayerIds: [...game.submittedTracks.keys()],
@@ -139,11 +120,10 @@ export const submitTracks = (code, player, tracks, io) => {
         return { accepted: false }
     }
 
-    // name/img viennent du payload sans passer par le jeton vérifié (cf.
-    // game.sockets.js : non sensibles pour l'identité, mais quand même
-    // validés/plafonnés ici — sans ça un client pourrait pousser une valeur
-    // non-string ou de plusieurs Mo, stockée puis rediffusée à tout le lobby
-    // (cf. buildPool/buildCatalog plus bas)
+    // name/img viennent direct du payload, pas du jeton vérifié (pas sensible
+    // pour l'identité, mais on valide/limite quand même) : sinon un client
+    // pourrait envoyer un truc énorme ou pas une string, stocké puis rediffusé
+    // à tout le lobby.
     game.playersInfo.set(player.id, {
         id: player.id,
         name: typeof player.name === 'string' && player.name.trim() ? player.name.trim().slice(0, MAX_NAME_LENGTH) : 'Joueur',
@@ -153,11 +133,9 @@ export const submitTracks = (code, player, tracks, io) => {
     const sanitized = Array.isArray(tracks)
         ? tracks
             .filter((t) => t && typeof t.id === 'string' && typeof t.name === 'string' && typeof t.artist === 'string')
-            // garde-fou anti-abus (payload malveillant), pas une limite
-            // fonctionnelle : largement au-dessus de ce qu'une vraie
-            // bibliothèque likée peut atteindre, pour ne jamais tronquer un
-            // vrai joueur (cf. app/modules/spotify|deezer/*.service.ts, qui
-            // ne plafonnent plus non plus le nombre de titres récupérés)
+            // garde-fou anti-abus, pas une vraie limite : c'est large au-dessus
+            // de ce qu'une bibliothèque likée peut atteindre, pour jamais
+            // couper un vrai joueur.
             .slice(0, 5000)
             .map((t) => ({
                 id: t.id.slice(0, MAX_FIELD_LENGTH),
@@ -166,10 +144,9 @@ export const submitTracks = (code, player, tracks, io) => {
                 album: typeof t.album === 'string' ? t.album.slice(0, MAX_FIELD_LENGTH) : '',
                 image: typeof t.image === 'string' ? t.image.slice(0, MAX_URL_LENGTH) : null,
                 previewUrl: typeof t.previewUrl === 'string' ? t.previewUrl.slice(0, MAX_URL_LENGTH) : null,
-                // requis par resolveDeezerArtist (buildCatalog) pour savoir
-                // quels titres enrichir avec les artistes en feat. — sans ce
-                // champ ici, tous les titres soumis perdaient leur provider
-                // et l'enrichissement Deezer ne se déclenchait jamais
+                // nécessaire pour resolveDeezerArtist, pour savoir quels titres
+                // enrichir avec les artistes en feat. sans ce champ, plus
+                // aucun titre n'était enrichi.
                 provider: typeof t.provider === 'string' ? t.provider : null,
             }))
         : []
@@ -177,20 +154,17 @@ export const submitTracks = (code, player, tracks, io) => {
     game.submittedTracks.set(player.id, sanitized)
     if (!game.scores.has(player.id)) game.scores.set(player.id, emptyScore())
 
-    // permet au lobby d'afficher qui a déjà envoyé ses musiques (et de bloquer
-    // "Lancer la partie" tant que ce n'est pas le cas pour tout le monde,
-    // cf. startGame) : sans ça, un lancement trop rapide après qu'un joueur
-    // vient de rejoindre pouvait démarrer avec un pool incomplet — c'était la
-    // cause la plus probable des musiques "toutes du même joueur" ou des
-    // manches où un seul des vrais likers apparaissait comme bonne réponse
+    // permet au lobby d'afficher qui a déjà envoyé ses musiques, et de bloquer
+    // "Lancer la partie" tant que tout le monde n'a pas envoyé. sinon un
+    // lancement trop rapide démarrait avec un pool incomplet, la cause la plus
+    // probable des manches où un seul joueur apparaissait comme bonne réponse.
     io?.to(room(code)).emit('game:tracksProgress', {
         submittedPlayerIds: [...game.submittedTracks.keys()],
     })
 
-    // pré-chauffe les extraits en tâche de fond dès cet envoi plutôt que
-    // d'attendre le clic sur "Lancer" (cf. warmPreviewCache) : objectif, que
-    // le lancement ne fasse plus aucun aller-retour réseau une fois que tout
-    // le monde a soumis depuis un moment
+    // pré-charge les extraits en fond dès cet envoi, pas au clic sur "Lancer" :
+    // le but, que le lancement soit instantané si tout le monde a soumis
+    // depuis un moment.
     warmPreviewCache(code, game).catch((err) => {
         console.error('❌ Erreur lors du pré-chauffage des extraits :', err)
     })
@@ -198,13 +172,11 @@ export const submitTracks = (code, player, tracks, io) => {
     return { accepted: true }
 }
 
-// un même morceau existe parfois sous plusieurs id différents chez un même
-// fournisseur (single vs édition album, remaster...) — ex. constaté chez
-// Deezer : "Fever" de Dua Lipa a un id pour le single et un autre pour
-// l'édition "Future Nostalgia (The Moonlight Edition)" de l'album. Regrouper
-// par id fournisseur laissait passer ces doublons jusque dans le catalogue de
-// recherche du blindtest (le même titre apparaissait deux fois) ; on
-// regroupe donc par identité normalisée (nom + artiste) plutôt que par id.
+// un même morceau peut avoir plusieurs id chez le même fournisseur (single vs
+// édition album, remaster...). ex vu chez Deezer : "Fever" de Dua Lipa a un id
+// pour le single et un autre pour l'édition album. en regroupant par id, ces
+// doublons se retrouvaient deux fois dans le catalogue du blindtest. dcp on
+// regroupe plutôt par nom+artiste normalisé.
 const poolKey = (track) => `${normalizeTrackText(track.name)}::${normalizeTrackText(track.artist)}`
 
 const buildPool = (game) => {
@@ -216,14 +188,12 @@ const buildPool = (game) => {
             const existing = merged.get(key)
             if (existing) {
                 existing.likedBy.add(playerId)
-                // ne pioche plus le previewUrl d'une AUTRE soumission ici : deux
-                // titres qui dédupliquent sur le même nom+artiste peuvent être
-                // des éditions différentes (single vs album, remix...) — piocher
-                // l'extrait de l'un pour l'autre jouait parfois le mauvais
-                // extrait (un remix à la place de l'original). resolvePreviewUrl
-                // (appelé juste avant l'envoi de chaque manche, cf.
-                // startNextRound) résout toujours l'extrait à partir du titre
-                // canonique (existing) lui-même, jamais d'une soumission tierce.
+                // on ne pioche plus le previewUrl d'une autre soumission ici :
+                // deux titres dédupliqués sur le même nom+artiste peuvent être
+                // des éditions différentes (single vs album, remix...), et ça
+                // jouait parfois le mauvais extrait. resolvePreviewUrl (juste
+                // avant chaque manche) résout toujours l'extrait à partir du
+                // titre canonique lui-même.
             } else {
                 merged.set(key, { ...track, likedBy: new Set([playerId]) })
             }
@@ -233,57 +203,24 @@ const buildPool = (game) => {
     return [...merged.values()]
 }
 
-// nombre de résolutions d'extrait (cf. resolvePreviewUrl) menées en parallèle
-// lors du pré-chargement ci-dessous. Contrairement à DEEZER_ARTIST_BATCH_SIZE
-// (un seul GET /track/{id} par titre), une résolution d'extrait pour un titre
-// non-Deezer déclenche plusieurs requêtes de recherche en parallèle (cf.
-// searchDeezerPreview/searchItunesPreview, preview.service.js) — la valeur
-// ci-dessous vise donc un nombre de TITRES par lot plus prudent, à ajuster
-// selon le taux de succès observé en conditions réelles (cf. le log
-// "prefetchPreviews" plus bas) : si le taux chute quand on l'augmente, c'est
-// le signe qu'on cogne une limite de débit externe, pas un gain de vitesse.
-// Abaissé de 16 à 8 après un cas réel (pool de 3339 titres) où des lots de 16
-// — chacun capable de déclencher jusqu'à ~4 requêtes par titre non-Deezer,
-// donc potentiellement 64 requêtes HTTP simultanées — ont fait chuter le taux
-// de succès à quasi zéro sur plusieurs lots d'affilée, signe net de rate
-// limiting Deezer/iTunes plutôt que d'un manque d'extraits disponibles.
-// Abaissé à nouveau de 8 à 4 après un autre cas réel ("Laptop" de Sto, bien
-// présent sur Deezer, quota Deezer dépassé pendant un lot de 8 — cf.
-// preview.service.js) : le quota public Deezer (~50 requêtes/5s par IP,
-// mesuré empiriquement) laisse peu de marge une fois qu'un lot de titres
-// déclenche des dizaines de requêtes en simultané, d'autant que plusieurs
-// parties peuvent partager la même IP serveur en même temps.
+// nombre de résolutions d'extrait en parallèle pendant le pré-chargement.
+// contrairement à DEEZER_ARTIST_BATCH_SIZE, résoudre un extrait non-Deezer
+// peut déclencher plusieurs requêtes par titre, donc on reste prudent sur le
+// nombre de titres par lot. baissé de 16 à 8 puis à 4 après des cas réels où
+// des gros lots ont fait chuter le taux de succès (rate limiting Deezer/iTunes).
 const PREVIEW_PREFETCH_BATCH_SIZE = 4
-// marge de sécurité (nombre de succès visés au-delà de requestedRounds) avant
-// d'arrêter le pré-chargement : la répartition par joueur (cf.
-// allocateRoundsPerPlayer) peut écarter des candidats qui ONT un extrait
-// (déjà utilisés, ou hors du quota d'un joueur), il en faut donc un peu plus
-// que le strict nécessaire en réserve
+// marge de sécurité (succès visés au-delà de requestedRounds) avant d'arrêter
+// le pré-chargement : la répartition par joueur peut écarter des titres qui
+// ONT un extrait, donc on en prévoit un peu plus.
 const PREVIEW_PREFETCH_SUCCESS_MARGIN = 1.2
-// plafond absolu (filet de sécurité si le taux de succès est mauvais) : sans
-// lui, un pool où peu de titres ont un extrait ferait pré-charger tout le pool
+// plafond de sécurité si le taux de succès est mauvais, sinon on préchargerait tout le pool.
 const PREVIEW_PREFETCH_MAX_FACTOR = 3
 
-// pré-résout les extraits par lots EN PARALLÈLE pour un préfixe du pool
-// mélangé, plutôt qu'un par un au fil de la construction des manches
-// ci-dessous : avant ce cache, chaque manche attendait son propre
-// aller-retour réseau l'une après l'autre, donc le temps de lancement
-// grandissait linéairement avec le nombre de manches demandées (perceptible
-// dès qu'une partie en comptait beaucoup, même à 2 joueurs). S'arrête dès
-// qu'assez de candidats AVEC extrait ont été trouvés (cf.
-// PREVIEW_PREFETCH_SUCCESS_MARGIN) plutôt que de systématiquement interroger
-// un préfixe de taille fixe : sur un pool où la plupart des titres ont un
-// extrait (cas courant), ça évite de continuer à appeler les API externes une
-// fois la marge déjà couverte. `orderedPool` détermine l'ordre de
-// préchargement (le mélange déjà utilisé pour construire les manches) ; un
-// titre hors de ce qui a été pré-chargé (candidat au-delà de l'arrêt anticipé,
-// ou pool réduit avec beaucoup d'échecs) retombe simplement sur une
-// résolution à la demande, cf. resolvePreviewCached.
-// Utilise `game.previewCache`, déjà en grande partie chauffé par
-// warmPreviewCache pendant l'attente au lobby (cf. plus bas) : ne fait donc
-// un VRAI aller-retour réseau que pour ce qui manque encore au cache — dans
-// le cas courant (tout le monde a soumis ses musiques depuis un moment avant
-// que l'hôte clique sur "Lancer"), cette boucle ne fait plus rien du tout.
+// pré-résout les extraits par lots EN PARALLÈLE plutôt qu'un par un pendant la
+// construction des manches, sinon le temps de lancement grandissait avec le
+// nombre de manches. s'arrête dès qu'on a assez de titres AVEC extrait (voir
+// PREVIEW_PREFETCH_SUCCESS_MARGIN). utilise le cache déjà chauffé par
+// warmPreviewCache, donc souvent ça ne fait plus aucun vrai appel réseau.
 const prefetchPreviews = async (game, orderedPool, requestedRounds) => {
     const cache = game.previewCache
     const code = game.code
@@ -299,20 +236,18 @@ const prefetchPreviews = async (game, orderedPool, requestedRounds) => {
 
         if (toFetch.length > 0) {
             const previews = await Promise.all(toFetch.map((t) => resolvePreviewUrl(t)))
-            // ne mémorise que les succès (cf. resolvePreviewCached) : un
-            // échec pendant CE lot parallèle est souvent dû au lot lui-même
-            // (rate limiting externe), pas à une vraie absence d'extrait —
-            // le laisser hors cache permet à un lot ULTÉRIEUR (ou au
-            // chauffage de fond, ou à la ré-résolution juste avant la
-            // manche) de retrouver l'extrait au lieu de rester bloqué dessus
+            // on garde en cache que les succès : un échec ici vient souvent
+            // du rate limiting du lot en cours, pas d'une vraie absence
+            // d'extrait. le laisser hors cache permet de le retrouver plus
+            // tard (lot suivant, chauffage, ré-résolution avant la manche).
             toFetch.forEach((t, index) => {
                 if (previews[index]) cache.set(t.id, previews[index])
             })
         }
         successCount += batch.filter((t) => cache.get(t.id)).length
     }
-    // signal utile pour un futur diagnostic (rate limiting externe, pool sans
-    // assez d'extraits...) sans le détail par lot, trop verbeux au quotidien
+    // utile pour diagnostiquer plus tard (rate limiting, pool trop petit...),
+    // sans le détail par lot qui serait trop verbeux.
     console.log(
         `⏱️ [${code}] prefetchPreviews : ${successCount}/${tried} extraits trouvés (cible ${successTarget}, plafond ${maxSize})`
     )
@@ -322,74 +257,49 @@ const prefetchPreviews = async (game, orderedPool, requestedRounds) => {
 const resolvePreviewCached = async (track, previewCache) => {
     if (previewCache.has(track.id)) return previewCache.get(track.id)
     const previewUrl = await resolvePreviewUrl(track)
-    // ne mémorise que les succès (cf. même choix dans preview.service.js) :
-    // un échec ici vient souvent d'une rafale de résolutions en parallèle
-    // (prefetchPreviews/warmPreviewCache juste en dessous), pas d'une vraie
-    // absence d'extrait — ne pas le mettre en cache laisse une chance de
-    // retrouver l'extrait à la prochaine tentative (lot suivant, chauffage
-    // suivant, ou ré-résolution juste avant la manche, cf. startNextRound)
-    // au lieu de le condamner pour le reste de la partie.
+    // on garde que les succès en cache, même logique que dans
+    // preview.service.js. un échec vient souvent d'une rafale de résolutions
+    // en parallèle, pas d'une vraie absence d'extrait. pas de cache = une
+    // chance de le retrouver plus tard plutôt que de le condamner pour le
+    // reste de la partie.
     if (previewUrl) previewCache.set(track.id, previewUrl)
     return previewUrl
 }
 
-// chauffage de fond : lot plus PETIT que PREVIEW_PREFETCH_BATCH_SIZE (aucune
-// urgence ici, contrairement au lancement) + pause entre les lots, pour ne
-// jamais consommer à lui seul le débit externe disponible pendant que les
-// joueurs patientent — un lobby peut rester ouvert plusieurs minutes, la
-// somme des requêtes envoyées compte autant que leur simultanéité
+// chauffage de fond : lots plus petits qu'au lancement (pas d'urgence ici) +
+// pause entre chaque lot, pour pas bouffer tout le débit externe pendant que
+// les joueurs patientent. un lobby peut rester ouvert plusieurs minutes.
 const PREVIEW_WARM_BATCH_SIZE = 5
 const PREVIEW_WARM_BATCH_DELAY_MS = 200
-// plafond : inutile de chauffer un pool de plusieurs milliers de titres
-// (bibliothèques Deezer réelles) quand une partie n'en retient jamais plus
-// qu'un petit multiple du nombre de manches maximum — cf. la même logique de
-// plafond que prefetchPreviews (PREVIEW_PREFETCH_MAX_FACTOR), mais calculée
-// sur LOBBY_LIMITS.MAX_ROUNDS puisque le nombre de manches réel n'est pas
-// encore connu pendant l'attente au lobby (l'hôte peut encore le changer)
+// plafond : pas la peine de chauffer des milliers de titres quand une partie
+// n'en garde jamais qu'un petit multiple du nombre de manches. même logique
+// que prefetchPreviews, mais basé sur MAX_ROUNDS car le nombre réel de
+// manches n'est pas encore fixé pendant l'attente au lobby.
 const PREVIEW_WARM_MAX_TRACKS = LOBBY_LIMITS.MAX_ROUNDS * PREVIEW_PREFETCH_MAX_FACTOR
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// pré-chauffe un préfixe borné du pool en tâche de fond PENDANT l'attente au
-// lobby (déclenché à chaque soumission de musiques, cf. submitTracks) plutôt
-// qu'au moment où l'hôte clique sur "Lancer" : alimente le même
-// `game.previewCache` que prefetchPreviews, donc un lancement qui arrive
-// après que ce chauffage a eu le temps de tourner ne fait (idéalement) plus
-// aucun appel réseau pour ce préfixe.
-//
-// S'arrête dès que `game.launching` passe à true (cf. startGame) : sans ça,
-// un pool volumineux pas encore entièrement chauffé au moment du clic sur
-// "Lancer" continuait de tourner EN MÊME TEMPS que prefetchPreviews — deux
-// boucles tapant Deezer/iTunes en parallèle, qui se marchaient dessus et
-// déclenchaient un vrai rate limiting externe (constaté en conditions
-// réelles : des lots entiers à 0 succès alors que les titres avaient bien un
-// extrait disponible). Le chemin critique du lancement doit être seul à
-// consommer le débit externe à ce moment précis.
-//
-// Une seule passe à la fois par partie (cf. game.previewWarming) : `pool` est
-// recalculé à CHAQUE lot plutôt qu'une fois pour toutes en tête de fonction,
-// donc un nouveau joueur qui soumet ses musiques pendant que la boucle
-// tourne déjà voit son pool absorbé par la passe en cours, sans qu'il soit
-// besoin d'empiler une seconde passe concurrente.
+// pré-charge un bout du pool en fond PENDANT l'attente au lobby (à chaque
+// envoi de musiques), pas au clic sur "Lancer". s'arrête dès que
+// game.launching passe à true, sinon deux boucles tapent Deezer/iTunes en
+// même temps et ça déclenche du rate limiting. une seule passe à la fois par
+// partie, le pool est recalculé à chaque lot si un nouveau joueur a soumis.
 const warmPreviewCache = async (code, game) => {
     if (game.previewWarming || game.launching) return
     game.previewWarming = true
     try {
         let i = 0
-        // ne reconstruit le pool que quand le nombre de joueurs ayant soumis
-        // a changé (une nouvelle soumission peut arriver pendant que la
-        // boucle tourne déjà, cf. plus haut) : évite de refaire le merge
-        // à chaque lot pour rien sur un gros pool
+        // on reconstruit le pool seulement si le nombre de joueurs ayant
+        // soumis a changé, pour pas refaire le merge à chaque lot sur un
+        // gros pool.
         let pool = buildPool(game)
         let trackedSubmissionCount = game.submittedTracks.size
         while (games.get(code) === game && !game.launching) {
             if (game.submittedTracks.size !== trackedSubmissionCount) {
-                // ordre de constitution du pool (pas mélangé) : le tirage réel
-                // au lancement, lui, reste un vrai hasard à chaque partie (cf.
-                // buildBlindtestRounds/buildWhoLikedRounds) — sur un gros
-                // pool, ce chauffage ne recoupe donc qu'une partie de ce qui
-                // sera nécessaire, mais on privilégie ici la variété des
-                // manches plutôt qu'un alignement parfait
+                // cet ordre n'est pas mélangé, le vrai tirage au lancement
+                // reste aléatoire. sur un gros pool, ce chauffage ne couvre
+                // donc qu'une partie de ce qu'il faudra, mais on préfère
+                // garder de la variété plutôt qu'un alignement parfait.
                 pool = buildPool(game)
                 trackedSubmissionCount = game.submittedTracks.size
             }
@@ -400,11 +310,9 @@ const warmPreviewCache = async (code, game) => {
             if (batch.length === 0) continue
 
             const previews = await Promise.all(batch.map((t) => resolvePreviewUrl(t)))
-            // ne mémorise que les succès (cf. resolvePreviewCached) : un
-            // titre resté sans extrait ici reste ainsi candidat aux passages
-            // suivants de cette boucle (nouvelle soumission déclenchant un
-            // nouveau chauffage), plutôt que d'être condamné dès le premier
-            // échec transitoire
+            // on garde que les succès en cache, un titre sans extrait ici
+            // pourra retenter au passage suivant plutôt que d'être condamné
+            // direct.
             batch.forEach((t, index) => {
                 if (previews[index]) game.previewCache.set(t.id, previews[index])
             })
@@ -415,43 +323,26 @@ const warmPreviewCache = async (code, game) => {
     }
 }
 
-// propriétaire exclusif d'un titre parmi les joueurs actifs : null si liké
-// par plusieurs d'entre eux (titre "partagé", cf. buildPool) — utilisé pour
-// isoler la bibliothèque exclusive de chaque joueur (cf.
-// allocateRoundsPerPlayer/buildRoundsForPlayers), pour couper toute série en
-// cours (cf. sequenceWithMaxStreak), et pour le diagnostic de composition du
-// pool (cf. startGame).
+// renvoie le seul joueur qui a liké ce titre, ou null si liké par plusieurs
+// (titre "partagé"). utilisé pour isoler la bibliothèque de chaque joueur,
+// casser les séries trop longues, et pour les logs de diagnostic.
 const exclusiveOwner = (track, activePlayerIds) => {
     const likers = [...track.likedBy].filter((id) => activePlayerIds.includes(id))
     return likers.length === 1 ? likers[0] : null
 }
 
-// nombre maximal de manches d'affilée pour un même propriétaire exclusif,
-// tous modes et tout nombre de joueurs confondus : au-delà, on force un
-// changement même si le plafond global (cf. FAIRNESS_MAX_SHARE_FACTOR) est
-// encore loin d'être atteint. À 2 joueurs, ce plafond global (~60%) laisse
-// largement la place à de longues séries d'affilée (8-10 manches
-// constatées) — trop prévisible/répétitif d'une partie à l'autre (toujours
-// une grosse série du compte à la plus grosse bibliothèque en premier, puis
-// l'autre compte en dernier une fois son plafond de crédit atteint).
+// nombre max de manches d'affilée pour le même joueur, tous modes confondus.
+// au-delà on force un changement, même si le plafond global (~60% à
+// 2 joueurs) est encore loin d'être atteint. sans ça on avait des séries de
+// 8-10 manches d'affilée, toujours dans le même ordre, trop prévisible.
 const MAX_OWNER_STREAK = 5
 
-// réordonne `items` (contenu déjà décidé par l'appelant, cf.
-// buildWhoLikedRounds/buildBlindtestRounds) pour qu'aucun propriétaire
-// exclusif n'enchaîne plus de MAX_OWNER_STREAK manches d'affilée, en restant
-// sinon aussi aléatoire que possible. `ownerOf` retourne l'id du
-// propriétaire exclusif d'un item, ou null pour un item partagé/sans
-// propriétaire unique — un item sans propriétaire ne prolonge ni ne compte
-// dans AUCUNE série, il la coupe systématiquement. Généralisé à N joueurs :
-// ne connaît aucun propriétaire particulier, se contente de suivre le
-// dernier posé et depuis combien de temps.
-//
-// Glouton : part d'un ordre déjà mélangé, et à chaque position choisit le
-// premier item restant qui ne prolongerait pas une série déjà à son maximum ;
-// si TOUS les items restants prolongeraient une série trop longue (ne
-// devrait arriver que si le plafond global lui-même autorise un unique
-// propriétaire sur la quasi-totalité des manches, ex. très peu de joueurs
-// actifs), prend le premier quand même plutôt que de rester bloqué.
+// réordonne les manches (déjà décidées par l'appelant) pour qu'aucun joueur
+// n'enchaîne plus de MAX_OWNER_STREAK manches d'affilée, en restant sinon
+// aléatoire. une manche partagée (sans propriétaire unique) coupe toujours
+// la série en cours. glouton : à chaque position on prend le premier item
+// restant qui prolonge pas une série déjà pleine, sinon on prend le premier
+// quand même.
 const sequenceWithMaxStreak = (items, maxStreak, ownerOf) => {
     const remaining = shuffle(items)
     const result = []
@@ -472,31 +363,22 @@ const sequenceWithMaxStreak = (items, maxStreak, ownerOf) => {
     return result
 }
 
-// alloue le nombre de manches que chaque joueur actif doit fournir avec SES
-// PROPRES titres, plutôt que de piocher dans un pool fusionné et d'espérer
-// qu'un plafond après coup retombe sur la bonne répartition. L'ancienne
-// approche (byFairness/playerCredit) laissait un compte à grosse
-// bibliothèque statistiquement plus susceptible d'être tiré à CHAQUE manche
-// — le plafond l'empêchait juste de dépasser 60%, mais rien ne donnait sa
-// chance au petit compte de dépasser le gros (jamais observé sur une
-// dizaine de parties réelles, toujours le même sens). Ici la répartition
-// est décidée D'ABORD (aléatoire, dans les bornes du plafond), puis chaque
-// joueur fournit ce nombre exact de manches — garantit le 40/60 par
-// construction plutôt que par accumulation statistique. Généralisé à N
-// joueurs : bornes haute/basse dérivées de FAIRNESS_MAX_SHARE_FACTOR autour
-// de la part "juste" (requestedRounds / N).
+// décide À L'AVANCE combien de manches chaque joueur doit fournir avec ses
+// propres titres, plutôt que de piocher au hasard dans un pool fusionné et
+// d'espérer une bonne répartition. avant, un compte à grosse bibliothèque
+// était statistiquement tiré plus souvent, le plafond l'empêchait juste de
+// dépasser 60% sans jamais vraiment équilibrer. ici la répartition est
+// décidée d'abord (dans les bornes du plafond).
 const allocateRoundsPerPlayer = (requestedRounds, activePlayerIds, requireCoverage) => {
     const n = activePlayerIds.length
     const fairShare = requestedRounds / n
     let minShare = Math.floor(fairShare / FAIRNESS_MAX_SHARE_FACTOR)
-    // who_liked veut qu'un joueur actif apparaisse au moins une fois (cf.
-    // requireCoverage) ; sans objet en blindtest, l'identité du liker n'est
-    // jamais affichée pendant la manche
+    // en who_liked chaque joueur doit apparaître au moins une fois. sans
+    // objet en blindtest, on montre jamais qui a liké le titre.
     if (requireCoverage) minShare = Math.max(minShare, 1)
-    // filet de sécurité : plus de joueurs actifs que de manches demandées
-    // (lobby nombreux, peu de manches) rend la couverture minimale intenable
-    // pour tout le monde — répartit alors ce qu'il y a plutôt que de
-    // dépasser requestedRounds
+    // filet de sécurité : s'il y a plus de joueurs que de manches demandées,
+    // la couverture minimale est impossible pour tout le monde. on répartit
+    // alors ce qu'il y a plutôt que de dépasser le nombre de manches.
     if (minShare * n > requestedRounds) minShare = Math.floor(requestedRounds / n)
     const maxShare = Math.max(minShare, Math.ceil(fairShare * FAIRNESS_MAX_SHARE_FACTOR))
 
@@ -504,8 +386,8 @@ const allocateRoundsPerPlayer = (requestedRounds, activePlayerIds, requireCovera
     let remaining = requestedRounds - minShare * n
 
     // distribue le reste un par un, au hasard parmi les joueurs pas encore à
-    // leur plafond — pas un ordre fixe, pour que ce ne soit pas
-    // systématiquement le même joueur qui absorbe tout le "reste"
+    // leur plafond, pour pas que ce soit toujours le même qui récupère le
+    // "reste".
     while (remaining > 0) {
         const eligible = activePlayerIds.filter((id) => allocation.get(id) < maxShare)
         const candidates = eligible.length > 0 ? eligible : activePlayerIds
@@ -516,21 +398,15 @@ const allocateRoundsPerPlayer = (requestedRounds, activePlayerIds, requireCovera
     return allocation
 }
 
-// cœur commun aux deux modes : chaque joueur actif pioche, dans SA
-// bibliothèque exclusive (titres qu'il est seul à avoir likés, cf.
-// exclusiveOwner), le nombre de manches que lui a attribué
-// allocateRoundsPerPlayer. Si sa bibliothèque exclusive ne suffit pas (peu
-// de titres, ou en blindtest trop peu avec un extrait disponible), le
-// manque est comblé en dernier recours par n'importe quel titre du pool
-// (partagé compris) plutôt que de laisser des manches vides — cf.
-// MIN_ROUNDS_PLAYABLE côté appelant si même ce repli ne suffit pas.
-// part de manches réservée à des titres likés par PLUSIEURS joueurs actifs
-// (2 minimum) plutôt que puisée dans la bibliothèque exclusive d'un seul :
-// une fraction aléatoire (entre les deux bornes ci-dessous) du nombre de
-// manches demandées, tirée à chaque partie. Sans ça, un titre partagé
-// n'apparaissait quasiment jamais (cf. allocateRoundsPerPlayer, qui ne
-// pioche que dans les bibliothèques exclusives) — seulement en dernier
-// recours si un joueur manquait de titres à lui pour combler son quota.
+// cœur commun aux deux modes : chaque joueur pioche dans SA bibliothèque
+// exclusive le nombre de manches qui lui a été attribué. si elle ne suffit
+// pas (peu de titres, ou pas assez avec extrait en blindtest), on comble avec
+// n'importe quel titre du pool plutôt que de laisser des manches vides (voir
+// MIN_ROUNDS_PLAYABLE si même ça suffit pas).
+// part de manches réservée à des titres likés par plusieurs joueurs (pas
+// juste un seul) : une fraction aléatoire du total, tirée à chaque partie.
+// sans ça, un titre partagé n'apparaissait quasiment jamais, seulement en
+// dernier recours.
 const SHARED_ROUNDS_MIN_RATIO = 0.1
 const SHARED_ROUNDS_MAX_RATIO = 0.3
 
@@ -538,22 +414,18 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
     const code = game.code
     const used = new Set()
 
-    // bibliothèque exclusive de chaque joueur + pool des titres partagés
-    // (likés par 2+ joueurs actifs), mélangés UNE SEULE FOIS chacun : le
-    // même ordre sert à la fois au pré-chauffage (cf. prefetchPreviews,
-    // enchaîné UN À LA FOIS — jamais en parallèle, pour ne pas taper
-    // Deezer/iTunes pour plusieurs sources à la fois, cf. warmPreviewCache)
-    // et au tirage juste après (cf. takeFrom). Chauffer un ordre et tirer
-    // dans un autre revient à ne quasiment jamais profiter du chauffage —
-    // déjà constaté une fois avec warmPreviewCache vs prefetchPreviews.
+    // bibliothèque exclusive de chaque joueur + pool des titres partagés,
+    // mélangés une seule fois. le même ordre sert au pré-chauffage (fait un
+    // par un, pas en parallèle) et au tirage juste après. si on chauffe dans
+    // un ordre et qu'on tire dans un autre, le chauffage sert presque à rien,
+    // ça nous est déjà arrivé.
     const exclusiveByPlayer = new Map(
         activePlayerIds.map((id) => [id, shuffle(pool.filter((t) => exclusiveOwner(t, activePlayerIds) === id))])
     )
     const sharedPool = shuffle(pool.filter((t) => exclusiveOwner(t, activePlayerIds) === null))
 
-    // taille de pré-chauffage approximative (part "juste" par joueur, et
-    // plafond haut de la réserve de titres partagés) : pas besoin d'être
-    // pile exact, prefetchPreviews a déjà sa propre marge interne
+    // taille de préchauffage approximative, pas besoin d'être pile exact,
+    // prefetchPreviews a déjà sa propre marge.
     const fairSharePerPlayer = Math.ceil(requestedRounds / activePlayerIds.length)
     for (const id of activePlayerIds) {
         await prefetchPreviews(game, exclusiveByPlayer.get(id), fairSharePerPlayer)
@@ -561,25 +433,18 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
     await prefetchPreviews(game, sharedPool, Math.ceil(requestedRounds * SHARED_ROUNDS_MAX_RATIO))
     const previewCache = game.previewCache
 
-    // tente `candidates` (déjà dans l'ordre voulu, pas remélangé ici) : si
-    // `requirePreview` est vrai (blindtest), un titre sans extrait est écarté
-    // purement et simplement, en essayant le suivant — c'était déjà le cas
-    // avant. Sinon (who_liked), un titre sans extrait n'est mis de côté que
-    // comme solution de repli : on privilégie d'abord tous les titres AVEC
-    // extrait disponibles, et on ne pioche dans les titres sans extrait que
-    // si ça ne suffit pas à combler `count` — pour qu'une manche silencieuse
-    // reste l'exception, pas la conséquence du premier titre sans extrait
-    // tombé au hasard.
+    // essaie les candidats dans l'ordre donné. en blindtest (requirePreview),
+    // un titre sans extrait est écarté direct, on passe au suivant. en
+    // who_liked, un titre sans extrait est mis de côté en solution de repli :
+    // on prend d'abord tout ce qui a un extrait, et on pioche dans le reste
+    // seulement si ça suffit pas, pour qu'une manche silencieuse reste rare.
     const takeFrom = async (candidates, count) => {
         const withPreview = []
         const withoutPreview = []
-        // plafonne le nombre de candidats VRAIMENT scannés (comme
-        // prefetchPreviews, même facteur) : sans ça, quand `requirePreview`
-        // est faux (who_liked) et qu'aucun candidat n'a d'extrait, la
-        // recherche d'un titre AVEC extrait continuait jusqu'au bout d'une
-        // bibliothèque entière (des centaines/milliers de résolutions
-        // réseau une par une) avant de se rabattre sur le repli sans
-        // extrait — largement plus lent que d'accepter le repli plus tôt
+        // on plafonne le nombre de candidats vraiment scannés (même facteur
+        // que prefetchPreviews). sinon en who_liked, si personne n'a
+        // d'extrait, on scannait toute la bibliothèque (des milliers de
+        // résolutions) avant de se rabattre sur le repli, beaucoup trop lent.
         const maxScan = Math.min(candidates.length, count * PREVIEW_PREFETCH_MAX_FACTOR)
         for (let i = 0; i < maxScan; i += 1) {
             if (withPreview.length >= count) break
@@ -605,9 +470,8 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
         return withPreview
     }
 
-    // réserve d'abord les manches "titres partagés" (cf.
-    // SHARED_ROUNDS_MIN_RATIO/MAX_RATIO) — AVANT la répartition par joueur
-    // juste après, qui ne pioche elle que dans les bibliothèques EXCLUSIVES
+    // on réserve d'abord les manches "titres partagés", avant la répartition
+    // par joueur qui elle pioche que dans les bibliothèques exclusives.
     const sharedTarget = Math.round(
         requestedRounds * (SHARED_ROUNDS_MIN_RATIO + Math.random() * (SHARED_ROUNDS_MAX_RATIO - SHARED_ROUNDS_MIN_RATIO))
     )
@@ -616,8 +480,8 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
         `🎯 [${code}] titres partagés : ${sharedTaken.length}/${sharedTarget} visé(es) (${sharedPool.length} dispo, cible ${Math.round(SHARED_ROUNDS_MIN_RATIO * 100)}-${Math.round(SHARED_ROUNDS_MAX_RATIO * 100)}% de ${requestedRounds})`
     )
 
-    // le reste des manches est réparti entre joueurs comme avant, mais sur
-    // le nombre de manches RESTANT une fois les titres partagés retirés
+    // le reste est réparti entre joueurs comme avant, mais sur le nombre de
+    // manches qui reste une fois les titres partagés retirés.
     const remainingForPlayers = requestedRounds - sharedTaken.length
     const allocation = allocateRoundsPerPlayer(remainingForPlayers, activePlayerIds, requireCoverage)
     console.log(
@@ -640,9 +504,8 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
         rounds.push(...(await takeFrom(shuffle(pool), shortfall)))
     }
 
-    // limite les séries d'affilée (cf. MAX_OWNER_STREAK) : le contenu des
-    // manches (déjà décidé ci-dessus) ne change pas, seul l'ORDRE dans lequel
-    // elles sont jouées est réordonné
+    // limite les séries d'affilée (MAX_OWNER_STREAK) : le contenu des manches
+    // change pas, seul l'ordre dans lequel elles sont jouées est réordonné.
     const ordered = sequenceWithMaxStreak(rounds, MAX_OWNER_STREAK, (r) => (r.likedBy.length === 1 ? r.likedBy[0] : null))
     console.log(
         `🎯 [${code}] séquence finale (${ordered.length}/${requestedRounds}) : ${ordered
@@ -652,49 +515,37 @@ const buildRoundsForPlayers = async (game, pool, requestedRounds, activePlayerId
     return ordered
 }
 
-// mode who_liked (Who Liked It) : le titre est toujours affiché (ce n'est pas
-// ce qu'on devine), un extrait est préférable mais pas requis pour tourner —
-// cf. requirePreview=false. Couverture minimale requise (cf.
-// requireCoverage=true) : chaque joueur actif doit apparaître au moins une
-// fois.
+// mode who_liked : le titre est toujours affiché, un extrait est bien mais
+// pas obligatoire. chaque joueur actif doit apparaître au moins une fois
+// (couverture minimale).
 const buildWhoLikedRounds = (game, pool, requestedRounds, activePlayerIds) =>
     buildRoundsForPlayers(game, pool, requestedRounds, activePlayerIds, true, false)
 
-// mode blindtest : on devine le titre, donc un extrait est indispensable —
-// cf. requirePreview=true. Pas de couverture minimale (l'identité de qui a
-// liké le titre n'est jamais montrée pendant la manche), cf.
-// requireCoverage=false.
+// mode blindtest : on devine le titre, donc l'extrait est obligatoire. pas
+// de couverture minimale, on montre jamais qui a liké le titre.
 const buildBlindtestRounds = (game, pool, requestedRounds, activePlayerIds) =>
     buildRoundsForPlayers(game, pool, requestedRounds, activePlayerIds, false, true)
 
-// nombre d'enrichissements Deezer (cf. resolveDeezerArtist) menés en
-// parallèle : assez pour rester rapide, assez peu pour ne pas dépasser la
-// limite de requêtes de l'API publique Deezer (non documentée précisément,
-// mais de l'ordre de 50 requêtes / 5s par IP)
+// nombre d'enrichissements Deezer menés en parallèle : assez pour rester
+// rapide, assez peu pour pas dépasser la limite de l'API Deezer (~50
+// requêtes/5s par IP, pas officiellement documenté).
 const DEEZER_ARTIST_BATCH_SIZE = 8
 
-// catalogue de recherche du blindtest : tous les titres likés par le lobby,
-// envoyé une seule fois (le joueur cherche dedans plutôt que de choisir parmi
-// des options imposées). L'artiste est celui déjà transmis par le client (pas
-// encore enrichi des featurings) : aucun appel réseau ici, pour que la taille
-// du pool (qui grandit avec le nombre de joueurs) n'ait plus aucun impact sur
-// le temps de lancement — cf. enrichCatalogInBackground pour l'enrichissement.
+// catalogue de recherche du blindtest : tous les titres likés du lobby,
+// envoyé une fois (le joueur cherche dedans). l'artiste vient du client, pas
+// encore enrichi des feat, aucun appel réseau ici pour que le lancement soit
+// pas plus lent avec un gros pool (voir enrichCatalogInBackground pour l'enrichissement).
 const buildCatalog = (pool) => pool.map((t) => ({ id: t.id, name: t.name, artist: t.artist, image: t.image ?? null }))
 
-// enrichit l'artiste de chaque titre Deezer avec les featurings (cf.
-// resolveDeezerArtist), pour que "je cherche Pharrell Williams" retrouve un
-// titre de Tyler, The Creator feat. Pharrell Williams. Volontairement mené
-// APRÈS "game:started"/le lancement de la première manche (jamais attendu par
-// startGame) : par lots (pour ménager l'API Deezer publique), donc
-// proportionnel à la taille du pool — bloquant le lancement, ce délai grandissait
-// avec le nombre de joueurs (chacun ajoutant ses titres likés au pool commun),
-// ce qui causait les débuts de partie de plus en plus lents rapportés à mesure
-// que les lobbys s'agrandissent.
+// enrichit l'artiste de chaque titre Deezer avec les feat (ex: chercher
+// "Pharrell Williams" retrouve un titre de Tyler, The Creator feat. lui).
+// fait APRÈS le lancement de la partie, jamais attendu par startGame, sinon
+// le lancement ralentissait avec le nombre de joueurs (plus de joueurs =
+// plus de titres à enrichir).
 const enrichCatalogInBackground = async (code, game, pool, io) => {
     for (let i = 0; i < pool.length; i += DEEZER_ARTIST_BATCH_SIZE) {
-        // la partie a pu être relancée (rejouer) ou nettoyée entre-temps : ne
-        // diffuse plus rien dans ces cas, ce serait soit obsolète soit destiné
-        // à une room qui n'écoute plus cet enrichissement précis
+        // la partie a pu être relancée ou nettoyée entre-temps, dans ce cas
+        // on arrête, ce serait obsolète ou pour personne.
         if (games.get(code) !== game) return
 
         const batch = pool.slice(i, i + DEEZER_ARTIST_BATCH_SIZE)
@@ -752,9 +603,9 @@ const buildLeaderboard = (game) =>
 
 export const startGame = async ({ code, playerId, lobby, io }) => {
     const game = getOrCreate(code)
-    // une partie terminée peut être relancée (rejouer sans quitter le lobby) :
-    // les joueurs n'ont pas besoin de renvoyer leurs titres likés, seuls les
-    // scores et les manches repartent de zéro
+    // une partie finie peut être relancée sans quitter le lobby : pas besoin
+    // de renvoyer ses musiques, seuls les scores et les manches repartent à
+    // zéro.
     if (!['collecting', 'finished'].includes(game.status)) {
         throw new GameError('La partie est déjà lancée')
     }
@@ -766,10 +617,9 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
     if (lobby.players.length < LOBBY_LIMITS.MIN_PLAYERS_TO_START) {
         throw new GameError('Il faut au moins 2 joueurs pour lancer la partie')
     }
-    // relancer trop vite après la fin d'une partie pouvait laisser des joueurs
-    // coincés sur l'écran de résultats précédent, hors sync avec la nouvelle
-    // partie : on attend que chacun ait explicitement donné signe de vie (soit
-    // revenu au lobby, soit quitté) — cf. finishGame / clearPendingReturn
+    // relancer trop vite pouvait coincer des joueurs sur l'écran de résultats
+    // précédent, désync avec la nouvelle partie. dcp on attend que chacun ait
+    // donné signe de vie (revenu au lobby ou parti).
     if (game.pendingReturnPlayerIds && game.pendingReturnPlayerIds.size > 0) {
         throw new GameError(
             game.pendingReturnPlayerIds.size === 1
@@ -786,10 +636,9 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
 
     const activePlayerIds = lobby.players.map((p) => p.id)
 
-    // évite de démarrer avec un pool incomplet (ex: un joueur vient tout
-    // juste de rejoindre et son envoi de musiques likées n'est pas encore
-    // arrivé) : sans cette garde, le pool ne reflétait parfois qu'une partie
-    // des joueurs, silencieusement
+    // évite de démarrer avec un pool incomplet (un joueur qui vient de
+    // rejoindre et n'a pas encore envoyé ses musiques). sans ce check, ça
+    // démarrait silencieusement avec un pool tronqué.
     const missingSubmissions = activePlayerIds.filter((id) => !game.submittedTracks.has(id))
     if (missingSubmissions.length > 0) {
         throw new GameError(
@@ -799,12 +648,10 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         )
     }
 
-    // à partir d'ici le lancement est acté : stoppe le pré-chauffage de fond
-    // (cf. warmPreviewCache) avant de faire nous-mêmes des appels réseau pour
-    // les extraits, sans quoi les deux tapent Deezer/iTunes en parallèle et
-    // se marchent dessus (constaté en conditions réelles : rate limiting
-    // externe, extraits qui ne se résolvent plus du tout pendant plusieurs
-    // lots alors qu'ils existent bel et bien)
+    // à partir d'ici le lancement est acté, donc on stoppe le pré-chauffage
+    // de fond avant de faire nos propres appels réseau. sinon les deux tapent
+    // Deezer/iTunes en même temps et ça déclenche du rate limiting (déjà vu
+    // en prod).
     game.launching = true
 
     for (const p of lobby.players) {
@@ -822,14 +669,11 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         throw new GameError("Aucun titre liké n'a été reçu, impossible de lancer la partie")
     }
 
-    // diagnostic : le nombre de manches qu'un joueur peut fournir (cf.
-    // allocateRoundsPerPlayer/buildRoundsForPlayers) dépend de son pool
-    // EXCLUSIF (titres qu'il est seul à avoir likés, une fois les
-    // recoupements avec les autres retirés), pas de son nombre de titres
-    // likés brut — un joueur dont les goûts recoupent beaucoup ceux des
-    // autres peut avoir un pool exclusif bien plus petit que ce que son
-    // nombre de titres likés laisse penser, ce qui déclenche le repli "pool
-    // exclusif insuffisant" dans buildRoundsForPlayers
+    // pour du diagnostic : le nombre de manches qu'un joueur peut fournir
+    // dépend de son pool exclusif (titres qu'il est seul à avoir likés), pas
+    // de son nombre de titres likés total. un joueur dont les goûts recoupent
+    // beaucoup ceux des autres peut avoir un pool exclusif tout petit, même
+    // avec plein de titres likés.
     const exclusiveCounts = activePlayerIds.map(
         (id) => [id, pool.filter((t) => exclusiveOwner(t, activePlayerIds) === id).length]
     )
@@ -861,10 +705,9 @@ export const startGame = async ({ code, playerId, lobby, io }) => {
         duration: game.phaseSpeed,
         startedAt: null,
         answers: new Map(),
-        // ids des joueurs ayant déjà signalé un mauvais extrait sur CETTE
-        // manche (cf. reportWrongPreview) — un signalement par joueur et par
-        // manche, pour éviter qu'un clic répété ne compte plusieurs fois dans
-        // le seuil global d'invalidation (cf. previewMatch.service.js)
+        // ids des joueurs qui ont déjà signalé un mauvais extrait sur cette
+        // manche, un signalement par joueur et par manche max, pour qu'un
+        // clic répété compte pas plusieurs fois.
         wrongPreviewReportedBy: new Set(),
     }))
     game.currentRoundIndex = -1
@@ -902,22 +745,19 @@ const startNextRound = async (code, io) => {
     game.status = 'in_round'
     round.answers = new Map()
 
-    // ré-résout l'extrait juste avant l'envoi plutôt que de faire confiance à
-    // celui calculé au lancement de la partie : les extraits Deezer expirent
-    // environ 15 minutes après leur émission (cf. preview.service.js /
-    // deezer.service.js), et une manche tardive (parties longues, vitesse
-    // lente, beaucoup de manches) pouvait donc recevoir un lien déjà mort —
-    // "le son ne se met juste pas". Ne remplace que si une résolution fraîche
-    // aboutit : sinon on garde l'ancienne valeur plutôt que de perdre l'audio.
+    // on résout l'extrait à nouveau juste avant l'envoi, plutôt que de faire
+    // confiance à celui calculé au lancement : les extraits Deezer expirent
+    // en gros après 15 min, et une manche tardive pouvait recevoir un lien
+    // mort ("le son se lance pas"). on remplace que si la nouvelle résolution
+    // marche, sinon on garde l'ancienne plutôt que de perdre le son.
     const freshPreviewUrl = await resolvePreviewUrl(round.track)
     if (freshPreviewUrl) round.track.previewUrl = freshPreviewUrl
 
-    // fixé ici (juste avant la diffusion, pas avant la résolution d'extrait
-    // ci-dessus qui peut prendre du temps) + AUDIO_SYNC_LEAD_MS de marge :
-    // chaque appareil reçoit ce timestamp et programme le lancement de
-    // l'extrait pile à cet instant plutôt que dès que son propre buffer est
-    // prêt (cf. AudioPlayer.tsx), pour que tout le monde entende la musique
-    // démarrer en même temps.
+    // fixé juste avant l'envoi (pas avant la résolution d'extrait au-dessus,
+    // qui peut prendre du temps) + une marge de AUDIO_SYNC_LEAD_MS. chaque
+    // appareil programme le lancement pile à cet instant plutôt que dès que
+    // son buffer est prêt, pour que tout le monde entende la musique en même
+    // temps.
     round.startedAt = audioSyncedStart()
 
     io.to(room(code)).emit('game:round:start', publicRound(game, round))
@@ -942,12 +782,10 @@ export const submitAnswer = ({ code, playerId, roundIndex, selected, io }) => {
 
     round.answers.set(playerId, { selectedIds, elapsedMs })
 
-    // ne termine plus la manche dès que tout le monde a répondu : on laisse le
-    // timer de round.duration (cf. startNextRound) s'écouler, pour que les
-    // joueurs rapides voient le temps restant plutôt que d'être basculés
-    // instantanément sur les résultats. On raccourcit quand même l'attente à
-    // ROUND_ANSWER_GRACE_MS une fois que tout le monde a répondu, sauf si le
-    // chrono naturel devait de toute façon se terminer avant ce délai.
+    // on termine plus la manche direct quand tout le monde a répondu, on
+    // laisse le chrono normal continuer pour que les rapides voient le temps
+    // restant. on raccourcit juste à ROUND_ANSWER_GRACE_MS une fois que tout
+    // le monde a répondu, sauf si le chrono naturel finissait plus tôt.
     const allAnswered = game.activePlayerIds.every((id) => round.answers.has(id))
     if (allAnswered) {
         const naturalEndAt = round.startedAt + round.duration * 1000
@@ -980,8 +818,8 @@ const endRound = (code, io) => {
 
         const correctSelected = selectedIds.filter((id) => correctSet.has(id)).length
         const incorrectSelected = selectedIds.filter((id) => !correctSet.has(id)).length
-        // une seule personne cochée à tort annule les points de la manche, même
-        // si le reste de la sélection était correct
+        // cocher une seule mauvaise personne annule tous les points de la
+        // manche, même si le reste était juste
         const hasWrongPick = incorrectSelected > 0
         const recall = correctSet.size > 0 ? correctSelected / correctSet.size : 0
         const earnedPoints = !hasWrongPick && recall > 0
@@ -989,13 +827,13 @@ const endRound = (code, io) => {
 
         const speedFactor = Math.max(SCORING.MIN_SPEED_FACTOR, 1 - elapsedMs / (round.duration * 1000))
 
-        // plus on identifie de bonnes réponses (sans erreur), plus le score se
-        // rapproche du maximum : une seule bonne personne sur plusieurs ne
-        // rapporte qu'une fraction des points, toutes les rapporte en entier
+        // plus on trouve de bonnes réponses (sans erreur), plus le score
+        // s'approche du max : trouver une seule bonne personne sur plusieurs
+        // rapporte qu'une fraction des points
         const basePoints = earnedPoints ? Math.round(SCORING.BASE_POINTS * recall * speedFactor) : 0
-        // détaillés séparément (plutôt qu'un bonusPoints unique) pour que le
-        // client puisse expliquer au joueur d'où viennent ses points bonus :
-        // série de manches parfaites d'affilée vs. bonus "manche parfaite" fixe
+        // détaillés séparément (pas un seul bonusPoints) pour que le client
+        // puisse expliquer d'où viennent les points bonus : série ou bonus
+        // manche parfaite
         let streakBonus = 0
         let perfectBonus = 0
 

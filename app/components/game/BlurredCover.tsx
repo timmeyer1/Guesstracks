@@ -9,9 +9,8 @@ type BlurredCoverProps = {
     size?: number
 }
 
-// pochette bien floutée (blurRadius natif RN + voile semi-opaque en renfort,
-// pour rester illisible quelle que soit la plateforme) : ne doit jamais
-// laisser deviner le titre à trouver en mode blindtest
+// pochette bien floutée (flou + voile foncé par-dessus), en mode faut
+// vraiment pas qu'on puisse deviner le titre en blindtest
 export const BlurredCover: React.FC<BlurredCoverProps> = ({ imageUri, size = 160 }) => {
     const dimension = { width: size, height: size }
     const iconSize = Math.round(size * 0.25)

@@ -38,17 +38,9 @@ type SearchTracksResponse = {
     similarArtists: SimilarArtist[];
 };
 
-// recherche dans le catalogue Deezer pour la connexion universelle (choix
-// manuel des titres, cf. ../../screens/manualTrackPicker.screen.tsx), groupée
-// par album (chaque album renvoyé porte sa tracklist complète, dans l'ordre
-// officiel — pas seulement les titres qui ont matché la requête, cf.
-// server/src/services/deezer.service.js/searchTracksGroupedByAlbum) — proxyée
-// par notre propre serveur (cf. server/src/routes/auth.routes.js) plutôt
-// qu'appelée directement depuis le client : l'API Deezer ne renvoie aucun
-// header CORS, un appel direct échoue systématiquement sur web (constaté en
-// pratique — contrairement au lookup de profil public de
-// ../deezer/deezer.api.ts, qui lui n'est utilisé qu'en natif et n'a donc
-// jamais révélé ce problème)
+// recherche dans le catalogue Deezer pour le choix manuel de titres, groupée
+// par album avec la tracklist complète. Ça passe par notre serveur et pas
+// direct l'API Deezer, en gros Deezer renvoie aucun header CORS et ça plante sur web.
 export const searchDeezerAlbums = async (query: string): Promise<SearchTracksResult> => {
     try {
         const { data } = await lobbyApiClient.get<SearchTracksResponse>('/auth/search-tracks', {

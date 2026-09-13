@@ -10,8 +10,7 @@ export const deezerApiClient = axios.create({
     },
 });
 
-// Deezer authentifie par paramètre de requête `access_token`, pas par header
-// Authorization (cf. app/core/api/client.ts pour l'équivalent Spotify)
+// Deezer authentifie par paramètre `access_token` dans l'URL, pas par header Authorization comme Spotify.
 deezerApiClient.interceptors.request.use(
     (config) => {
         const token = useAuthStore.getState().token;
@@ -23,10 +22,9 @@ deezerApiClient.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// Deezer répond en HTTP 200 même en cas d'échec (token invalide, quota,
-// etc.), avec un corps `{ error: { type, message, code } }` : il n'y a donc
-// pas de statut HTTP à intercepter comme le 401 de Spotify. code 300 =
-// "Invalid token" côté Deezer.
+// Deezer répond toujours en 200, même quand ça échoue (token invalide,
+// quota dépassé...) : l'erreur est dans le corps de la réponse, pas dans
+// le statut HTTP. le code 300 veut dire "token invalide" chez Deezer.
 deezerApiClient.interceptors.response.use(
     (response) => {
         if (response.data?.error?.code === 300) {

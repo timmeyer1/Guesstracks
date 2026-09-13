@@ -15,18 +15,16 @@ const PORT = process.env.PORT || 4000
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/guesstracks'
 
 const isProd = process.env.NODE_ENV === 'production'
-// '*' ouvre l'API/le socket à n'importe quel site (cf. audit sécurité,
-// finding I4) : acceptable en dev, jamais en prod — le serveur refuse de
-// démarrer sans une valeur explicite plutôt que de retomber sur '*' en
-// silence.
+// '*' ouvre l'API et le socket à n'importe quel site, ça passe en dev mais
+// jamais en prod. dcp le serveur refuse carrément de démarrer si y'a pas
+// de valeur explicite, plutôt que de retomber sur '*' en silence.
 if (isProd && !process.env.CORS_ORIGIN) {
     throw new Error('CORS_ORIGIN doit être défini en production (voir server/.env.example)')
 }
-// une seule origine passée telle quelle au module `cors` est traitée comme
-// une valeur fixe unique, jamais comparée à l'origine de la requête (cf.
-// node_modules/cors/lib/index.js, configureOrigin) : une liste séparée par
-// des virgules (documentée dans .env.example) doit donc être éclatée en
-// tableau pour que chaque origine soit réellement vérifiée.
+// si on passe une seule string au module `cors`, il la traite comme une
+// valeur fixe et compare jamais avec l'origine de la requête. en gros faut
+// découper la liste séparée par virgules (voir .env.example) en tableau
+// pour que chaque origine soit vraiment vérifiée.
 const corsOrigins = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean)
 const CORS_ORIGIN = corsOrigins && corsOrigins.length > 0
     ? (corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins)
@@ -43,21 +41,20 @@ const io = new Server(httpServer, {
 
 app.get('/health', (req, res) => res.json({ ok: true }))
 
-// les codes de lobby ne font que 4 caractères (32^4 combinaisons) : sans
-// limite de débit, GET/join permettent de les brute-forcer pour rejoindre
-// des lobbies au hasard (cf. audit sécurité, finding I3)
+// les codes de lobby font que 4 caractères, donc peu de combinaisons possibles.
+// sans limite de débit, on pourrait les bruteforcer pour rejoindre des
+// lobbies au hasard.
 const lobbyLimiter = rateLimit({
     windowMs: 60_000,
-    max: 20, // 20 requêtes/min/IP sur les routes de lobby
+    max: 20, // 20 requêtes max par minute et par IP sur les routes de lobby
     standardHeaders: true,
     legacyHeaders: false,
 })
 
 app.use('/api', lobbyLimiter, createLobbyRouter(io))
-// limites appliquées par route à l'intérieur du router (cf. auth.routes.js) :
-// l'échange de token OAuth et la recherche de titres à la frappe n'ont pas du
-// tout le même profil d'usage, une seule limite au niveau du router aurait
-// forcément été trop stricte pour l'une des deux routes
+// les limites de débit sont gérées route par route dans auth.routes.js : l'échange
+// du token OAuth et la recherche de titres à la frappe, c'est pas du tout le même
+// usage, une seule limite globale aurait été trop stricte pour l'une des deux.
 app.use('/api/auth', createAuthRouter())
 
 app.use((req, res) => {

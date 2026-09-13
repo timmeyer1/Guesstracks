@@ -13,10 +13,8 @@ type SearchTrackQuestionProps = {
 }
 
 const MIN_QUERY_LENGTH = 2
-// laisse le champ réagir instantanément à la frappe, mais ne relance la
-// recherche qu'une fois la frappe stabilisée : sur un gros catalogue, refaire
-// le scan complet à chaque caractère tapé lors d'une frappe rapide est ce qui
-// causait les freezes sur les téléphones plus anciens
+// on relance la recherche qu'une fois que la frappe s'arrête un peu, sinon
+// ça freeze sur les vieux téléphones avec un gros catalogue
 const SEARCH_DEBOUNCE_MS = 120
 
 // insensible à la casse et aux accents, pour que "orleans" trouve "Orléans"
@@ -43,13 +41,8 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
         return () => clearTimeout(timer)
     }, [query])
 
-    // ouvre le clavier dès le début de la manche, pour chercher sans avoir à
-    // taper une première fois sur le champ. Ce composant est remonté à
-    // chaque nouvelle manche (game.screen.tsx bascule entièrement sur
-    // <RoundResult> entre deux manches), donc un effet au montage suffit —
-    // le court délai évite qu'un focus() appelé trop tôt (juste après le
-    // montage, avant que KeyboardAvoidingView ait fini de se mettre en place)
-    // ne fasse rien, un problème RN classique avec la prop autoFocus seule
+    // ouvre le clavier direct au début de la manche. Le petit délai est là
+    // parce que focus() appelé trop tôt au montage ne marche pas toujours
     useEffect(() => {
         if (hasAnswered) return
         const timer = setTimeout(() => inputRef.current?.focus(), 150)
@@ -57,25 +50,16 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    // le clavier doit rester utilisable tant qu'il faut trouver le titre, puis
-    // se refermer dès que ce n'est plus le cas : soit ce joueur vient de
-    // répondre (la manche continue pour les autres, ce composant reste monté
-    // mais bascule sur la carte "Réponse envoyée" ci-dessous), soit la manche
-    // se termine côté serveur sans qu'il ait répondu (le parent démonte alors
-    // ce composant pour afficher le résultat, cf. game.screen.tsx) — le
-    // TextInput perdant le focus dans les deux cas ne suffit pas toujours à
-    // fermer le clavier logiciel tout seul, d'où le Keyboard.dismiss() explicite
+    // on ferme le clavier à la main une fois qu'on a répondu, en gros
+    // perdre juste le focus du champ suffit pas toujours à le fermer
     useEffect(() => {
         if (hasAnswered) Keyboard.dismiss()
     }, [hasAnswered])
 
     useEffect(() => () => Keyboard.dismiss(), [])
 
-    // normalize() (dont la normalisation Unicode NFD) est l'opération la plus
-    // coûteuse de la recherche : calculée ici une seule fois par catalogue
-    // (au changement de manche), pas à chaque caractère tapé — avant, elle
-    // tournait sur tout le catalogue à chaque frappe, ce qui devenait sensible
-    // sur un gros catalogue et sur des appareils plus anciens
+    // normalize() coûte cher, dcp on le fait une fois par catalogue et pas
+    // à chaque caractère tapé
     const normalizedCatalog = useMemo(
         () =>
             catalog.map((track) => {
@@ -84,21 +68,16 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
                 return {
                     track,
                     normalizedName,
-                    // précalculé aussi : c'est ce que scanne la recherche combinée
-                    // ci-dessous, inutile de le reconstruire à chaque frappe
+                    // aussi précalculé, pour pas le refaire à chaque frappe
                     haystack: `${normalizedName} ${normalizedArtist}`,
                 }
             }),
         [catalog]
     )
 
-    // recherche sur le titre ET l'artiste. Au-delà d'une simple sous-chaîne
-    // sur un seul champ, "dj snake taki taki" ou "taki taki dj snake" (titre +
-    // artiste combinés, dans n'importe quel ordre) doivent aussi retrouver le
-    // titre : chaque mot de la recherche est donc cherché indépendamment dans
-    // le titre + l'artiste concaténés, plutôt que d'exiger que la recherche
-    // entière soit une sous-chaîne d'un seul des deux champs. Se base sur
-    // debouncedQuery (pas query) : cf. SEARCH_DEBOUNCE_MS plus haut.
+    // recherche sur le titre ET l'artiste, mot par mot et dans n'importe quel
+    // ordre — dcp "dj snake taki taki" trouve le titre même écrit dans
+    // l'autre sens
     const suggestions = useMemo(() => {
         const normalizedQuery = normalize(debouncedQuery)
         if (normalizedQuery.length < MIN_QUERY_LENGTH) return []
@@ -123,19 +102,15 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
             }
         }
 
-        // pas de plafond ici : la liste défile dans une FlatList virtualisée
-        // (cf. plus bas, ne rend que les lignes visibles à l'écran même pour
-        // une longue liste) — un titre d'artiste ou un titre partagé par
-        // plusieurs versions doit rester accessible en scrollant, pas coupé
+        // pas de limite sur le nombre de résultats, la liste en dessous est
+        // virtualisée donc ça reste fluide même avec beaucoup de résultats
         return [...nameStartsWith, ...nameContains, ...combinedMatches]
     }, [debouncedQuery, normalizedCatalog])
 
     const selectedTrack = selectedId ? catalog.find((t) => t.id === selectedId) : null
 
-    // référence stable : passé à TrackSuggestionsList (mémoïsé, cf. audit
-    // qualité finding N4), une fonction recréée à chaque render de ce
-    // composant (ex: à chaque frappe) lui ferait perdre tout le bénéfice de
-    // React.memo sur ses lignes
+    // référence stable, sinon TrackSuggestionsList perd le bénéfice de son
+    // memo à chaque frappe
     const handleSelect = useCallback(
         (id: string) => {
             if (hasAnswered) return
@@ -158,10 +133,8 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
     const showDropdown = query.trim().length >= MIN_QUERY_LENGTH
 
     return (
-        // zIndex élevé pour que le dropdown flotte au-dessus du reste du
-        // contenu au lieu de pousser la mise en page (sinon gros vide tant
-        // que rien n'est tapé). Il s'ouvre vers le haut (bottom-full) car la
-        // barre de recherche est en bas de l'écran, juste au-dessus du clavier.
+        // zIndex élevé pour que la liste de suggestions flotte par-dessus
+        // au lieu de pousser tout le contenu vers le bas
         <View style={{ zIndex: 10 }}>
             <View className="flex-row items-center bg-offwhite rounded-2xl px-4 py-3">
                 <Search size={18} color={COLORS.darkgray} />

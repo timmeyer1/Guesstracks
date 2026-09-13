@@ -1,14 +1,12 @@
-// Accès à l'endpoint détaillé /track/{id} de Deezer, pour deux besoins qui
-// n'existent pas dans la liste des titres likés (cf. app/modules/deezer côté
-// client) : la liste complète des artistes (contributors) et un extrait audio
-// FRAIS — les deux détails ci-dessous expliquent pourquoi ils sont traités
-// différemment côté cache.
+// accès à l'endpoint détaillé /track/{id} de Deezer, pour deux trucs qui
+// manquent dans la liste des titres likés (côté client) : tous les artistes
+// (contributors) et un extrait audio frais. les deux sont mis en cache différemment, voir plus bas pourquoi.
 const DEEZER_TRACK_URL = 'https://api.deezer.com/track'
 const DEEZER_SEARCH_URL = 'https://api.deezer.com/search'
 const DEEZER_ALBUM_URL = 'https://api.deezer.com/album'
 const DEEZER_ARTIST_URL = 'https://api.deezer.com/artist'
 
-// contributors ne change jamais pour un id donné : mis en cache indéfiniment
+// contributors change jamais pour un id donné, donc mis en cache pour toujours
 const artistCache = new Map() // id de titre Deezer -> artiste enrichi | null
 
 const formatContributors = (contributors) => {
@@ -18,12 +16,10 @@ const formatContributors = (contributors) => {
     return `${names[0]} feat. ${names.slice(1).join(', ')}`
 }
 
-// commun à tous les appels Deezer ci-dessous (détail d'un titre, recherche,
-// tracklist d'un album) : `data.error` (cf. searchDeezerOnce dans
-// preview.service.js) signale un échec métier (quota dépassé, id invalide...)
-// alors même que la requête HTTP a réussi (200) — jamais traité comme un
-// succès silencieux ici, faute de quoi un appelant recevrait un objet sans
-// les champs attendus.
+// commun à tous les appels Deezer (détail titre, recherche, tracklist album).
+// `data.error` veut dire un échec côté Deezer (quota, id invalide...) même si
+// la requête HTTP a réussi. on le traite pas comme un succès, sinon l'appelant
+// recevrait un objet vide sans les champs attendus.
 const fetchJson = async (url) => {
     try {
         const controller = new AbortController()
@@ -42,9 +38,9 @@ const fetchJson = async (url) => {
 
 const fetchTrackDetails = (trackId) => fetchJson(`${DEEZER_TRACK_URL}/${trackId}`)
 
-// track: { id, artist, provider }. Renvoie l'artiste enrichi (avec
-// featurings) pour un titre Deezer si trouvé, sinon l'artiste déjà connu tel
-// quel (y compris pour les titres non-Deezer, laissés inchangés).
+// track: { id, artist, provider }. renvoie l'artiste avec les featurings pour
+// un titre Deezer si trouvé, sinon l'artiste déjà connu tel quel (les titres
+// non-Deezer sont laissés inchangés)
 export const resolveDeezerArtist = async (track) => {
     if (track.provider !== 'deezer') return track.artist
 
@@ -58,38 +54,29 @@ export const resolveDeezerArtist = async (track) => {
     return enriched ?? track.artist
 }
 
-// Contrairement aux artistes ci-dessus, l'extrait audio de Deezer est une URL
-// signée dont le jeton expire environ 15 minutes après avoir été émise
-// (constaté empiriquement, non documenté par Deezer — même endpoint /track/
-// {id}, même recherche, ou même la liste des titres likés récupérée à la
-// connexion : toutes portent cette expiration). La mettre en cache comme les
-// artistes la rendrait périmée bien avant que les dernières manches d'une
-// partie ne soient jouées, voire dès la partie suivante — d'où l'absence
-// totale de cache ici, volontaire : chaque appel renvoie un extrait
-// fraîchement valide. À n'appeler qu'au moment de réellement envoyer la
-// manche au client (cf. game.service.js), jamais en amont.
+// contrairement aux artistes, l'extrait audio Deezer est une URL signée qui
+// expire environ 15 minutes après (constaté nous-mêmes, Deezer le documente
+// pas). la mettre en cache la rendrait morte avant la fin de la partie, dcp
+// pas de cache ici, exprès : chaque appel renvoie un extrait tout frais.
+// à appeler seulement au moment d'envoyer la manche au client (game.service.js), jamais avant.
 //
-// Renvoie aussi le titre/artiste Deezer de cet id (pas seulement l'extrait) :
-// preview.service.js les compare au titre/artiste attendus avant de faire
-// confiance à l'extrait, plutôt que de faire confiance à l'id aveuglément —
-// un id soumis par le client peut avoir été réassigné à une autre fiche côté
-// Deezer entre-temps (fusion/réédition de catalogue), ce qui renvoyait alors
-// l'extrait d'un titre totalement différent sans qu'aucune validation ne
-// l'attrape (contrairement à isRealMatch, appliqué à toute autre source).
+// renvoie aussi le titre/artiste Deezer de cet id, pas juste l'extrait :
+// preview.service.js les compare à ce qu'on attendait avant de faire confiance
+// à l'extrait. un id client peut avoir été réassigné à une autre fiche côté
+// Deezer entre-temps (réédition de catalogue), donc sans ce check on pourrait
+// renvoyer l'extrait d'un titre complètement différent.
 export const fetchFreshDeezerPreview = async (trackId) => {
     const data = await fetchTrackDetails(trackId)
     if (!data?.preview) return null
     return { preview: data.preview, title: data.title, artist: data.artist?.name }
 }
 
-// nombre d'albums distincts détaillés par recherche : chacun coûte un appel
-// Deezer supplémentaire (cf. fetchAlbumTracks ci-dessous) — plafonné pour
-// qu'une recherche large (ex: un nom d'artiste très courant) ne déclenche pas
-// des dizaines de requêtes en parallèle pour une seule frappe utilisateur
+// combien d'albums max on détaille par recherche : chaque album coûte un
+// appel Deezer en plus (voir fetchAlbumTracks). ça évite qu'une recherche
+// large (nom d'artiste courant) parte sur des dizaines de requêtes en parallèle
 const MAX_ALBUMS_PER_SEARCH = 6
-// un album studio dépasse rarement ça ; au-delà, la fin de la tracklist est
-// tronquée plutôt que de paginer (compilation/discographie complète, cas
-// marginal pour cet usage)
+// un album studio dépasse rarement ça. au-delà, la tracklist est juste
+// tronquée plutôt que paginée (cas marginal genre discographie complète)
 const ALBUM_TRACKS_LIMIT = 100
 
 const fetchAlbumTracks = async (albumId) => {
@@ -99,11 +86,9 @@ const fetchAlbumTracks = async (albumId) => {
     return data?.data || []
 }
 
-// au-delà, la discographie complète d'un artiste très prolifique (ex: un
-// rappeur qui enchaîne les singles) déclencherait bien trop de requêtes
-// tracklist en parallèle (cf. fetchAlbumTracks) pour une seule frappe
-// utilisateur — les plus récents d'abord (ordre déjà renvoyé par Deezer),
-// donc ceux qui manquent le plus souvent sont aussi les moins pertinents
+// au-delà, un artiste très prolifique (plein de singles) déclencherait trop
+// de requêtes tracklist en parallèle. Deezer renvoie déjà les plus récents
+// d'abord, donc ce qu'on coupe est aussi le moins pertinent
 const MAX_ARTIST_ALBUMS = 20
 
 const fetchArtistAlbums = async (artistId) => {
@@ -113,9 +98,8 @@ const fetchArtistAlbums = async (artistId) => {
     return data?.data || []
 }
 
-// nombre d'artistes similaires suggérés (cf. app/screens/manualTrackPicker.screen.tsx,
-// bandeau du bas) : juste de quoi remplir la bande horizontale, sans alourdir
-// l'appel pour rien
+// nombre d'artistes similaires suggérés (bandeau du bas dans manualTrackPicker.screen.tsx),
+// juste ce qu'il faut pour remplir la bande sans surcharger l'appel
 const RELATED_ARTISTS_LIMIT = 10
 
 const fetchRelatedArtists = async (artistId) => {
@@ -129,9 +113,8 @@ const fetchRelatedArtists = async (artistId) => {
     }))
 }
 
-// insensible à la casse/aux accents, même logique que
-// app/components/game/SearchTrackQuestion.tsx (client) — dupliquée ici plutôt
-// que partagée, les deux bases de code n'importent pas l'une de l'autre
+// ignore casse/accents, même logique que SearchTrackQuestion.tsx côté client
+// — dupliquée ici, le serveur et le client n'importent pas l'un de l'autre
 const DIACRITICS_RANGE = new RegExp('[\\u0300-\\u036f]', 'g')
 const normalize = (value) =>
     `${value ?? ''}`
@@ -140,18 +123,12 @@ const normalize = (value) =>
         .toLowerCase()
         .trim()
 
-// Deezer liste parfois DEUX albums distincts (ids différents) pour un même
-// titre — une réédition/version deluxe avec son propre id, listée à côté de
-// l'originale (constaté en pratique : "Polak" de PLK sort deux fois dans
-// /artist/{id}/albums, 2018-10-05 puis 2019-02-01, cette dernière avec des
-// titres bonus). `key` permet d'inclure l'artiste dans la clé quand plusieurs
-// artistes différents sont mélangés (cf. la recherche générique dans
-// searchTracksGroupedByAlbum) : sans ça, deux albums same-titre d'artistes
-// DIFFÉRENTS (coïncidence rare mais possible) fusionneraient à tort. Entre
-// deux doublons, garde celui à la date de sortie la plus récente quand elle
-// est connue (une réédition est toujours postérieure et au moins aussi
-// complète que l'originale — cf. exemple ci-dessus) ; sinon le premier
-// rencontré (déjà dans l'ordre de pertinence Deezer).
+// Deezer liste parfois deux albums (ids différents) pour un même titre : une
+// réédition/deluxe à côté de l'original (ex vu en vrai : "Polak" de PLK sort
+// deux fois, la deuxième avec des titres bonus). `key` peut inclure l'artiste
+// pour éviter de fusionner par erreur deux albums same-titre d'artistes
+// différents. entre deux doublons, on garde le plus récent (une réédition
+// est toujours plus complète que l'original), sinon le premier trouvé.
 const dedupeAlbumsByTitle = (albums, { key = (a) => normalize(a.title) } = {}) => {
     const byKey = new Map()
     for (const album of albums) {
@@ -172,9 +149,8 @@ const buildAlbumsWithTracks = async (albumEntries) => {
         albumEntries.map(async (album) => {
             const rawTracks = await fetchAlbumTracks(album.id)
             const tracks = rawTracks
-                // ordre officiel de l'album (déjà l'ordre renvoyé par Deezer en
-                // pratique) : trié explicitement au cas où, un album multi-disques
-                // n'étant pas garanti dans cet ordre par l'API
+                // Deezer renvoie déjà dans l'ordre officiel, mais on trie quand
+                // même : un album multi-disques n'est pas garanti dans cet ordre
                 .slice()
                 .sort((a, b) => (a.disk_number - b.disk_number) || (a.track_position - b.track_position))
                 .map((t) => ({
@@ -189,32 +165,16 @@ const buildAlbumsWithTracks = async (albumEntries) => {
         })
     )
 
-    // un album dont la tracklist n'a pas pu être récupérée (échec réseau
-    // isolé, cf. fetchJson) n'a aucun intérêt à apparaître vide
+    // pas la peine d'afficher un album vide parce que sa tracklist a foiré
     return albums.filter((album) => album.tracks.length > 0)
 }
 
-// repère l'artiste que la requête désigne, parmi les résultats d'une
-// recherche de titres classique : PAS forcément l'artiste du tout premier
-// résultat, dont le titre le mieux classé peut être un featuring où
-// l'artiste principal est un tiers (constaté en pratique : chercher "daft
-// punk" fait remonter en tête "Starboy" - The Weeknd ft. Daft Punk, pas un
-// titre de Daft Punk lui-même). On scanne donc tous les résultats à la
-// recherche d'une correspondance EXACTE en priorité, avant de retomber sur
-// une correspondance floue (préfixe) limitée au tout premier résultat —
-// au-delà, trop de faux positifs sur une requête qui ne désigne pas un
-// artiste précis (ex: un titre de chanson).
-//
-// Seul le sens "l'artiste du top résultat commence par la requête" est
-// gardé ici (ex: requête tronquée/typo "daft" -> artiste "Daft Punk"). Le
-// sens inverse ("la requête commence par le nom de l'artiste") a été retiré :
-// il matchait aussi n'importe quelle requête tapée "Artiste Titre" (l'ordre
-// naturel pour chercher un titre précis), dès que Deezer classait un titre
-// de cet artiste en tête — ex: "gambi loco loco" matchait l'artiste "Gambi"
-// (préfixe de la requête) et faisait alors lister toute sa discographie par
-// date au lieu du titre "Loco Loco" recherché (constaté en pratique : rien
-// ne remontait, et un album sans rapport s'affichait en premier), alors que
-// "loco loco gambi" — même recherche, mots inversés — fonctionnait très bien.
+// trouve l'artiste désigné par la requête, pas forcément celui du premier
+// résultat ("daft punk" remonte "Starboy" - The Weeknd ft. Daft Punk en tête).
+// on cherche une correspondance exacte, sinon un préfixe mais seulement sur
+// le tout premier résultat (sinon trop de faux positifs). on teste juste
+// "l'artiste top commence par la requête" (typo "daft" -> "Daft Punk"), pas
+// l'inverse : ça matchait "Gambi" dans "gambi loco loco" et cachait le vrai titre cherché.
 const findMatchingArtist = (items, normalizedQuery) => {
     for (const item of items) {
         if (item.artist && normalize(item.artist.name) === normalizedQuery) return item.artist
@@ -231,49 +191,18 @@ const findMatchingArtist = (items, normalizedQuery) => {
     return null
 }
 
-// Recherche groupée par album pour la "connexion universelle" (choix manuel
-// des titres, cf. app/screens/manualTrackPicker.screen.tsx) : la recherche
-// Deezer classique renvoie des titres épars dans un ordre de pertinence qui
-// mélange les albums, peu lisible pour composer sa bibliothèque. Deux
-// stratégies selon ce que la requête semble désigner :
-//
-// - un ARTISTE (la requête correspond au nom de l'artiste du meilleur
-//   résultat) : sa discographie COMPLÈTE est récupérée via /artist/{id}/albums
-//   plutôt que déduite des résultats de recherche — une recherche de titres
-//   classique ne remonte que les morceaux les plus populaires de cet artiste
-//   (triés par `rank`), donc souvent seulement une poignée de ses albums,
-//   jamais l'intégralité (constaté en pratique sur un artiste aux nombreux
-//   singles : sur ~40 sorties, à peine 2-3 remontaient via la recherche de
-//   titres). L'id artiste vient du MEILLEUR résultat de la recherche de
-//   titres ci-dessous plutôt que de /search/artist : ce dernier renvoie
-//   parfois plusieurs fiches homonymes distinctes pour un même nom (constaté
-//   en pratique, doublons Deezer) sans indication de laquelle est la
-//   "vraie"/active, alors que l'artiste le mieux classé sur une recherche de
-//   titres est fiable par construction (c'est lui dont les titres sont
-//   effectivement populaires).
-// - un TITRE ou un artiste secondaire (featuring...) : repli sur les albums
-//   distincts trouvés parmi les résultats de la recherche, dans leur ordre de
-//   pertinence Deezer — l'ancien comportement, toujours pertinent pour une
-//   requête qui ne désigne pas un artiste précis.
-//
-// Dans les deux cas, la tracklist COMPLÈTE de chaque album est ensuite
-// récupérée séparément (cf. buildAlbumsWithTracks), dans l'ordre officiel de
-// l'album — pas seulement les titres qui ont matché la requête initiale.
-//
-// En plus des albums : une poignée d'artistes similaires à l'artiste du tout
-// premier résultat (cf. fetchRelatedArtists) — qu'il s'agisse d'une recherche
-// d'artiste ("gambi") ou de titre ("promenade (de la rvffleuse)"), c'est
-// toujours lui le plus représentatif de la requête tapée. Un seul appel
-// Deezer de plus, lancé EN PARALLÈLE de buildAlbumsWithTracks (déjà le plus
-// long des deux) : n'ajoute donc aucune latence perceptible.
-//
-// Catalogue Deezer appelé depuis le serveur, jamais depuis le navigateur, car
-// api.deezer.com ne renvoie aucun header CORS (constaté en pratique —
-// contrairement au lookup de profil public, appelé lui directement depuis le
-// client, cf. app/modules/deezer/deezer.api.ts, qui ne fonctionne donc qu'en
-// natif). Pas de validation stricte titre/artiste façon
-// preview.service.js/isRealMatch : ici c'est le joueur lui-même qui choisit
-// dans une liste, pas un matching automatique à sécuriser.
+// recherche groupée par album pour la connexion universelle (choix manuel des
+// titres, voir manualTrackPicker.screen.tsx) : la recherche Deezer classique
+// mélange les albums dans son ordre de pertinence, illisible pour se
+// constituer une bibliothèque. si la requête désigne un artiste, on récupère
+// toute sa discographie via /artist/{id}/albums (la recherche de titres ne
+// remonte que ses morceaux les plus populaires, jamais tout). sinon, repli
+// sur les albums trouvés dans les résultats de recherche. dans les deux cas
+// on va chercher la tracklist complète de chaque album ensuite (voir
+// buildAlbumsWithTracks), plus une poignée d'artistes similaires en bonus.
+// appelé depuis le serveur, pas le navigateur, car l'API Deezer bloque le
+// CORS. pas de validation stricte titre/artiste ici : c'est le joueur qui
+// choisit lui-même dans une liste, pas un matching automatique à sécuriser.
 export const searchTracksGroupedByAlbum = async (query) => {
     const trimmed = `${query ?? ''}`.trim()
     if (!trimmed) return { albums: [], similarArtists: [] }
@@ -301,10 +230,9 @@ export const searchTracksGroupedByAlbum = async (query) => {
         return { albums, similarArtists }
     }
 
-    // dédoublonne par album (id), en gardant l'ordre d'apparition (=
-    // pertinence Deezer pour cette requête), PUIS par titre+artiste (cf.
-    // dedupeAlbumsByTitle) : deux ids distincts peuvent encore désigner le
-    // même titre pour le même artiste (réédition listée à part)
+    // dédoublonne par id d'abord (en gardant l'ordre de pertinence Deezer),
+    // puis par titre+artiste (voir dedupeAlbumsByTitle) : deux ids différents
+    // peuvent quand même désigner le même titre chez le même artiste (réédition à part)
     const albumsById = new Map()
     for (const item of items) {
         const albumId = item.album?.id

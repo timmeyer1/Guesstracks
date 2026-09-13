@@ -12,31 +12,23 @@ import type {
 type GameStoreType = {
     phase: GamePhase
     gameMode: GameMode | null
-    // cf. LobbyType.manualAdvance : figé pour toute la partie au lancement
-    // (game:started), détermine si RoundResult affiche un bouton "Manche
-    // suivante" (hôte) / un statut d'attente (autres joueurs) au lieu de
-    // basculer automatiquement
+    // figé au lancement de la partie : dit si RoundResult affiche un bouton
+    // "manche suivante" pour l'hôte, ou passe tout seul à la suite
     manualAdvance: boolean
     totalRounds: number
     round: GameRoundStart | null
     lastRoundEnd: GameRoundEnd | null
     leaderboard: LeaderboardEntry[]
     finalLeaderboard: FinalLeaderboardEntry[]
-    // instant commun (epoch) auquel rejouer l'extrait sur l'écran de
-    // résultats finaux (cf. GameEnd.audioStartedAt) ; absent de
-    // FinalLeaderboardEntry car ce n'est pas une propriété d'entrée de
-    // classement mais de l'événement game:end dans son ensemble
+    // en gros l'instant commun où rejouer l'extrait sur l'écran de résultats finaux
     finalAudioStartedAt: number | null
     catalog: CatalogEntry[] // titres cherchables en mode blindtest
     mySelection: string[]
     hasAnswered: boolean
     error: string | null
-    // ids des joueurs ayant déjà envoyé leurs musiques likées pour la partie
-    // en préparation (cf. lobby.screen.tsx, bloque "Lancer la partie" tant
-    // que ce n'est pas le cas pour tout le monde)
+    // joueurs qui ont déjà envoyé leurs musiques likées, bloque "Lancer la partie" sinon
     submittedPlayerIds: string[]
-    // ids des joueurs de la partie qui vient de se terminer, encore attendus
-    // au lobby (revenus ou partis) avant de pouvoir relancer
+    // joueurs de la partie qui vient de finir, encore attendus au lobby avant de relancer
     pendingReturnPlayerIds: string[]
 
     setPhase: (phase: GamePhase) => void
@@ -44,9 +36,7 @@ type GameStoreType = {
     setManualAdvance: (manualAdvance: boolean) => void
     setTotalRounds: (totalRounds: number) => void
     setCatalog: (catalog: CatalogEntry[]) => void
-    // fusionne les artistes enrichis (featurings) reçus après coup, cf.
-    // game:catalogEnriched — le catalogue de base est déjà affichable dès
-    // game:started, ceci ne fait qu'améliorer le matching de recherche
+    // ajoute les featurings reçus après coup, juste pour améliorer la recherche
     enrichCatalog: (updates: { id: string; artist: string }[]) => void
     setSubmittedPlayerIds: (ids: string[]) => void
     setPendingReturnPlayerIds: (ids: string[]) => void
@@ -57,16 +47,11 @@ type GameStoreType = {
     toggleSelection: (id: string, multi: boolean) => void
     setHasAnswered: (hasAnswered: boolean) => void
     setError: (message: string | null) => void
-    // reset complet : à utiliser en ENTRANT ou en SORTANT d'un lobby (nouveau
-    // lobby, départ volontaire, expulsion, lobby fermé par le serveur) —
-    // remet TOUT l'état à zéro d'un coup (y compris submittedPlayerIds/
-    // pendingReturnPlayerIds, tous deux dans initialState), pour ne jamais
-    // hériter d'un résidu d'un lobby précédent.
+    // reset complet, en entrant ou sortant d'un lobby : remet tout à zéro
+    // dcp on hérite jamais d'un résidu du lobby précédent
     reset: () => void
-    // reset partiel : à utiliser uniquement pour "Rester dans le lobby" APRÈS
-    // une partie DANS LE MÊME lobby (cf. handleStayInLobby) — remplace tout
-    // sauf submittedPlayerIds/pendingReturnPlayerIds, qui doivent survivre le
-    // temps que le serveur confirme le retour de chacun avant de relancer
+    // reset partiel pour "Rester dans le lobby" après une partie, en gros
+    // garde submittedPlayerIds/pendingReturnPlayerIds le temps de relancer
     resetForRematch: () => void
 }
 
@@ -88,8 +73,7 @@ const initialState = {
     pendingReturnPlayerIds: [] as string[],
 }
 
-// sous-ensemble d'initialState pour resetForRematch (préserve
-// submittedPlayerIds/pendingReturnPlayerIds, cf. son commentaire ci-dessus)
+// sous-ensemble d'initialState pour resetForRematch, garde les deux ids d'attente
 const rematchState = {
     phase: initialState.phase,
     gameMode: initialState.gameMode,
@@ -160,12 +144,9 @@ export const useGameStore = create<GameStoreType>((set, get) => ({
     setHasAnswered: (hasAnswered) => set({ hasAnswered }),
     setError: (error) => set({ error }),
 
-    // set() fusionne avec l'état courant : ça ne pose problème que pour les
-    // clés ABSENTES de l'objet passé (qui restent alors inchangées). Contrai-
-    // rement à l'ancienne version, submittedPlayerIds/pendingReturnPlayerIds
-    // font maintenant partie d'initialState (cf. plus haut) et sont donc bien
-    // explicitement écrasés à [] ici — c'était l'oubli qui causait le message
-    // fantôme "En attente que 3 joueurs...".
+    // set() garde les clés absentes de l'objet passé, dcp fallait bien mettre
+    // submittedPlayerIds/pendingReturnPlayerIds dans initialState pour les
+    // vider ici — sinon c'était le bug du message fantôme "en attente de 3 joueurs".
     reset: () => set({ ...initialState }),
     resetForRematch: () => set(rematchState),
 }))

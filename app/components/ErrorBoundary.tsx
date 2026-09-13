@@ -6,11 +6,8 @@ import { CustomButton } from './Button'
 type Props = { children: React.ReactNode }
 type State = { hasError: boolean }
 
-// Filet de sécurité autour de tout l'app (cf. App.tsx) : sans lui, une
-// exception de rendu (ex. un payload socket inattendu pendant une partie,
-// cf. audit sécurité/robustesse, finding I7) fait tomber l'app entière sur
-// l'écran rouge/blanc de React Native, en pleine partie, pour tous les
-// joueurs simultanément si la cause est un payload serveur.
+// filet de sécurité autour de toute l'app, sinon une erreur de rendu (genre
+// un payload socket bizarre pendant une partie) fait tout planter pour tout le monde
 export class ErrorBoundary extends React.Component<Props, State> {
     state: State = { hasError: false }
 
@@ -22,10 +19,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
         console.error('💥 Crash de rendu :', error, info.componentStack)
     }
 
-    // "Réessayer" retente juste un nouveau rendu de l'arbre : suffisant pour
-    // une exception ponctuelle (payload malformé, etc.), pas pour un bug
-    // systématique qui se reproduira au prochain rendu identique — dans ce
-    // cas l'utilisateur doit quitter/relancer l'app, d'où le message ci-dessous.
+    // "Réessayer" retente juste un rendu, ça marche pour une erreur ponctuelle
+    // mais pas pour un bug qui revient à chaque fois, d'où le message en dessous.
     private handleRetry = () => {
         this.setState({ hasError: false })
     }

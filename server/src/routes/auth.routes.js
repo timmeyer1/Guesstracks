@@ -11,29 +11,28 @@ export class AuthError extends Error {
 
 const DEEZER_TOKEN_URL = 'https://connect.deezer.com/oauth/access_token.php'
 
-// échange OAuth : rare et déjà protégé par le code éphémère Deezer lui-même,
-// une limite serrée n'entrave donc aucun usage légitime
+// l'échange OAuth c'est rare et déjà protégé par le code éphémère Deezer,
+// donc on peut mettre une limite serrée sans gêner personne
 const tokenLimiter = rateLimit({
     windowMs: 60_000,
-    max: 10, // 10 requêtes/min/IP
+    max: 10, // 10 requêtes max par minute et par IP
     standardHeaders: true,
     legacyHeaders: false,
 })
-// recherche à la frappe (cf. app/components/auth/ManualTrackPickerModal.tsx) :
-// plusieurs requêtes par utilisateur en quelques secondes le temps de taper
-// une recherche, une limite aussi stricte que tokenLimiter la bloquerait
-// avant même une seule recherche complète
+// en gros la recherche à la frappe envoie plusieurs requêtes en quelques
+// secondes, donc une limite aussi stricte que tokenLimiter bloquerait
+// une recherche avant même qu'elle soit finie
 const searchLimiter = rateLimit({
     windowMs: 60_000,
-    max: 30, // 30 requêtes/min/IP
+    max: 30, // 30 requêtes max par minute et par IP
     standardHeaders: true,
     legacyHeaders: false,
 })
 
-// Deezer n'expose pas de flux PKCE pour client public (contrairement à
-// Spotify, cf. app/modules/auth/spotify.ts) : l'échange code -> token exige
-// le secret d'app Deezer, qui ne doit donc jamais être embarqué côté mobile.
-// Ce endpoint fait cet échange côté serveur et ne renvoie que le token.
+// Deezer (contrairement à Spotify) n'a pas de flux PKCE pour une app mobile :
+// dcp l'échange code -> token demande le secret de l'appli, qui doit jamais
+// se retrouver dans le code du mobile. Cette route fait l'échange côté
+// serveur et ne renvoie que le token à l'app.
 export const createAuthRouter = () => {
     const router = Router()
 
@@ -67,7 +66,7 @@ export const createAuthRouter = () => {
             try {
                 data = JSON.parse(text)
             } catch {
-                // ancien format d'erreur Deezer : texte brut (ex: "wrong code")
+                // vieux format d'erreur Deezer : juste du texte brut (ex: "wrong code")
                 throw new AuthError(text || 'Échec de connexion Deezer')
             }
 
@@ -86,10 +85,10 @@ export const createAuthRouter = () => {
         }
     })
 
-    // recherche de titres dans le catalogue Deezer, groupée par album et
-    // proxyée côté serveur (cf. deezer.service.js/searchTracksGroupedByAlbum
-    // pour le pourquoi) — utilisée par la connexion universelle pour laisser
-    // un joueur choisir lui-même ses titres, sans compte streaming
+    // recherche de titres Deezer groupés par album, on passe par le serveur
+    // (voir deezer.service.js pour le pourquoi). Utilisé par la connexion
+    // universelle, pour les joueurs qui choisissent leurs titres à la main
+    // sans compte streaming.
     router.get('/search-tracks', searchLimiter, async (req, res, next) => {
         try {
             const { q } = req.query

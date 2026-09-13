@@ -68,13 +68,10 @@ const startWatchingLobby = (code: string, token: string) => {
     unsubscribeSocket?.()
     unsubscribeSocket = subscribeToLobby(code, token, {
         onUpdate: (serverLobby) => applyServerLobby(serverLobby as ServerLobby),
-        // ne se déclenche jamais pour un départ volontaire (leaveLobby se
-        // désabonne avant l'appel réseau, cf. plus bas) : ce n'est donc reçu
-        // que quand le lobby a été vidé par quelqu'un/quelque chose d'autre —
-        // en pratique, uniquement quand tout le monde a été expulsé pour
-        // inactivité (cf. handleReturnTimeout côté serveur). Sans redirection
-        // ici, l'utilisateur restait bloqué sur son écran courant (souvent les
-        // résultats de partie) avec un lobby devenu invalide sous ses pieds.
+        // se déclenche jamais quand on part nous-même (voir leaveLobby plus
+        // bas). En vrai ça arrive que quand tout le monde a été expulsé pour
+        // inactivité — sans ce redirect, on restait coincé sur un écran avec
+        // un lobby qui n'existe plus
         onClosed: () => {
             useLobbyStore.getState().resetLobby()
             leaveGame()
@@ -136,16 +133,13 @@ export const leaveLobby = async (): Promise<{ shouldNavigate: boolean }> => {
         return { shouldNavigate: false }
     }
 
-    // se désabonner avant l'appel réseau : sinon le lobby:update que le
-    // serveur diffuse suite à notre propre départ peut être reçu ici avant la
-    // réponse de la requête, ce qui fait croire à tort à une expulsion (cf.
-    // lobby.screen.tsx, qui affiche "Expulsé" dès qu'on disparaît de `users`)
+    // se désabonner avant d'appeler le serveur, sinon la mise à jour qu'il
+    // renvoie suite à notre départ arrive trop tôt et fait croire à une expulsion
     stopWatchingLobby()
 
     try {
-        // l'identité (playerId) est portée par le jeton de lobby, ajouté en
-        // header par l'intercepteur (cf. app/core/api/lobby.client.ts) — plus
-        // besoin de l'envoyer dans le corps de la requête
+        // l'identité du joueur passe par le jeton de lobby (ajouté en header
+        // automatiquement), pas besoin de la remettre dans la requête
         await lobbyApiClient.post(`/lobbies/${lobby.code}/leave`)
     } catch (error) {
         console.warn('⚠️ Erreur en quittant le lobby:', extractLobbyErrorMessage(error))
@@ -163,9 +157,8 @@ export const kickPlayer = async (targetId: string): Promise<LobbyResult> => {
     }
 
     try {
-        // requesterId n'est plus envoyé : le serveur l'établit lui-même à
-        // partir du jeton de lobby (header Authorization), seule preuve
-        // acceptée de "qui appelle cette route"
+        // pas besoin d'envoyer qui fait la demande, le serveur le sait déjà
+        // grâce au jeton de lobby
         const { data } = await lobbyApiClient.post<{ lobby: ServerLobby }>(`/lobbies/${lobby.code}/kick`, {
             targetId,
         })

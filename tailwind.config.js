@@ -5,11 +5,9 @@ module.exports = {
     "./app/**/*.{ts,tsx}",
   ],
   presets: [require("nativewind/preset")],
-  // app 100% en thème clair (aucune classe `dark:` utilisée) : "media" par
-  // défaut fait planter react-native-css-interop sur web (son propre
-  // MutationObserver d'init appelle colorScheme.set en mode "media", ce
-  // qu'il interdit lui-même — cf. node_modules/react-native-css-interop/.../
-  // color-scheme.ts). "class" évite ce chemin, sans effet visuel ici.
+  // l'app est full thème clair, on utilise aucune classe dark. Le mode
+  // "media" par défaut fait planter react-native-css-interop sur web,
+  // dcp on met "class" à la place, ça change rien visuellement ici.
   darkMode: 'class',
   theme: {
     extend: {
@@ -24,7 +22,7 @@ module.exports = {
         'xs': '14px',
       },
       colors: {
-        // IMPORTANT: les couleurs doivent être synchronisées avec app/core/constants/colors.constants.ts
+        // important : faut garder ça synchro avec app/core/constants/colors.constants.ts
         // mains
         dark: '#020202',
         white: '#FAFAFA',

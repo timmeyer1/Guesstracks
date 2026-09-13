@@ -16,29 +16,20 @@ import { advanceRound, reportWrongPreview } from '../../modules/game/game.servic
 import type { GameRoundEnd, GameRoundPlayerResult, QuestionType, CatalogEntry } from '../../core/types'
 
 const SCORE_COUNT_UP_MS = 900
-// durée du glissement d'une ligne du classement vers son nouveau rang quand
-// un joueur en dépasse un autre. Utilise react-native-reanimated (pas l'API
-// LayoutAnimation de React Native) : cette dernière est un no-op silencieux
-// sur la New Architecture (Fabric, activée sur ce projet, cf. app.json), donc
-// n'animait jamais rien alors qu'aucune erreur ne le signalait.
+// durée de l'animation quand un joueur change de place dans le classement.
+// On utilise reanimated et pas LayoutAnimation de RN, en gros ce dernier
+// marche pas du tout sur la New Architecture qu'utilise l'app
 const REORDER_DURATION_MS = 800
 const reorderTransition = LinearTransition.duration(REORDER_DURATION_MS)
-// délai avant de basculer vers l'ordre final du classement. RoundResult est
-// démonté et remonté à chaque manche (game.screen.tsx bascule entièrement
-// vers l'écran de question entre deux résultats), donc le prop layout de
-// Reanimated ci-dessus n'a rien à animer au tout premier rendu : on monte
-// d'abord sur l'ordre D'AVANT cette manche (cf. previousOrder plus bas), puis
-// on rebascule sur l'ordre final après ce court délai — c'est CE second rendu,
-// dans le même montage, que Reanimated anime.
+// petit délai avant de passer à l'ordre final du classement, pour que
+// l'animation de réordonnancement ait vraiment quelque chose à animer au
+// montage du composant (sinon rien ne bouge visuellement)
 const REORDER_DELAY_MS = 200
-// n'affiche "série de N" qu'à partir de 2 manches parfaites d'affilée — à 1,
-// ce n'est pas encore une "série", et streakBonus vaut d'ailleurs 0 ce tour-là
+// on affiche "série de N" qu'à partir de 2 manches parfaites d'affilée
 const MIN_STREAK_TO_DISPLAY = 2
 
-// anime le total d'un joueur de son ancien score vers son nouveau score
-// (from -> to, cf. usage plus bas) plutôt que de l'afficher déjà à jour :
-// rend visible en direct le gain de la manche qu'on vient de voir détaillé
-// juste au-dessus, au lieu d'un chiffre qui saute instantanément
+// anime le score d'un joueur de son ancien total vers le nouveau, plutôt que
+// de sauter direct au chiffre final — ça rend le gain de points plus visible
 type AnimatedScoreProps = { from: number; to: number; style?: object }
 
 const AnimatedScore: React.FC<AnimatedScoreProps> = ({ from, to, style }) => {
@@ -63,25 +54,17 @@ type RoundResultProps = {
     result: GameRoundEnd
     questionType: QuestionType
     myPlayerId: string
-    // pour savoir si result.roundIndex est la dernière manche (cf.
-    // manualAdvance plus bas : le bouton doit alors annoncer "Résultat final"
-    // plutôt que "Manche suivante")
+    // pour savoir si c'est la dernière manche (change le texte du bouton)
     totalRounds: number
-    // absent du payload "round:end" du serveur (cf. game.service.js) pour ne
-    // pas influencer la manche pendant qu'elle est encore en cours ; on le
-    // récupère à la place depuis le round qui vient de se terminer côté
-    // client (cf. game.screen.tsx) pour prolonger l'extrait pendant l'écran
-    // de résultat plutôt que de le couper net
+    // le serveur l'envoie pas dans le résultat, dcp on le récupère côté
+    // client pour continuer l'extrait plutôt que de le couper net
     previewUrl?: string | null
-    // état/contrôle du lecteur partagé avec l'écran de question (cf.
-    // useSyncedAudioPlayer dans game.screen.tsx) : ce composant n'a plus sa
-    // propre instance audio, pour que l'extrait continue sans coupure/rechute
-    // au changement d'écran plutôt que d'être rechargé
+    // le lecteur audio est partagé avec l'écran de question, ce composant a
+    // pas son propre lecteur — ça évite les coupures en changeant d'écran
     audioPlaying: boolean
     onToggleAudio: () => void
-    // catalogue de recherche du mode blindtest (cf. game.store.ts) : nécessaire
-    // pour retrouver le nom du titre cherché par chaque joueur à partir de son
-    // selectedIds, absent du payload "round:end" comme previewUrl ci-dessus
+    // catalogue du blindtest, pour retrouver le nom du titre que chaque
+    // joueur a cherché à partir de son id
     catalog?: CatalogEntry[]
 }
 
@@ -104,19 +87,15 @@ export const RoundResult: React.FC<RoundResultProps> = ({
     )
     const myResult = resultsById.get(myPlayerId)
 
-    // en mode "avancer manuellement" (cf. LobbyType.manualAdvance), le
-    // serveur n'enchaîne plus tout seul sur la manche suivante : seul l'hôte
-    // (même convention que lobby.screen.tsx : premier joueur du lobby) peut
-    // la déclencher, les autres joueurs voient juste qu'ils attendent
+    // en mode "avancer manuellement", seul l'hôte peut passer à la manche
+    // suivante, les autres attendent juste
     const manualAdvance = useGameStore((s) => s.manualAdvance)
     const lobbyUsers = useLobbyStore((s) => s.users)
     const authUser = useAuthStore((s) => s.user)
     const isHost = lobbyUsers[0]?.id === authUser?.id
     const isLastRound = result.roundIndex === totalRounds - 1
     const [isAdvancing, setIsAdvancing] = useState(false)
-    // pas de reset explicite au changement de manche : RoundResult est
-    // démonté et remonté à chaque manche (cf. le commentaire sur
-    // REORDER_DELAY_MS plus haut), ce qui réinitialise déjà cet état
+    // pas besoin de reset manuel, le composant est remonté à chaque manche
     const [wrongPreviewReported, setWrongPreviewReported] = useState(false)
 
     const handleNextRound = () => {
@@ -131,9 +110,8 @@ export const RoundResult: React.FC<RoundResultProps> = ({
         reportWrongPreview(result.roundIndex)
     }
 
-    // reconstitue ce que chaque joueur a répondu à partir de son
-    // selectedIds : liste de noms de joueurs en mode who_liked (Who Liked It), titre
-    // cherché (via le catalogue) en mode blindtest
+    // retrouve ce qu'un joueur a répondu : des noms en mode who_liked, un
+    // titre de musique en mode blindtest
     const answerLabel = (r: GameRoundPlayerResult) => {
         if (!r.answered || r.selectedIds.length === 0) return 'Pas de réponse'
         if (questionType === 'who_liked') {
@@ -143,10 +121,8 @@ export const RoundResult: React.FC<RoundResultProps> = ({
         return track ? `${track.name} — ${track.artist}` : 'Titre inconnu'
     }
 
-    // ordre affiché du classement : démarre sur le classement D'AVANT cette
-    // manche (en retirant les points gagnés ce tour-ci de chaque total), puis
-    // bascule sur l'ordre final après REORDER_DELAY_MS — cf. le commentaire
-    // sur REORDER_DELAY_MS plus haut pour pourquoi ce détour est nécessaire
+    // on affiche d'abord le classement d'avant cette manche, puis on bascule
+    // sur le nouvel ordre juste après (voir REORDER_DELAY_MS plus haut)
     const previousOrder = () =>
         [...result.leaderboard]
             .sort((a, b) => {
@@ -179,9 +155,7 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                         transition={100}
                     />
                 )}
-                {/* le titre reste centré exactement comme avant (mêmes props
-                    SectionTitle) ; le bouton play/pause est juste superposé à
-                    côté en position absolue, sans influencer sa mise en page */}
+                {/* le titre reste centré, le bouton play/pause est juste posé par-dessus */}
                 <View style={{ alignSelf: 'stretch', alignItems: 'center' }}>
                     <SectionTitle
                         title={result.track.name}
@@ -196,9 +170,7 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                         </View>
                     )}
                 </View>
-                {/* seulement si un extrait a vraiment été joué (previewUrl) :
-                    signaler l'absence de son se ferait de toute façon voir
-                    tout seul, inutile d'ajouter un bouton pour ça */}
+                {/* affiché que s'il y a un extrait, pas besoin de bouton sinon */}
                 {previewUrl && (
                     <Pressable
                         onPress={handleReportWrongPreview}
@@ -282,13 +254,8 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                         <Reanimated.View
                             key={playerId}
                             layout={reorderTransition}
-                            // tout en style inline plutôt qu'en className : react-native-reanimated
-                            // n'est pas enregistré auprès de NativeWind (cf. cssInterop dans
-                            // TrackSuggestionsList.tsx pour un cas similaire avec gesture-handler),
-                            // et bg-offwhite en className restait sans AUCUN effet visible sur ce
-                            // Reanimated.View précis, confirmé en conditions réelles après
-                            // redémarrage complet de l'app. Même repli que WhoLikedQuestion.tsx
-                            // pour un souci de même famille.
+                            // en style inline et pas en className : sur un Reanimated.View,
+                            // NativeWind (le className) marche pas correctement
                             style={{
                                 flexDirection: 'row',
                                 alignItems: 'flex-start',

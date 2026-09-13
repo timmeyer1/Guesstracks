@@ -4,9 +4,7 @@ import * as AuthSession from 'expo-auth-session';
 WebBrowser.maybeCompleteAuthSession();
 
 const CLIENT_ID = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID!;
-// Calcule automatiquement la bonne URI (host:port réel du serveur Expo en dev,
-// scheme "guesstracks://" en build standalone) : un "localhost" codé en dur
-// ne fonctionne pas sur un appareil physique, qui a son propre localhost.
+// calcule la bonne URI automatiquement, un "localhost" en dur marcherait pas sur un vrai téléphone
 const REDIRECT_URI = AuthSession.makeRedirectUri({ scheme: 'guesstracks' });
 
 const discovery = {
@@ -19,26 +17,16 @@ const AUTH_CONFIG = {
     scopes: ['user-read-email', 'user-read-private', 'user-library-read', 'user-library-modify'],
     usePKCE: true,
     redirectUri: REDIRECT_URI,
-    // sans ça, la popup web réutilise silencieusement la session Spotify déjà
-    // active dans le navigateur (mêmes cookies) et termine l'autorisation
-    // sans jamais rien afficher — impossible de choisir un autre compte.
-    // show_dialog force Spotify à toujours montrer son écran de connexion/
-    // autorisation (avec un lien "Ce n'est pas vous ?" si déjà connecté).
+    // sans ça la popup réutilise la session Spotify déjà active sans rien
+    // montrer, dcp impossible de changer de compte. show_dialog force l'écran de connexion.
     extraParams: { show_dialog: 'true' },
 };
 
-// Pré-calcule la requête PKCE (challenge via expo-crypto, asynchrone) EN
-// DEHORS du clic : sur web, request.promptAsync() doit appeler window.open()
-// de façon synchrone dans le tick même du clic, sinon le navigateur bloque
-// la popup ("Popup window was blocked... invoked too long after a user
-// input was fired"). Un `await AuthSession.loadAsync(...)` fait dans le
-// handler de clic (comme avant) insère justement ce délai. En préchargeant
-// ici, request.url est déjà prêt : promptAsync n'a plus rien à attendre
-// avant son propre window.open().
+// on précalcule la requête PKCE en dehors du clic, en gros sur web le
+// navigateur bloque la popup si window.open() est pas appelé direct dans le
+// clic. Dcp en préchargeant ici, y'a plus rien à attendre au clic.
 let pendingRequest: Promise<AuthSession.AuthRequest> = AuthSession.loadAsync(AUTH_CONFIG, discovery);
-// une requête PKCE n'est valable que pour une seule tentative : en préparer
-// tout de suite une nouvelle pour la prochaine (annulation, ou reconnexion
-// après un premier essai) plutôt que d'attendre le prochain clic
+// une requête PKCE marche qu'une fois, on en prépare direct une nouvelle pour la prochaine tentative
 const preloadNextRequest = () => {
     pendingRequest = AuthSession.loadAsync(AUTH_CONFIG, discovery);
     pendingRequest.catch(() => {});
@@ -78,9 +66,7 @@ export const loginWithSpotify = async () => {
     });
 
     const data = await tokenResponse.json();
-    // jamais logger data ici : contient access_token en clair. En cas
-    // d'erreur, ne remonter que le message d'erreur métier (même pattern que
-    // deezer.ts, qui avait déjà ce garde-fou).
+    // jamais logger data ici, y'a l'access_token en clair dedans
     if (!tokenResponse.ok) {
         throw new Error(data?.error_description || data?.error || 'Échec de connexion Spotify');
     }

@@ -1,15 +1,14 @@
 import { registerGameSockets } from './game.sockets.js'
 import { verifyLobbyToken, LobbyTokenError } from '../utils/lobbyToken.js'
 
-// Le socket ne fait que diffuser l'état du lobby en temps réel : toutes les
-// mutations passent par l'API REST (source de vérité), ce qui évite de traiter
-// les déconnexions réseau (fréquentes sur mobile) comme des départs de joueur.
+// le socket sert juste à diffuser l'état du lobby en temps réel, toutes les
+// vraies actions passent par l'API REST. en gros ça évite de traiter une
+// coupure réseau (fréquente sur mobile) comme un départ de joueur.
 //
-// lobby:subscribe exige le jeton de lobby signé à la création/l'entrée dans
-// le lobby (cf. lobby.routes.js) : une fois vérifié, l'identité du joueur est
-// fixée sur ce socket (socket.data.playerId/lobbyCode) et sert de seule source
-// de vérité pour game.sockets.js — jamais un playerId fourni dans un payload,
-// falsifiable par n'importe quel client (cf. audit sécurité, finding C1).
+// lobby:subscribe demande le jeton signé créé à l'entrée dans le lobby (voir
+// lobby.routes.js). une fois vérifié, l'identité du joueur reste collée à ce
+// socket et c'est la seule source fiable pour game.sockets.js, jamais un
+// playerId envoyé dans le payload, n'importe qui pourrait le trafiquer.
 export const registerLobbySockets = (io) => {
     io.on('connection', (socket) => {
         socket.on('lobby:subscribe', (payload) => {

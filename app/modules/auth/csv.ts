@@ -4,10 +4,8 @@ import { Platform } from 'react-native';
 import Papa from 'papaparse';
 import type { TrackType } from '../../core/types';
 
-// TuneMyMusic (et les autres exports CSV type Exportify) ne garantissent pas
-// un nom de colonne unique selon la plateforme source (Spotify, Deezer, Apple
-// Music, ...) — on matche donc plusieurs variantes usuelles, insensibles à la
-// casse/aux espaces, plutôt que d'exiger un format figé.
+// les noms de colonnes CSV changent selon la source (Spotify, Deezer...),
+// dcp on matche plusieurs variantes usuelles au lieu d'exiger un format fixe
 const HEADER_ALIASES: Record<'title' | 'artist' | 'album', string[]> = {
     title: ['track title', 'title', 'track name', 'song title', 'song', 'name'],
     artist: ['artist', 'artist name', 'artists'],
@@ -27,20 +25,14 @@ const findColumn = (headers: string[], aliases: string[]): string | null => {
 
 export type CsvImportResult = { tracks: TrackType[]; total: number; truncated: boolean };
 
-// mêmes garde-fous que côté serveur (cf. server/src/services/game.service.js,
-// submitTracks) : coupe court à un fichier malveillant/corrompu (des millions
-// de lignes, un champ de plusieurs Mo...) avant même de tenter de le
-// soumettre au lobby, plutôt que de laisser le serveur seul filtrer après
-// avoir déjà encaissé tout le payload
+// mêmes limites que côté serveur, en gros ça coupe court à un fichier
+// corrompu ou abusif avant même d'essayer de l'envoyer au lobby
 const MAX_TRACKS = 5000;
 const MAX_FIELD_LENGTH = 300;
 
 const truncateField = (value: string) => value.slice(0, MAX_FIELD_LENGTH);
 
-// pas de token ici : ces titres ne viennent d'aucune API, mais le serveur
-// sait déjà retrouver un extrait audio par simple recherche titre+artiste
-// (cf. server/src/services/preview.service.js, resolvePreviewUrl) quand
-// previewUrl/id ne sont pas fournis — aucune info supplémentaire nécessaire.
+// pas besoin de token, le serveur retrouve l'extrait audio juste avec titre+artiste
 export const parseCsvTracks = (content: string): CsvImportResult => {
     const parsed = Papa.parse<Record<string, string>>(content, {
         header: true,
@@ -57,15 +49,10 @@ export const parseCsvTracks = (content: string): CsvImportResult => {
     }
 
     const tracks: TrackType[] = [];
-    // au-delà de MAX_TRACKS, les lignes suivantes sont ignorées (le serveur
-    // les rejetterait de toute façon, cf. game.service.js submitTracks) —
-    // truncated est remonté à l'appelant pour prévenir l'utilisateur plutôt
-    // que de le laisser croire que toute sa bibliothèque a été importée.
-    // Confirmé (par l'utilisateur, pas par une doc officielle) : TuneMyMusic
-    // exporte ses CSV avec les titres likés les plus récents en premier —
-    // garder les MAX_TRACKS premières lignes revient donc à garder les plus
-    // récents, pas une troncature arbitraire. Ne pas réordonner ce parsing
-    // sans revérifier ce point.
+    // au-delà de MAX_TRACKS on ignore le reste et truncated prévient
+    // l'utilisateur. TuneMyMusic exporte les titres les plus récents en
+    // premier, dcp garder les MAX_TRACKS premières lignes garde bien les
+    // plus récents — touche pas à cet ordre sans revérifier ce point.
     let truncated = false;
     for (const [index, row] of parsed.data.entries()) {
         if (tracks.length >= MAX_TRACKS) {
@@ -94,31 +81,24 @@ export const parseCsvTracks = (content: string): CsvImportResult => {
 };
 
 const readFileContent = async (asset: DocumentPicker.DocumentPickerAsset): Promise<string> => {
-    // sur web, expo-document-picker expose directement l'objet File natif du
-    // navigateur (uri est un blob: inexploitable par expo-file-system) ; sur
-    // natif (iOS/Android), on lit le fichier copié en cache via son uri
+    // sur web on a direct l'objet File du navigateur, sur natif on lit via l'uri en cache
     if (Platform.OS === 'web' && asset.file) {
         return await asset.file.text();
     }
     return await new File(asset.uri).text();
 };
 
-// une bibliothèque likée réaliste (même plusieurs dizaines de milliers de
-// titres) ne dépasse jamais ça en pratique : au-delà, on est sur un fichier
-// corrompu ou volontairement abusif — mieux vaut refuser tout de suite que de
-// laisser le téléphone/navigateur tenter de le charger en mémoire
+// une vraie bibliothèque dépasse jamais ça, dcp au-delà c'est sûrement un fichier corrompu ou abusif
 const MAX_CSV_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 Mo
 
 // ouvre le sélecteur de fichier natif (adapté Android/iPhone/PC) et renvoie
 // les titres importés, ou null si l'utilisateur a annulé
 export const importTracksFromCsv = async (): Promise<CsvImportResult | null> => {
     const result = await DocumentPicker.getDocumentAsync({
-        // pas de '*/*' ici : sur web/Safari, un accept incluant '*/*' (ou tout
-        // type image/vidéo) fait apparaître "Photothèque"/"Prendre une photo"
-        // dans le menu, en plus de "Parcourir" — text/plain est inclus car
-        // TuneMyMusic exporte un CSV que Safari classe en "Document texte"
-        // (mimeType text/plain), pas text/csv (cf. modules/auth/csv.ts, capture
-        // fournie par l'utilisateur)
+        // pas de '*/*' ici : sur Safari web ça fait apparaître "Photothèque"/
+        // "Prendre une photo" en plus de "Parcourir". text/plain est inclus
+        // car Safari classe le CSV exporté par TuneMyMusic en "document
+        // texte" (mimeType text/plain), pas text/csv.
         type: ['text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel', 'text/plain'],
         copyToCacheDirectory: true,
     });
@@ -126,9 +106,7 @@ export const importTracksFromCsv = async (): Promise<CsvImportResult | null> => 
     if (result.canceled || !result.assets?.[0]) return null;
 
     const asset = result.assets[0];
-    // asset.size est optionnel (absent sur certaines plateformes/certains
-    // fournisseurs) : on ne bloque que quand on sait avec certitude que la
-    // limite est dépassée, jamais par défaut faute d'info
+    // asset.size est parfois absent, dcp on bloque que si on est sûr que la limite est dépassée
     if (typeof asset.size === 'number' && asset.size > MAX_CSV_FILE_SIZE_BYTES) {
         throw new Error('Ce fichier est trop volumineux (limite : 20 Mo)');
     }

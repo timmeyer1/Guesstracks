@@ -3,16 +3,12 @@ import type {SpotifyLikedTrackItem} from "./spotify.api";
 import type {TrackType} from "../../core/types";
 
 const PAGE_SIZE = 50;
-// nombre de pages récupérées en parallèle : toutes les récupérer d'un coup
-// pour une grosse bibliothèque (plusieurs centaines/milliers de titres)
-// dépasse la limite de débit de l'API Spotify et fait échouer toute la
-// connexion — par lots, ça reste rapide sans jamais rien tronquer
+// nombre de pages en parallèle : tout récupérer d'un coup dépasse la limite
+// de débit de Spotify pour une grosse bibliothèque, dcp on fait par lots
 const FETCH_BATCH_SIZE = 5;
 
-// Spotify renvoie tous les artistes d'un titre (principal + featurings) dans
-// `artists` : ne garder que artists[0] faisait disparaître les artistes en
-// feat., introuvables ensuite dans la recherche du blindtest (cf.
-// SearchTrackQuestion.tsx, qui cherche aussi sur ce champ `artist`)
+// Spotify renvoie tous les artistes (principal + feat.) dans `artists`,
+// garder que artists[0] faisait disparaître les feat. de la recherche du blindtest
 const formatArtists = (artists: { name?: string }[] | undefined): string => {
     const names = (artists ?? []).map((a) => a?.name).filter((name): name is string => Boolean(name));
     if (names.length === 0) return 'Unknown';
@@ -52,11 +48,8 @@ export const spotifyService = {
         }
     },
 
-    // renvoie aussi `total` (déjà présent dans la réponse Spotify) pour éviter
-    // à l'appelant un aller-retour getTotalTracks() séparé après coup.
-    // Récupère TOUS les titres likés, sans plafond : un plafond ici privait
-    // silencieusement les grosses bibliothèques d'une partie de leurs titres,
-    // ce qui rendait les mêmes musiques disponibles à chaque partie.
+    // renvoie aussi `total` pour éviter un aller-retour séparé. Récupère TOUS
+    // les titres sans plafond, sinon les grosses bibliothèques perdaient des titres en silence.
     async getMyLikedTracks(): Promise<{ tracks: TrackType[]; total: number }> {
         const first = await spotifyApi.getUserLikedTracks(PAGE_SIZE, 0);
         const total = first.data.total ?? 0;

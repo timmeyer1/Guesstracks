@@ -14,10 +14,8 @@ type WhoLikedQuestionProps = {
     onSubmit: () => void
 }
 
-// Ligne mémoïsée : ne re-rend que si son propre `isSelected`/`isDimmed`
-// change, pas à chaque render de la grille entière (ex: à chaque tick du
-// countdown, cf. CountdownLabel) — `onToggle` doit rester une référence
-// stable côté appelant (cf. audit qualité, finding N4).
+// ligne mémoïsée : se re-rend que si elle change vraiment, pas à chaque
+// tick du countdown au-dessus
 type OptionRowProps = {
     option: WhoLikedOption
     isSelected: boolean
@@ -82,12 +80,8 @@ export const WhoLikedQuestion: React.FC<WhoLikedQuestionProps> = ({
             <ScrollView
                 contentContainerStyle={{ flexGrow: 1 }}
                 showsVerticalScrollIndicator={false}
-                // Android uniquement : sans ça, le conteneur natif de l'écran
-                // (react-native-screens) intercepte le geste de glissement
-                // vertical avant que cette ScrollView ne le récupère, même
-                // sans ScrollView parent visible côté JS (cf. même bug déjà
-                // rencontré sur TrackSuggestionsList) — la liste reste
-                // affichée mais ne réagit à aucun glissement
+                // sur Android sans ça le scroll marche pas (l'écran parent
+                // pique le geste avant la liste)
                 nestedScrollEnabled
             >
                 <View className="flex-row flex-wrap justify-between gap-y-3">

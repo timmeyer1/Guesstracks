@@ -1,10 +1,10 @@
 // app/core/hooks/useCountdown.ts
 import { useEffect, useState } from 'react'
 
-// Le texte "Xs restantes" n'a besoin que d'un tick par seconde : un intervalle
-// à 100ms ne change jamais ce qui est affiché mais re-rend le composant 10x
-// plus souvent que nécessaire. La barre de progression animée (RoundHeader)
-// tourne séparément sur le thread UI via Reanimated, pas via ce hook.
+// le texte "Xs restantes" a juste besoin d'un tick par seconde, pas plus.
+// un intervalle à 100ms afficherait pareil mais re-rendrait le composant
+// pour rien, 10x trop souvent. la barre animée (RoundHeader), elle, tourne
+// à part avec Reanimated, pas avec ce hook.
 const computeRemaining = (startedAt: number, duration: number) =>
     Math.max(0, Math.ceil(duration - (Date.now() - startedAt) / 1000))
 

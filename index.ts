@@ -1,13 +1,10 @@
-// doit être le tout premier import (avant tout le reste, y compris expo) :
-// react-native-gesture-handler enregistre ses handlers natifs au chargement,
-// et un import tardif peut les faire rater sur certains appareils Android
+// en mode cet import doit être en premier, avant tout le reste (même expo),
+// sinon certains Android ratent l'enregistrement des handlers natifs
 import 'react-native-gesture-handler';
 
 import { registerRootComponent } from 'expo';
 
 import App from './App';
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
+// enregistre App comme composant racine, que ce soit dans Expo Go ou en build natif
 registerRootComponent(App);

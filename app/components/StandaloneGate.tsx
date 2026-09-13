@@ -4,19 +4,14 @@ import type { ReactNode } from 'react'
 import { ScreenLayout } from './ScreenLayout'
 import { SectionTitle } from './SectionTitle'
 
-// Pertinent uniquement sur mobile (iOS/Android) : sur ordinateur, "ajouter à
-// l'écran d'accueil" n'a pas le même sens (pas de vrai mode plein écran
-// équivalent) et personne ne s'y attend — jamais de blocage sur desktop.
+// que sur mobile, en gros sur ordi "ajouter à l'écran d'accueil" ça veut rien dire
 const isMobileOS = () => {
     if (Platform.OS !== 'web' || typeof navigator === 'undefined') return false
     return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 }
 
-// iOS Safari : `navigator.standalone` vaut true UNIQUEMENT quand la page est
-// lancée depuis une icône ajoutée à l'écran d'accueil (jamais dans un onglet
-// normal, quel que soit le code de la page — cf. public/index.html). Android
-// Chrome et les autres navigateurs PWA exposent plutôt `display-mode` via
-// matchMedia, `navigator.standalone` n'existant pas chez eux.
+// sur iOS Safari, `navigator.standalone` dit si l'app tourne depuis l'icône
+// ajoutée. Sur Android/Chrome ça existe pas, dcp on check `display-mode` à la place.
 const isRunningStandalone = () => {
     if (Platform.OS !== 'web') return true
     if (typeof window === 'undefined') return true
@@ -27,12 +22,8 @@ const isRunningStandalone = () => {
     return iosStandalone || displayModeStandalone
 }
 
-// UNIQUEMENT localhost/127.0.0.1 (donc jamais le tunnel metro.guesstracks.com,
-// même en mode dev) : __DEV__ ne suffisait pas comme condition de bypass — un
-// ami qui ouvre le lien de tunnel (cf. README, section Cloudflare Tunnel)
-// charge le MÊME bundle de dev que celui servi en local, donc __DEV__ y vaut
-// aussi true et désactivait le blocage pour lui aussi, pas seulement pour moi
-// en local.
+// que localhost/127.0.0.1, pas le tunnel : __DEV__ suffisait pas, ça
+// désactivait le blocage aussi chez un pote qui ouvre le lien du tunnel.
 const isLocalhost = () => {
     if (Platform.OS !== 'web') return false
     if (typeof window === 'undefined') return false
@@ -51,8 +42,7 @@ const readDismissed = () => {
 }
 
 export const StandaloneGate = ({ children }: { children: ReactNode }) => {
-    // lu une seule fois au montage (pas besoin de réagir à un changement
-    // externe) : évite de re-questionner localStorage à chaque render
+    // lu une seule fois au montage, pas besoin de re-checker localStorage à chaque render
     const [dismissed, setDismissed] = useState(readDismissed)
 
     if (!isMobileOS() || isLocalhost() || isRunningStandalone() || dismissed) {
@@ -63,8 +53,7 @@ export const StandaloneGate = ({ children }: { children: ReactNode }) => {
         try {
             window.localStorage.setItem(DISMISSED_KEY, 'true')
         } catch {
-            // localStorage indisponible (navigation privée...) : tant pis,
-            // le message réapparaîtra à la prochaine visite, pas grave
+            // pas grave si localStorage marche pas (navigation privée...), le message reviendra
         }
         setDismissed(true)
     }

@@ -2,10 +2,7 @@ import { Platform } from 'react-native'
 
 export type DeviceKind = 'ios' | 'android' | 'desktop'
 
-// Platform.OS vaut 'web' aussi bien sur iPhone/Android/PC (le site tourne
-// dans un navigateur — ou en PWA installée, cf. StandaloneGate.tsx — sur les
-// trois) : seul l'user agent permet de distinguer dans ce cas, Platform.OS
-// suffit déjà en natif
+// Platform.OS renvoie 'web' pour iPhone, Android et PC pareil. Dcp pour web on regarde en plus l'user agent.
 export const getDeviceKind = (): DeviceKind => {
     if (Platform.OS === 'ios') return 'ios'
     if (Platform.OS === 'android') return 'android'

@@ -28,27 +28,25 @@ import { RoundResult } from '../components/game/RoundResult'
 import { FinalResults } from '../components/game/FinalResults'
 import { CountdownLabel } from '../components/game/CountdownLabel'
 
-// délai après un redémarrage de l'extrait pendant lequel on ignore tout
-// nouveau déclenchement de redémarrage (cf. restartPreview plus bas)
+// pendant ce délai après un redémarrage de l'extrait, on ignore tout
+// nouveau redémarrage
 const RESTART_GUARD_MS = 800
 
 const WHO_LIKED_TITLE_MAX_LENGTH = 40
-// en mode who_liked (Who Liked It) le titre est toujours affiché en entier
-// pendant la manche (ce n'est pas ce qu'on devine, cf. core/types.ts) : un
-// titre trop long peut prendre plusieurs lignes et pousser le reste de la
-// mise en page
+// en mode who_liked le titre est affiché en entier (c'est pas ça qu'on
+// devine), dcp s'il est trop long ça peut décaler toute la mise en page
 const truncateTitle = (name?: string) =>
     name && name.length > WHO_LIKED_TITLE_MAX_LENGTH
         ? `${name.slice(0, WHO_LIKED_TITLE_MAX_LENGTH).trimEnd()}...`
         : name
 
-// Tailles exprimées en % de la hauteur d'écran (plutôt qu'en pixels fixes)
-// pour s'adapter à tous les téléphones : ajuste ces deux valeurs si besoin.
-const ROUND_TOP_EXTRA_SPACING_PERCENT = 0 // espace sous la zone de sécurité (notch / caméra), en plus de l'inset
-const BLURRED_COVER_SIZE_PERCENT = 0.17 // taille de la pochette floutée en mode blindtest
+// en % de la hauteur d'écran plutôt qu'en pixels fixes, dcp ça s'adapte à
+// tous les téléphones : ajuste ces deux valeurs si besoin
+const ROUND_TOP_EXTRA_SPACING_PERCENT = 0 // espace en plus sous le notch/la caméra
+const BLURRED_COVER_SIZE_PERCENT = 0.17 // taille de la pochette floutée en blindtest
 
-// mêmes formes sur les 3 écrans de la partie (question, résultat de manche, résultats finaux)
-// pour garder une identité visuelle cohérente du début à la fin du jeu
+// mêmes formes sur les 3 écrans de la partie, pour garder le même look
+// du début à la fin
 const GAME_SHAPES = (
     <>
         <CornerShape size="50%" rotate={-90} top="-20%" left="-17%" />
@@ -59,10 +57,9 @@ const GAME_SHAPES = (
 
 const GameScreen = () => {
     const navigation = useNavigation()
-    // sur web, react-native-safe-area-context reste bloqué à insets.top === 0
-    // en mode standalone iOS (cf. public/index.html pour le détail exact) :
-    // useWebSafeAreaInsets mesure la vraie valeur nous-mêmes. Le natif garde
-    // useSafeAreaInsets, jamais concerné par ce bug.
+    // sur web en mode standalone iOS, react-native-safe-area-context reste
+    // bloqué à 0, dcp on mesure la vraie valeur nous-mêmes avec
+    // useWebSafeAreaInsets. Le natif n'a jamais ce problème
     const nativeInsets = useSafeAreaInsets()
     const webInsets = useWebSafeAreaInsets()
     const insets = Platform.OS === 'web' ? webInsets : nativeInsets
@@ -91,38 +88,34 @@ const GameScreen = () => {
             hasAnswered: s.hasAnswered,
         }))
     )
-    // action stable (référence figée par Zustand) : pas besoin d'être dans le sélecteur ci-dessus
+    // référence stable côté Zustand, pas besoin d'être dans le sélecteur au-dessus
     const toggleSelection = useGameStore((s) => s.toggleSelection)
-    // référence stable : passée à WhoLikedQuestion, dont les options sont
-    // mémoïsées (cf. audit qualité, finding N4) — une closure recréée à
-    // chaque render de cet écran leur ferait perdre ce bénéfice
+    // référence stable passée à WhoLikedQuestion, dont les options sont
+    // mémoïsées — une closure recréée à chaque render leur ferait perdre
+    // ce bénéfice
     const handleToggleWhoLiked = useCallback((id: string) => toggleSelection(id, true), [toggleSelection])
 
-    // mémorise si l'extrait de la manche en cours a atteint sa fin naturelle
-    // depuis le dernier redémarrage (cf. les deux effets plus bas) : sert à
-    // décider si un écran de résultat doit rejouer l'extrait depuis le début
-    // (déjà fini) ou le laisser continuer tel quel — une ref plutôt qu'un
-    // state car ça ne doit jamais provoquer de re-render
+    // retient si l'extrait a fini de jouer depuis le dernier redémarrage,
+    // pour savoir si l'écran de résultat doit le relancer ou le laisser
+    // tourner. Une ref plutôt qu'un state, ça doit jamais provoquer de
+    // re-render
     const audioFinishedRef = useRef(false)
     useEffect(() => {
         audioFinishedRef.current = false
     }, [round?.roundIndex])
 
-    // lecteur audio unique pour toute la durée de la manche (question ET
-    // résultat, cf. useSyncedAudioPlayer) : appelé ici, à un niveau jamais
-    // démonté entre ces deux écrans, plutôt que dans chacun séparément, pour
-    // que l'extrait ne soit jamais rechargé (donc pas de saut audible) au
-    // changement d'écran — seul le bouton <AudioPlayerButton /> qui le
-    // représente est affiché à des endroits différents selon la phase.
+    // un seul lecteur audio pour toute la manche (question + résultat), monté
+    // ici et jamais démonté entre les deux écrans, dcp l'extrait ne recharge
+    // jamais (pas de saut audible). Seul le bouton play/pause change de
+    // place selon la phase
     const roundAudio = useSyncedAudioPlayer({
         previewUrl: round?.track.previewUrl,
         startedAt: round?.startedAt,
     })
 
-    // pour comparer manuellement l'extrait reçu au titre affiché à l'écran
-    // (diagnostic) : name/artist restent undefined ici en blindtest pendant
-    // la question (cf. publicRound côté serveur, qui cache l'identité tant
-    // que ce n'est pas ce qu'on devine) — normal, pas un bug de ce log
+    // juste pour vérifier à l'oeil que l'extrait reçu correspond au titre
+    // affiché. En blindtest, name/artist sont undefined pendant la question
+    // (normal, le serveur cache l'identité)
     useEffect(() => {
         if (!round) return
         console.log(
@@ -131,14 +124,10 @@ const GameScreen = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [round?.roundIndex, round?.track.previewUrl])
 
-    // RESTART_GUARD_MS après un redémarrage, on ignore tout nouveau
-    // déclenchement (cf. les deux effets plus bas, qui appellent tous les
-    // deux restartPreview) : sans ce garde-fou, deux redémarrages quasi
-    // simultanés (l'effet de transition de phase ET l'effet "fin en direct"
-    // ci-dessous, ou un statut natif qui rebascule brièvement pendant le
-    // seekTo) pouvaient s'enchaîner presque en même temps et se marcher
-    // dessus — observé sur Android comme le bouton play/pause qui
-    // s'active/se désactive très vite juste après un redémarrage.
+    // pendant RESTART_GUARD_MS après un redémarrage, on bloque tout nouveau
+    // redémarrage. Sans ça, deux redémarrages presque simultanés pouvaient
+    // se marcher dessus — vu sur Android avec le bouton play/pause qui
+    // clignote juste après
     const restartingRef = useRef(false)
     const restartPreview = () => {
         if (restartingRef.current) return
@@ -151,12 +140,10 @@ const GameScreen = () => {
         })
     }
 
-    // dès qu'on bascule sur un écran de résultat (de manche OU final), si
-    // l'extrait avait déjà fini de jouer AVANT cette transition, on le
-    // relance depuis le début plutôt que de le laisser silencieux sur ce
-    // nouvel écran — synchronisé comme au lancement de manche (audioStartedAt
-    // propre à chaque transition), mais sans jamais recréer le lecteur. S'il
-    // n'avait pas encore fini, on ne fait rien : il continue tel quel.
+    // dès qu'on arrive sur un écran de résultat, si l'extrait avait déjà fini
+    // avant, on le relance depuis le début plutôt que de le laisser
+    // silencieux. Synchronisé comme au lancement d'une manche, mais sans
+    // recréer le lecteur. S'il tournait encore, on touche à rien
     useEffect(() => {
         if (!audioFinishedRef.current) return
         const syncAt =
@@ -167,8 +154,8 @@ const GameScreen = () => {
                   : null
         if (syncAt === null) return
 
-        // consommé tout de suite (cf. l'autre effet ci-dessous, qui le
-        // repassera à true si l'extrait relancé finit à nouveau)
+        // on le repasse à false tout de suite, l'autre effet le remettra
+        // à true si besoin
         audioFinishedRef.current = false
         const delayMs = syncAt - Date.now()
         if (delayMs <= 0) {
@@ -180,13 +167,10 @@ const GameScreen = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [phase])
 
-    // symétrique de l'effet ci-dessus, pour le cas où l'extrait finit tout
-    // seul PENDANT qu'un écran de résultat est déjà affiché (ex: manche de
-    // 30s avec un extrait de ~30s et personne qui répond : les deux se
-    // terminent quasi en même temps, souvent après la transition plutôt
-    // qu'avant) — sans ça, l'effet au-dessus ne se redéclenche jamais (il ne
-    // réagit qu'aux CHANGEMENTS de phase) et l'extrait reste silencieux pour
-    // le reste de l'écran de résultat
+    // pareil que l'effet au-dessus, mais pour le cas où l'extrait finit tout
+    // seul PENDANT que le résultat est déjà affiché (manche et extrait qui
+    // durent pareil, par exemple). Sinon l'extrait reste silencieux tout le
+    // reste de l'écran
     useEffect(() => {
         if (!roundAudio.status.didJustFinish) return
         if (phase !== 'round_result' && phase !== 'finished') {
@@ -197,30 +181,26 @@ const GameScreen = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roundAudio.status.didJustFinish])
 
-    // EXPÉRIMENTAL — navigation optimisée, même principe que
-    // lobby.screen.tsx:handleLeaveLobby (cf. discussion audit perf)
+    // même principe que dans lobby.screen.tsx : navigation direct sans
+    // attendre le serveur
     const handleBackToHome = () => {
         leaveLobby()
         leaveGame()
         navigation.reset({ index: 0, routes: [{ name: 'Home' }] })
     }
 
-    // le lobby (et l'abonnement socket de partie) reste actif en arrière-plan
-    // pendant toute la partie : revenir dessus suffit, l'hôte peut relancer.
-    // resetForRematch (pas reset) : on reste dans CE lobby, donc
-    // submittedPlayerIds/pendingReturnPlayerIds doivent survivre le temps que
-    // le serveur confirme le retour de chacun (cf. game.store.ts)
+    // le lobby reste actif en arrière-plan pendant toute la partie, dcp y
+    // revenir suffit pour rejouer. On utilise resetForRematch (pas reset) :
+    // on reste dans ce lobby, les infos de retour des joueurs doivent survivre
     const handleStayInLobby = () => {
         useGameStore.getState().resetForRematch()
         navigation.goBack()
     }
 
-    // en mode blindtest, le clavier s'ouvre dès le début de la manche (cf.
-    // SearchTrackQuestion), ce qui laisse peu de place verticale au-dessus de
-    // la barre de recherche sur les écrans plus petits (iPhone SE/mini...) :
-    // la pochette floutée est mise à l'échelle de la hauteur d'écran
-    // disponible plutôt qu'à une taille fixe, pour que la recherche reste
-    // toujours accessible sans rien masquer.
+    // en blindtest le clavier s'ouvre direct, dcp peu de place sur les petits
+    // écrans (iPhone SE...). La pochette floutée s'adapte à la hauteur
+    // d'écran plutôt qu'une taille fixe, pour que la recherche reste
+    // toujours visible
     const topExtraSpacing = windowHeight * ROUND_TOP_EXTRA_SPACING_PERCENT
     const blurredCoverSize = Math.round(windowHeight * BLURRED_COVER_SIZE_PERCENT)
 
@@ -261,13 +241,10 @@ const GameScreen = () => {
         const isSearchMode = round.questionType === 'guess_track'
 
         return (
-            // KeyboardAvoidingView ne doit envelopper QUE le contenu qui a
-            // besoin de laisser de la place au clavier (la recherche
-            // blindtest, cf. ci-dessous) : l'englober autour de ScreenLayout
-            // (comme avant) faisait aussi rétrécir/repositionner les formes
-            // décoratives (CornerShape, positionnées en % de leur conteneur)
-            // dès que le clavier s'ouvrait, alors qu'elles doivent rester
-            // fixes par rapport à l'écran entier.
+            // KeyboardAvoidingView doit envelopper seulement la recherche
+            // blindtest, pas tout l'écran. avant, en l'englobant autour de
+            // ScreenLayout, les formes décoratives bougeaient aussi dès que
+            // le clavier s'ouvrait, alors qu'elles doivent rester fixes
             <ScreenLayout noPadding shapes={GAME_SHAPES}>
                 {!isSearchMode ? (
                     <View className="flex-1 px-8 pb-10" style={{ paddingTop: insets.top + topExtraSpacing }}>
@@ -283,9 +260,9 @@ const GameScreen = () => {
                                     transition={100}
                                 />
                             )}
-                            {/* le titre reste centré exactement comme avant ; le
-                                bouton play/pause est juste superposé à côté en
-                                position absolue, sans influencer sa mise en page */}
+                            {/* le titre reste centré comme avant, le bouton play/pause
+                                est juste posé par-dessus en absolu, sans changer la
+                                mise en page */}
                             <View style={{ alignSelf: 'stretch', alignItems: 'center' }}>
                                 <Text className="text-black text-lg font-bold text-center">
                                     {truncateTitle(round.track.name)}
@@ -315,12 +292,11 @@ const GameScreen = () => {
                         />
                     </View>
                 ) : (
-                    // en mode blindtest, le décompte, la pochette floutée et le titre
-                    // restent en haut, tandis que la recherche reste seule en bas de
-                    // l'écran : quand le clavier s'ouvre, KeyboardAvoidingView réduit
-                    // l'espace disponible et ce bloc du bas remonte au-dessus. Limité à
-                    // ce seul contenu (cf. commentaire plus haut) pour ne pas affecter
-                    // les formes décoratives de ScreenLayout.
+                    // en blindtest, le décompte/la pochette/le titre restent en haut,
+                    // la recherche reste seule en bas. quand le clavier s'ouvre,
+                    // KeyboardAvoidingView réduit la place et fait remonter le bloc du
+                    // bas. limité à ce contenu pour ne pas toucher aux formes
+                    // décoratives (voir plus haut)
                     <KeyboardAvoidingView
                         style={{ flex: 1 }}
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

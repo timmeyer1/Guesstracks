@@ -6,19 +6,15 @@ import { LOBBY_SERVER_URL } from '../../core/constants';
 WebBrowser.maybeCompleteAuthSession();
 
 const APP_ID = process.env.EXPO_PUBLIC_DEEZER_APP_ID!;
-// même logique que app/modules/auth/spotify.ts : calcule automatiquement la
-// bonne URI de redirection selon l'environnement (Expo Go, build standalone)
+// même logique que spotify.ts, calcule la bonne URI de redirection tout seul
 const REDIRECT_URI = AuthSession.makeRedirectUri({ scheme: 'guesstracks' });
-// manage_library est nécessaire pour lire les titres favoris de l'utilisateur
-// (cf. deezer.api.ts -> GET /user/me/tracks)
+// manage_library en gros pour lire les titres favoris de l'utilisateur
 const PERMS = 'basic_access,email,manage_library';
 
 const AUTHORIZE_URL = 'https://connect.deezer.com/oauth/auth.php';
 
-// Deezer ne supporte pas PKCE pour les clients publics (contrairement à
-// Spotify) : le code renvoyé ici est échangé contre un token par notre
-// serveur, seul dépositaire du secret d'app Deezer (cf.
-// server/src/routes/auth.routes.js)
+// Deezer supporte pas PKCE contrairement à Spotify, dcp c'est notre serveur
+// qui échange le code contre un token, lui seul a le secret d'app Deezer
 export const loginWithDeezer = async () => {
     if (__DEV__) {
         console.log('--------------------------------------------------------------------------');
@@ -56,8 +52,7 @@ export const loginWithDeezer = async () => {
     });
 
     const data = await tokenResponse.json();
-    // jamais logger data ici : contient access_token en clair. En cas
-    // d'erreur, ne remonter que le message d'erreur métier.
+    // jamais logger data ici, y'a l'access_token en clair dedans
     if (!tokenResponse.ok) {
         throw new Error(data?.error || 'Échec de connexion Deezer');
     }

@@ -20,9 +20,7 @@ interface PlayerAvatarProps {
     size?: AvatarSize
 }
 
-// mémoïsé : affiché pour chaque joueur de PlayersGrid, ne doit pas re-rendre
-// (et re-décoder son Image) quand un autre joueur de la grille change (cf.
-// audit qualité, finding N4)
+// mémoïsé dcp un joueur qui change dans la grille fait pas re-rendre les autres
 export const PlayerAvatar: React.FC<PlayerAvatarProps> = React.memo(function PlayerAvatar({
     name,
     img,

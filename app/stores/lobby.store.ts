@@ -4,14 +4,11 @@ import { LobbyType, LobbyUserType } from "../core/types"
 type LobbyStoreType = {
     users: LobbyUserType[]
     lobby: LobbyType | null
-    // jeton de session émis par le serveur à la création/l'entrée dans le
-    // lobby, prouvant que ce joueur est bien celui qu'il prétend être (cf.
-    // app/core/api/lobby.client.ts et app/core/socket.ts) — jamais un
-    // playerId envoyé nu, falsifiable par n'importe quel client
+    // jeton donné par le serveur qui prouve que t'es bien le joueur que tu prétends être,
+    // dcp jamais un playerId tout nu qui pourrait être falsifié
     lobbyToken: string | null
 
-    // le serveur est la source de vérité : ces setters remplacent l'état
-    // complet à chaque mise à jour reçue (création, join, socket, ...)
+    // le serveur est la source de vérité, ces setters remplacent tout l'état à chaque update
     setUsers: (users: LobbyUserType[]) => void
     setLobby: (lobby: LobbyType) => void
     setLobbyToken: (token: string | null) => void
