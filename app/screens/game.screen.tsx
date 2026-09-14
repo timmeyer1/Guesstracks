@@ -293,39 +293,41 @@ const GameScreen = () => {
                     </View>
                 ) : (
                     // en blindtest, le décompte/la pochette/le titre restent en haut,
-                    // la recherche reste seule en bas. quand le clavier s'ouvre,
-                    // KeyboardAvoidingView réduit la place et fait remonter le bloc du
-                    // bas. limité à ce contenu pour ne pas toucher aux formes
-                    // décoratives (voir plus haut)
+                    // et la recherche suit juste en dessous du titre (pas plaquée
+                    // en bas de l'écran : sur un écran haut ou avec peu de contenu
+                    // au-dessus, elle se retrouvait trop loin en bas pour qu'on la
+                    // remarque). quand le clavier s'ouvre, KeyboardAvoidingView
+                    // réduit la place disponible (natif) ; sur web, c'est la hauteur
+                    // de <html> elle-même qui rétrécit avec le clavier (cf.
+                    // public/index.html). Limité à ce contenu pour ne pas toucher
+                    // aux formes décoratives (voir plus haut)
                     <KeyboardAvoidingView
                         style={{ flex: 1 }}
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     >
                         <View
-                            className="flex-1 px-8 pb-4 justify-between"
+                            className="flex-1 px-8 pb-4"
                             style={{ paddingTop: insets.top + topExtraSpacing }}
                         >
-                            <View>
-                                <RoundHeader roundIndex={round.roundIndex} totalRounds={round.totalRounds} />
+                            <RoundHeader roundIndex={round.roundIndex} totalRounds={round.totalRounds} />
 
-                                <View className="items-center mb-3">
-                                    <BlurredCover imageUri={round.track.image} size={blurredCoverSize} />
-                                </View>
-
-                                <View className="flex-row items-center justify-center gap-3 mb-3">
-                                    <AudioPlayerButton
-                                        previewUrl={round.track.previewUrl}
-                                        playing={roundAudio.status.playing}
-                                        onToggle={roundAudio.toggle}
-                                        compact
-                                    />
-                                    <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
-                                </View>
-
-                                <Text className="text-black text-lg font-bold text-center">
-                                    Quelle est cette musique ?
-                                </Text>
+                            <View className="items-center mb-3">
+                                <BlurredCover imageUri={round.track.image} size={blurredCoverSize} />
                             </View>
+
+                            <View className="flex-row items-center justify-center gap-3 mb-3">
+                                <AudioPlayerButton
+                                    previewUrl={round.track.previewUrl}
+                                    playing={roundAudio.status.playing}
+                                    onToggle={roundAudio.toggle}
+                                    compact
+                                />
+                                <StatusPill text={<CountdownLabel startedAt={round.startedAt} duration={round.duration} />} />
+                            </View>
+
+                            <Text className="text-black text-lg font-bold text-center mb-4">
+                                Quelle est cette musique ?
+                            </Text>
 
                             <SearchTrackQuestion
                                 catalog={catalog}

@@ -5,13 +5,13 @@ import './global.css';
 import { AuthNavigator } from './app/navigation/Navigator';
 import {SafeAreaProvider} from "react-native-safe-area-context";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { setAudioModeAsync } from 'expo-audio';
 import { ErrorBoundary } from './app/components/ErrorBoundary';
 import { StandaloneGate } from './app/components/StandaloneGate';
 import { LoadingSpinner } from './app/components/LoadingSpinner';
 import { setupWebAudioUnlock } from './app/core/webAudioUnlock';
 import { useRobustKeepAwake } from './app/core/hooks/useRobustKeepAwake';
 import { useStoresHydrated } from './app/core/hooks/useStoresHydrated';
+import { useAudioModeSetup } from './app/core/hooks/useAudioModeSetup';
 
 
 export default function App() {
@@ -32,15 +32,9 @@ export default function App() {
     setupWebAudioUnlock()
   }, []);
 
-  useEffect(() => {
-    setAudioModeAsync({
-      playsInSilentMode: true,
-      interruptionMode: 'duckOthers',
-      shouldPlayInBackground: false,
-    }).catch((err) => {
-      console.error('❌ Échec de la configuration du mode audio :', err);
-    });
-  }, []);
+  // Réapplique la config audio (ignorer le silencieux, etc.) à chaque
+  // retour au premier plan, pas juste au lancement — voir useAudioModeSetup.
+  useAudioModeSetup();
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

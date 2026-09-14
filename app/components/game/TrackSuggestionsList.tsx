@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect } from 'react'
-import { View, Text } from 'react-native'
+import React, { useCallback, useEffect, useRef } from 'react'
+import { Keyboard, Platform, View, Text } from 'react-native'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 import { Image } from 'expo-image'
 import { cssInterop } from 'nativewind'
@@ -18,10 +18,17 @@ cssInterop(TouchableOpacity, { className: 'style' })
 type TrackSuggestionsListProps = {
     suggestions: CatalogEntry[]
     onSelect: (id: string) => void
+    /** Hauteur max de la liste, adaptée à la place dispo (voir SearchTrackQuestion). */
+    maxHeight?: number
 }
 
 const MENU_MAX_HEIGHT = 288
 const OPEN_ANIMATION_MS = 180
+const isWeb = Platform.OS === 'web'
+// distance en px à partir de laquelle on considère que le doigt glisse
+// vraiment sur la liste (et pas juste un tap sur un titre) — même seuil que
+// manualTrackPicker.screen.tsx
+const SCROLL_DISMISS_THRESHOLD_PX = 10
 
 // ligne mémoïsée, se re-rend que si son track ou onSelect change vraiment
 type SuggestionRowProps = { track: CatalogEntry; onSelect: (id: string) => void }
@@ -63,6 +70,7 @@ const SuggestionRow: React.FC<SuggestionRowProps> = React.memo(function Suggesti
 export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = React.memo(function TrackSuggestionsList({
     suggestions,
     onSelect,
+    maxHeight = MENU_MAX_HEIGHT,
 }) {
     const openAnim = useSharedValue(0)
 
@@ -79,20 +87,49 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = React.m
         [onSelect]
     )
 
+    // ferme le clavier dès qu'on glisse vraiment sur la liste (pas juste un
+    // tap sur un titre), pour libérer la place qu'il cache — même logique
+    // que manualTrackPicker.screen.tsx. onScrollBeginDrag suffit en natif,
+    // mais react-native-web ne le câble jamais à un évènement DOM (cf. ce
+    // fichier), d'où le seuil de distance sur onTouchMove pour le web
+    const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+    const dismissedForGestureRef = useRef(false)
+
+    const handleTouchStart = useCallback((e: { nativeEvent: { touches: { pageX: number; pageY: number }[] } }) => {
+        const touch = e.nativeEvent.touches[0]
+        touchStartRef.current = touch ? { x: touch.pageX, y: touch.pageY } : null
+        dismissedForGestureRef.current = false
+    }, [])
+
+    const handleTouchMove = useCallback((e: { nativeEvent: { touches: { pageX: number; pageY: number }[] } }) => {
+        if (dismissedForGestureRef.current || !touchStartRef.current) return
+        const touch = e.nativeEvent.touches[0]
+        if (!touch) return
+        const dx = touch.pageX - touchStartRef.current.x
+        const dy = touch.pageY - touchStartRef.current.y
+        if (Math.hypot(dx, dy) >= SCROLL_DISMISS_THRESHOLD_PX) {
+            dismissedForGestureRef.current = true
+            Keyboard.dismiss()
+        }
+    }, [])
+
     return (
         // l'ombre et le overflow-hidden doivent être sur deux Views séparées,
-        // sinon l'ombre s'affiche pas (et sur Android ça casse le scroll)
+        // sinon l'ombre s'affiche pas (et sur Android ça casse le scroll).
+        // top-full (pas bottom-full) : la barre de recherche est juste sous le
+        // titre (cf. game.screen.tsx), donc c'est EN DESSOUS d'elle qu'il y a
+        // de la place, jusqu'au clavier — au-dessus, on retomberait sur le titre
         <Animated.View
-            className="absolute left-0 right-0 bottom-full mb-2 rounded-2xl shadow-card"
-            style={[{ maxHeight: MENU_MAX_HEIGHT, elevation: 6 }, animatedStyle]}
+            className="absolute left-0 right-0 top-full mt-2 rounded-2xl shadow-card"
+            style={[{ maxHeight, elevation: 6 }, animatedStyle]}
         >
-            <View className="bg-white rounded-2xl overflow-hidden" style={{ maxHeight: MENU_MAX_HEIGHT }}>
+            <View className="bg-white rounded-2xl overflow-hidden" style={{ maxHeight }}>
                 {/* FlatList et pas ScrollView : ne monte que les lignes visibles à
                 l'écran, dcp ça reste fluide même avec un gros catalogue */}
                 <FlatList
                     // hauteur explicite, sinon sur Android la liste devient non
                     // scrollable (elle mesure sa hauteur sur son contenu)
-                    style={{ maxHeight: MENU_MAX_HEIGHT }}
+                    style={{ maxHeight }}
                     // à false sinon ça casse le scroll sur Android dans ce menu flottant
                     removeClippedSubviews={false}
                     // sur Android sans ça le scroll marche pas (l'écran parent
@@ -102,9 +139,12 @@ export const TrackSuggestionsList: React.FC<TrackSuggestionsListProps> = React.m
                     keyExtractor={(track) => track.id}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
-                    initialNumToRender={8}
+                    initialNumToRender={12}
                     windowSize={5}
                     renderItem={renderItem}
+                    onScrollBeginDrag={isWeb ? undefined : () => Keyboard.dismiss()}
+                    onTouchStart={isWeb ? handleTouchStart : undefined}
+                    onTouchMove={isWeb ? handleTouchMove : undefined}
                     ListEmptyComponent={
                         <Text className="text-darkgray text-sm text-center p-4">
                             Aucun titre trouvé

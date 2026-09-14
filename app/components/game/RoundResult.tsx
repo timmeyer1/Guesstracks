@@ -197,16 +197,17 @@ export const RoundResult: React.FC<RoundResultProps> = ({
                 )}
             </View>
 
-            <View className="bg-offwhite rounded-3xl p-4 mb-4 items-center">
-                <Text className="text-darkgray text-sm mb-1">
-                    {questionType === 'who_liked' ? 'Ont liké cette musique :' : 'La bonne réponse'}
-                </Text>
-                <Text className="text-black font-bold text-base text-center">
-                    {questionType === 'who_liked'
-                        ? result.correctAnswerIds.map(nameOf).join(', ') || 'Personne dans le lobby'
-                        : `${result.track.name} — ${result.track.artist}`}
-                </Text>
-            </View>
+            {/* en blindtest, le titre/artiste sont déjà affichés juste au-dessus
+            (cf. SectionTitle avec la pochette) : répéter "La bonne réponse" ici
+            serait redondant. Ce bloc ne sert donc qu'en mode who_liked */}
+            {questionType === 'who_liked' && (
+                <View className="bg-offwhite rounded-3xl p-4 mb-4 items-center">
+                    <Text className="text-darkgray text-sm mb-1">Ont liké cette musique :</Text>
+                    <Text className="text-black font-bold text-base text-center">
+                        {result.correctAnswerIds.map(nameOf).join(', ') || 'Personne dans le lobby'}
+                    </Text>
+                </View>
+            )}
 
             {myResult && (
                 <View className="rounded-3xl p-4 mb-4 bg-offwhite">

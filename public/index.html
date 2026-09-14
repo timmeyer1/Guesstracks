@@ -16,6 +16,12 @@
     que ça se stabilise. En figeant le zoom, l'un et l'autre disparaissent. -->
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover" />
     <meta name="theme-color" content="#9622E0" />
+    <!-- Sans ça, en mode standalone avec le système en Dark Mode, WebKit applique
+    son propre thème sombre aux contrôles natifs (champs de texte, curseur,
+    sélection...) même si notre CSS reste en clair partout : le texte tapé peut
+    alors devenir illisible (ex: texte clair sur fond clair) dans la barre de
+    recherche. L'app est pensée pour un thème clair uniquement, on le fige. -->
+    <meta name="color-scheme" content="light" />
     <!-- Permet le vrai mode plein écran (sans barre d'adresse ni barre d'outils
     Safari) une fois la page ajoutée à l'écran d'accueil ("Partager" ->
     "Sur l'écran d'accueil") : en simple onglet Safari, ces barres restent
@@ -28,6 +34,11 @@
     <title>%WEB_TITLE%</title>
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
+      /* cf. la balise <meta name="color-scheme"> plus haut : la fige aussi côté
+      CSS, au cas où le meta seul ne suffise pas en mode standalone */
+      :root {
+        color-scheme: light;
+      }
       /* These styles make the body full-height */
       html,
       body {
@@ -145,10 +156,49 @@
           // scroll à l'ouverture ET à la fermeture du clavier — mais
           // uniquement s'il a réellement eu lieu (le même souci de reflow
           // superflu que ci-dessus s'applique à un scrollTo inconditionnel).
+          // Ce correctif arrive TOUJOURS après coup (le scroll natif a déjà eu
+          // lieu avant que ce listener ne s'exécute), ce qui se voit comme un
+          // sursaut de la page puis un retour en place — cf. lockBodyScroll
+          // ci-dessous, qui empêche ce scroll natif de se produire du tout.
           if (window.scrollX !== 0 || window.scrollY !== 0) {
             window.scrollTo(0, 0);
           }
         }
+
+        // Empêche le scroll natif "amène le champ focalisé dans la vue"
+        // évoqué ci-dessus, plutôt que de le corriger après coup : body passe
+        // en position 'fixed' tant qu'un champ a le focus, dcp il n'y a plus
+        // rien à faire défiler pour iOS. body a déjà overflow:hidden (cf.
+        // #expo-reset plus haut) : aucun scroll normal n'y a jamais lieu, donc
+        // rien à sauvegarder/restaurer ici, contrairement au correctif habituel
+        // "scroll lock" qui doit mémoriser scrollY.
+        function lockBodyScroll() {
+          var style = document.body.style;
+          style.position = 'fixed';
+          style.top = '0';
+          style.left = '0';
+          style.right = '0';
+        }
+        function unlockBodyScroll() {
+          var style = document.body.style;
+          style.position = '';
+          style.top = '';
+          style.left = '';
+          style.right = '';
+        }
+        document.addEventListener(
+          'focusin',
+          function (e) {
+            var target = e.target;
+            if (
+              target &&
+              (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+            ) {
+              lockBodyScroll();
+            }
+          },
+          true
+        );
 
         // le focus/blur d'un champ ne déclenche pas toujours un resize/scroll
         // fiable sur visualViewport (selon versions iOS) : on force nous-mêmes
@@ -157,6 +207,7 @@
         document.addEventListener(
           'focusout',
           function () {
+            unlockBodyScroll();
             setTimeout(setRealViewportHeight, 100);
           },
           true
@@ -189,6 +240,20 @@
           });
         }
 
+        // l'encoche/île dynamique ne bouge jamais à cause du clavier (seule une
+        // vraie rotation d'écran la déplace) : remesurer sur CHAQUE 'resize'
+        // était non seulement inutile pendant l'animation d'ouverture du
+        // clavier, mais carrément nocif — confirmé en conditions réelles, ça
+        // provoquait un sursaut où le titre passait un instant sous la barre de
+        // statut avant de se stabiliser. La sonde (double rAF, cf. plus haut)
+        // tombait visiblement en plein milieu du reflow provoqué par le clavier
+        // et remontait ponctuellement un insets.top erroné (trop petit), aussitôt
+        // appliqué par useWebSafeAreaInsets. On ne remesure donc plus sur
+        // 'resize' que si aucun clavier n'est ouvert à cet instant.
+        function measureSafeAreaInsetsUnlessKeyboardOpen() {
+          if (!isKeyboardLikelyOpen()) measureSafeAreaInsets();
+        }
+
         setRealViewportHeight();
         // ce <script> s'exécute dans <head>, avant que <body> n'existe encore
         // dans le DOM (contrairement à documentElement, déjà présent) : la
@@ -199,7 +264,7 @@
           document.addEventListener('DOMContentLoaded', measureSafeAreaInsets, { once: true });
         }
         window.addEventListener('resize', setRealViewportHeight);
-        window.addEventListener('resize', measureSafeAreaInsets);
+        window.addEventListener('resize', measureSafeAreaInsetsUnlessKeyboardOpen);
         window.addEventListener('orientationchange', setRealViewportHeight);
         window.addEventListener('orientationchange', measureSafeAreaInsets);
         if (window.visualViewport) {

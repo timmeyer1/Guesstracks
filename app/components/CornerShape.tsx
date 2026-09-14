@@ -1,6 +1,6 @@
 // app/components/CornerShape.tsx
 import React from 'react';
-import { Image, View, StyleProp, ImageStyle, DimensionValue } from 'react-native';
+import { Image, Platform, View, StyleProp, ImageStyle, DimensionValue } from 'react-native';
 
 // ratio largeur/hauteur du visuel, dcp RN calcule la hauteur tout seul depuis la largeur
 const SHAPE_ASPECT_RATIO = 877 / 1110;
@@ -51,7 +51,16 @@ export const CornerShape: React.FC<CornerShapeProps> = ({
         <View
             pointerEvents="none"
             style={{
-                position: 'absolute',
+                // sur web/PWA, public/index.html réduit la hauteur de <html> pour
+                // suivre window.visualViewport quand le clavier est ouvert (voir
+                // ce fichier). Avec 'absolute', top/bottom en % se recalculaient
+                // sur ce conteneur réduit, dcp les formes bougeaient à chaque
+                // ouverture/fermeture du clavier. 'fixed' les ancre au vrai
+                // viewport de mise en page, jamais réduit par le clavier sur iOS
+                // (même principe que le bandeau du bas dans
+                // manualTrackPicker.screen.tsx). Natif non concerné (pas de
+                // clavier logiciel qui redimensionne la fenêtre).
+                position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as 'absolute',
                 width: size,
                 aspectRatio: SHAPE_ASPECT_RATIO,
                 top,

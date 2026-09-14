@@ -6,8 +6,10 @@
 // navigateur demande un clic utilisateur à chaque nouvel extrait sur Safari
 // iOS, ce qui casse l'enchaînement automatique des manches.
 import { useEffect, useRef, useState } from 'react'
+import { AppState, type AppStateStatus } from 'react-native'
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio'
 import type { UseSyncedAudioPlayerOptions } from './useSyncedAudioPlayer.types'
+import { configureAudioMode } from './useAudioModeSetup'
 
 // Sur certains Android un peu poussifs, le premier play() peut ne jamais
 // vraiment démarrer le son (pas d'erreur, juste rien qui se passe) même si
@@ -123,6 +125,28 @@ export const useNativeSyncedAudioPlayer = ({
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status.isLoaded, startedAt, previewUrl])
+
+    // Quand l'app revient au premier plan après une mise en veille/appel, la
+    // session audio iOS repart parfois cassée : reconfigurer le mode (voir
+    // useAudioModeSetup) ne suffit pas à elle seule, le lecteur DÉJÀ créé
+    // avant la mise en veille reste silencieux tant qu'on ne relance pas
+    // play() dessus explicitement — même si status.playing dit encore true.
+    // C'est ce qui donnait l'impression que "tout est activé" mais qu'aucun
+    // son ne sortait après avoir verrouillé le téléphone entre deux manches.
+    useEffect(() => {
+        const appState = { current: AppState.currentState }
+        const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+            const cameBackToForeground = appState.current !== 'active' && nextState === 'active'
+            appState.current = nextState
+            if (!cameBackToForeground) return
+            if (!autoPlay || syncedForUrlRef.current !== previewUrl) return
+
+            configureAudioMode().then(() => {
+                player.play()
+            })
+        })
+        return () => subscription.remove()
+    }, [autoPlay, previewUrl, player])
 
     // Filet de rattrapage : si on a demandé la lecture (hasAttempted) mais
     // que status.playing ne passe jamais à true, on retente nous-mêmes, un

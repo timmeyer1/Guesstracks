@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Keyboard, View, Text, TextInput } from 'react-native'
+import { Keyboard, View, Text, TextInput, useWindowDimensions } from 'react-native'
 import { Search } from 'lucide-react-native'
 import { COLORS } from '../../core/constants/colors.constants'
 import { TrackSuggestionsList } from './TrackSuggestionsList'
@@ -16,6 +16,19 @@ const MIN_QUERY_LENGTH = 2
 // on relance la recherche qu'une fois que la frappe s'arrête un peu, sinon
 // ça freeze sur les vieux téléphones avec un gros catalogue
 const SEARCH_DEBOUNCE_MS = 120
+
+// sur web/PWA (voir public/index.html), windowHeight reflète la hauteur
+// réellement visible (déjà réduite par le clavier, cf. Dimensions de
+// react-native-web qui suit window.visualViewport). On en réserve la moitié
+// pour la liste de suggestions, plutôt qu'une hauteur fixe : ça en affiche
+// plus quand le clavier prend moins de place (ou est fermé), et ça reste
+// raisonnable sur un petit iPhone avec le clavier ouvert. La barre de
+// recherche est juste sous le titre (cf. game.screen.tsx), pas plaquée en
+// bas de l'écran — sinon le clavier la recouvrait complètement. La liste
+// s'ouvre donc EN DESSOUS d'elle (voir TrackSuggestionsList), dans l'espace
+// qui reste jusqu'au clavier
+const SUGGESTIONS_MAX_HEIGHT_RATIO = 0.5
+const SUGGESTIONS_MAX_HEIGHT_CAP = 420
 
 // insensible à la casse et aux accents, pour que "orleans" trouve "Orléans"
 const DIACRITICS_RANGE = new RegExp('[\\u0300-\\u036f]', 'g')
@@ -35,6 +48,11 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
     const inputRef = useRef<TextInput>(null)
+    const { height: windowHeight } = useWindowDimensions()
+    const suggestionsMaxHeight = Math.min(
+        Math.round(windowHeight * SUGGESTIONS_MAX_HEIGHT_RATIO),
+        SUGGESTIONS_MAX_HEIGHT_CAP
+    )
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS)
@@ -76,7 +94,7 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
     )
 
     // recherche sur le titre ET l'artiste, mot par mot et dans n'importe quel
-    // ordre — dcp "dj snake taki taki" trouve le titre même écrit dans
+    // ordre — dcp "gambi loca loca" trouve le titre même écrit dans
     // l'autre sens
     const suggestions = useMemo(() => {
         const normalizedQuery = normalize(debouncedQuery)
@@ -151,7 +169,13 @@ export const SearchTrackQuestion: React.FC<SearchTrackQuestionProps> = ({
                 />
             </View>
 
-            {showDropdown && <TrackSuggestionsList suggestions={suggestions} onSelect={handleSelect} />}
+            {showDropdown && (
+                <TrackSuggestionsList
+                    suggestions={suggestions}
+                    onSelect={handleSelect}
+                    maxHeight={suggestionsMaxHeight}
+                />
+            )}
         </View>
     )
 }
